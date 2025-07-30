@@ -11,7 +11,7 @@ AuctionHouse is the liquidation engine for Ripe Protocol, executing multi-phase 
 - **Auction Management**: Time-based discounts from 0% to maximum, paid in GREEN
 - **Keeper Rewards**: Incentivizes decentralized position monitoring with debt-based rewards
 
-Built with transient storage optimization, AuctionHouse implements unified repayment formulas across all liquidation types. It integrates with [CreditEngine](CreditEngine.md), [StabilityPool](../vaults/StabilityPool.md), and [Ledger](../data/Ledger.md) for atomic execution while maintaining strict value flow accounting and configurable per-asset auction parameters.
+Built with transient storage optimization, AuctionHouse implements unified repayment formulas across all liquidation types. It integrates with [CreditEngine](CreditEngine.md), [StabilityPool](../vaults/StabilityPool.md), and [Ledger](./Ledger.md) for atomic execution while maintaining strict value flow accounting and configurable per-asset auction parameters.
 
 ## Architecture & Modules
 
@@ -21,7 +21,7 @@ AuctionHouse is built using a modular architecture with the following components
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of Switchboard authorization
@@ -32,7 +32,7 @@ AuctionHouse is built using a modular architecture with the following components
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Green token minting capability (for keeper rewards)
@@ -224,7 +224,7 @@ struct FungibleAuction:
 
 ### Inherited State Variables
 
-From [DeptBasics](../modules/DeptBasics.md):
+From [DeptBasics](../shared-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 - `canMintGreen: bool` - Set to `True` for keeper rewards

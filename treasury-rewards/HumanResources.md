@@ -28,7 +28,7 @@ HumanResources is built as a Department with modular architecture:
 ### Addys Module
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Resolution of Ledger, RipeGovVault, VaultBook, etc.

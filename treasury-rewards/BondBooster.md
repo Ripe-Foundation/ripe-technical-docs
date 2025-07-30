@@ -22,7 +22,7 @@ BondBooster is built using a modular architecture with the following components:
 ### Addys Module
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
 - **Key Features**:
   - Access to BondRoom address for permission validation
   - Switchboard validation for configuration updates
@@ -31,7 +31,7 @@ BondBooster is built using a modular architecture with the following components:
 ### DeptBasics Module
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
 - **Key Features**:
   - Department interface compliance
   - No minting capabilities (boost only affects ratios)

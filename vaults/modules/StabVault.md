@@ -339,7 +339,7 @@ def swapForLiquidatedCollateral(
 
 #### Access
 
-Only callable by [AuctionHouse](../../core/AuctionHouse.md)
+Only callable by [AuctionHouse](../../core-lending/AuctionHouse.md)
 
 #### Process Flow
 1. **Validation**: Ensures stab asset is supported and liq asset is not a vault asset
@@ -422,7 +422,7 @@ def claimFromStabilityPool(
 
 #### Access
 
-Only callable by [Teller](../../core/Teller.md)
+Only callable by [Teller](../../core-lending/Teller.md)
 
 #### Process Flow
 1. **Permission Validation**: Checks claim permissions via MissionControl

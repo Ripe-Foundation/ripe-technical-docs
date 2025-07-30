@@ -12,7 +12,7 @@ GreenToken (GREEN) is Ripe Protocol's USD-pegged stablecoin, serving as the prim
 - **EIP-2612 Permits**: Gasless approvals for improved user experience and composability
 - **Compliance Tools**: Blacklist capabilities and emergency pause for regulatory requirements
 
-Built on a modular ERC20 architecture, GREEN implements advanced security features including time-locked governance transitions, comprehensive event logging, and integration with protocol-wide pause mechanisms for maximum safety and compliance. GREEN is minted by [CreditEngine](../core/CreditEngine.md) for borrowing operations and used throughout the protocol alongside [RipeToken](RipeToken.md) for governance and [SavingsGreen](SavingsGreen.md) for yield generation.
+Built on a modular ERC20 architecture, GREEN implements advanced security features including time-locked governance transitions, comprehensive event logging, and integration with protocol-wide pause mechanisms for maximum safety and compliance. GREEN is minted by [CreditEngine](../core-lending/CreditEngine.md) for borrowing operations and used throughout the protocol alongside [RipeToken](RipeToken.md) for governance and [SavingsGreen](SavingsGreen.md) for yield generation.
 
 ## Architecture & Modules
 
@@ -96,9 +96,9 @@ initializes: token
 | RipeHq           |    | Protocol          |    | Users &          |
 | Validation       |    | Contracts         |    | External         |
 |                  |    |                   |    | Interfaces       |
-| * canMintGreen   |    | * [CreditEngine](../core/CreditEngine.md)    |    |                  |
-| * governance     |    | * [Teller](../core/Teller.md)          |    | * ERC20 ops      |
-| * blacklist      |    | * [AuctionHouse](../core/AuctionHouse.md)    |    | * Permit         |
+| * canMintGreen   |    | * [CreditEngine](../core-lending/CreditEngine.md)    |    |                  |
+| * governance     |    | * [Teller](../core-lending/Teller.md)          |    | * ERC20 ops      |
+| * blacklist      |    | * [AuctionHouse](../core-lending/AuctionHouse.md)    |    | * Permit         |
 | * permissions    |    | * [StabilityPool](../vaults/StabilityPool.md)   |    | * Transfers      |
 +------------------+    | * [VaultBook](../registries/VaultBook.md)       |    | * Approvals      |
                         +-------------------+    +------------------+
@@ -549,7 +549,7 @@ def mint(_recipient: address, _amount: uint256) -> bool:
 
 #### Access
 
-Only callable by addresses authorized through [RipeHq](../registries/RipeHq.md)'s `canMintGreen` validation
+Only callable by addresses authorized through [RipeHq](../governance-control/RipeHq.md)'s `canMintGreen` validation
 
 #### Events Emitted
 
@@ -760,7 +760,7 @@ def setBlacklist(_addr: address, _shouldBlacklist: bool) -> bool:
 
 #### Access
 
-Only callable by addresses authorized through [RipeHq](../registries/RipeHq.md)'s `canSetTokenBlacklist`
+Only callable by addresses authorized through [RipeHq](../governance-control/RipeHq.md)'s `canSetTokenBlacklist`
 
 #### Events Emitted
 
@@ -801,7 +801,7 @@ def burnBlacklistTokens(_addr: address, _amount: uint256 = max_value(uint256)) -
 
 #### Access
 
-Only callable by [RipeHq](../registries/RipeHq.md) governance
+Only callable by [RipeHq](../governance-control/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -870,7 +870,7 @@ _Function does not return any values_
 
 #### Access
 
-Only callable by [RipeHq](../registries/RipeHq.md) governance
+Only callable by [RipeHq](../governance-control/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -903,7 +903,7 @@ def confirmHqChange() -> bool:
 
 #### Access
 
-Only callable by [RipeHq](../registries/RipeHq.md) governance
+Only callable by [RipeHq](../governance-control/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -930,7 +930,7 @@ def cancelHqChange():
 
 #### Access
 
-Only callable by [RipeHq](../registries/RipeHq.md) governance
+Only callable by [RipeHq](../governance-control/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -1007,7 +1007,7 @@ def setHqChangeTimeLock(_newTimeLock: uint256) -> bool:
 
 #### Access
 
-Only callable by [RipeHq](../registries/RipeHq.md) governance (when no pending governance changes)
+Only callable by [RipeHq](../governance-control/RipeHq.md) governance (when no pending governance changes)
 
 #### Events Emitted
 
@@ -1118,7 +1118,7 @@ def pause(_shouldPause: bool):
 
 #### Access
 
-Only callable by [RipeHq](../registries/RipeHq.md) governance
+Only callable by [RipeHq](../governance-control/RipeHq.md) governance
 
 #### Events Emitted
 

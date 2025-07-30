@@ -22,7 +22,7 @@ SwitchboardDelta is built using a modular architecture with the following compon
 ### LocalGov Module
 - **Location**: `contracts/modules/LocalGov.vy`
 - **Purpose**: Provides governance functionality
-- **Documentation**: See [LocalGov Technical Documentation](../modules/LocalGov.md)
+- **Documentation**: See [LocalGov Technical Documentation](../governance-control/LocalGov.md)
 - **Key Features**:
   - Governance address management
   - Permission validation
@@ -32,7 +32,7 @@ SwitchboardDelta is built using a modular architecture with the following compon
 ### TimeLock Module
 - **Location**: `contracts/modules/TimeLock.vy`
 - **Purpose**: Manages time-locked configuration changes
-- **Documentation**: See [TimeLock Technical Documentation](../modules/TimeLock.md)
+- **Documentation**: See [TimeLock Technical Documentation](../governance-control/TimeLock.md)
 - **Key Features**:
   - Action ID generation
   - Time-lock enforcement

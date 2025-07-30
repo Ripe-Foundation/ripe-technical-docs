@@ -11,7 +11,7 @@ StabilityPool is a specialized vault that acts as the protocol's liquidation bac
 - **Receive Liquidated Assets**: Automatically get ETH, BTC, or other collateral at discount
 - **Earn RIPE Rewards**: Additional incentives for providing stability
 
-Built on the StabVault module, StabilityPool uses USD-based share accounting to fairly distribute liquidation proceeds. It integrates directly with [AuctionHouse](../core/AuctionHouse.md) for collateral distribution and tracks both original deposits and accumulated rewards for transparent accounting. The stability pool is managed through [VaultBook](../registries/VaultBook.md) and configuration is handled via [MissionControl](../data/MissionControl.md).
+Built on the StabVault module, StabilityPool uses USD-based share accounting to fairly distribute liquidation proceeds. It integrates directly with [AuctionHouse](./AuctionHouse.md) for collateral distribution and tracks both original deposits and accumulated rewards for transparent accounting. The stability pool is managed through [VaultBook](../registries/VaultBook.md) and configuration is handled via [MissionControl](../governance-control/MissionControl.md).
 
 ## Architecture & Dependencies
 
@@ -21,7 +21,7 @@ StabilityPool is built using a modular architecture with delegation to specializ
 
 - **StabVault**: Provides sophisticated stability pool functionality with USD value-based accounting
 - **VaultData**: Manages user balances, asset registration, and vault state
-- **[Addys](../modules/Addys.md)**: Handles protocol address resolution and permission management
+- **[Addys](../shared-modules/Addys.md)**: Handles protocol address resolution and permission management
 
 ### Module Initialization
 
@@ -169,7 +169,7 @@ def depositTokensInVault(
 
 #### Access
 
-Only callable by [Teller](../core/Teller.md)
+Only callable by [Teller](./Teller.md)
 
 #### Process Flow
 
@@ -230,7 +230,7 @@ def withdrawTokensFromVault(
 
 #### Access
 
-Only callable by [Teller](../core/Teller.md), AuctionHouse, or CreditEngine
+Only callable by [Teller](./Teller.md), AuctionHouse, or CreditEngine
 
 #### Process Flow
 
@@ -292,7 +292,7 @@ def transferBalanceWithinVault(
 
 #### Access
 
-Only callable by [AuctionHouse](../core/AuctionHouse.md) or CreditEngine (for liquidations)
+Only callable by [AuctionHouse](./AuctionHouse.md) or CreditEngine (for liquidations)
 
 #### Process Flow
 

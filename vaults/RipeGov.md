@@ -21,15 +21,15 @@ RipeGov is built using a sophisticated modular architecture with multiple extern
 ### Core Module Dependencies
 - **SharesVault**: Provides yield-bearing vault functionality with share-based accounting
 - **VaultData**: Manages user balances, asset registration, and vault state
-- **[Addys](../modules/Addys.md)**: Handles protocol address resolution and permission management
+- **[Addys](../shared-modules/Addys.md)**: Handles protocol address resolution and permission management
 
 ### External Integrations
 - **MissionControl**: Configuration management for lock terms and asset weights
 - **BoardRoom**: Receives governance power updates for voting systems
-- **[Lootbox](../core/Lootbox.md)**: Integrates with reward distribution and points tracking
+- **[Lootbox](../treasury-rewards/Lootbox.md)**: Integrates with reward distribution and points tracking
 - **VaultBook**: Provides vault registration and identification
 - **Ledger**: Checks bad debt status for withdrawal restrictions
-- **[HumanResources](../core/HumanResources.md)**: Manages contributor tokens and transfers
+- **[HumanResources](../treasury-rewards/HumanResources.md)**: Manages contributor tokens and transfers
 
 ### Module Initialization
 ```vyper
@@ -239,7 +239,7 @@ def depositTokensInVault(
 
 #### Access
 
-Only callable by [Teller](../core/Teller.md)
+Only callable by [Teller](../core-lending/Teller.md)
 
 #### Process Flow
 1. **SharesVault Deposit**: Uses SharesVault module for token handling and share minting
@@ -335,7 +335,7 @@ def withdrawTokensFromVault(
 
 #### Access
 
-Only callable by [Teller](../core/Teller.md), AuctionHouse, or CreditEngine
+Only callable by [Teller](../core-lending/Teller.md), AuctionHouse, or CreditEngine
 
 #### Withdrawal Restrictions
 1. **Lock Period**: Must wait until `unlock` block is reached
@@ -370,7 +370,7 @@ def transferBalanceWithinVault(
 
 #### Access
 
-Only callable by [AuctionHouse](../core/AuctionHouse.md) or CreditEngine (for liquidations)
+Only callable by [AuctionHouse](../core-lending/AuctionHouse.md) or CreditEngine (for liquidations)
 
 #### Process Flow
 1. **SharesVault Transfer**: Moves shares between users

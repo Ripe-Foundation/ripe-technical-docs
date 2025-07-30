@@ -23,7 +23,7 @@ Ledger is built using a modular architecture that provides foundational departme
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution and validation
-- **Documentation**: See [Addys Technical Documentation](../modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of authorized callers for state modifications
@@ -34,7 +34,7 @@ Ledger is built using a modular architecture that provides foundational departme
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Department interface compliance
@@ -301,7 +301,7 @@ struct RipeBondData:
 
 ### Inherited State Variables
 
-From [DeptBasics](../modules/DeptBasics.md):
+From [DeptBasics](../shared-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 - `canMintGreen: bool` - Set to `False`

@@ -20,7 +20,7 @@ RebaseErc20 is built using a modular architecture with delegation to yield-focus
 ### Core Module Dependencies
 - **SharesVault**: Provides yield-bearing vault functionality with share-based accounting
 - **VaultData**: Manages user share balances, asset registration, and vault state
-- **[Addys](../modules/Addys.md)**: Handles protocol address resolution and permission management
+- **[Addys](../shared-modules/Addys.md)**: Handles protocol address resolution and permission management
 
 ### Module Initialization
 ```vyper

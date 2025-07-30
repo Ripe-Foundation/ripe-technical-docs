@@ -88,8 +88,8 @@ This gives the inheriting contract access to all internal functions and the abil
 +------------------+    +-------------------+    +------------------+
 | Core Contracts   |    | Vault System      |    | Config System    |
 | * Green Token    |    | * VaultBook       |    | * Switchboard    |
-| * [CreditEngine](../core/CreditEngine.md)   |    | * Registered      |    | * Registered     |
-| * [Teller](../core/Teller.md), etc.   |    |   Vaults          |    |   Configs        |
+| * [CreditEngine](../core-lending/CreditEngine.md)   |    | * Registered      |    | * Registered     |
+| * [Teller](../core-lending/Teller.md), etc.   |    |   Vaults          |    |   Configs        |
 +------------------+    +-------------------+    +------------------+
 ```
 
@@ -389,9 +389,9 @@ Each department has a pair of functions for getting its ID and address:
 - `_getVaultBookId() -> uint256` - Returns VAULT_BOOK_ID (8)
 - `_getVaultBookAddr() -> address` - Returns VaultBook address
 
-### [AuctionHouse](../core/AuctionHouse.md) Functions
+### [AuctionHouse](../core-lending/AuctionHouse.md) Functions
 - `_getAuctionHouseId() -> uint256` - Returns AUCTION_HOUSE_ID (9)
-- `_getAuctionHouseAddr() -> address` - Returns [AuctionHouse](../core/AuctionHouse.md) address
+- `_getAuctionHouseAddr() -> address` - Returns [AuctionHouse](../core-lending/AuctionHouse.md) address
 
 ### AuctionHouseNft Functions
 - `_getAuctionHouseNftId() -> uint256` - Returns AUCTION_HOUSE_NFT_ID (10)
@@ -401,27 +401,27 @@ Each department has a pair of functions for getting its ID and address:
 - `_getBoardroomId() -> uint256` - Returns BOARDROOM_ID (11)
 - `_getBoardroomAddr() -> address` - Returns Boardroom address
 
-### [BondRoom](../core/BondRoom.md) Functions
+### [BondRoom](../treasury-rewards/BondRoom.md) Functions
 - `_getBondRoomId() -> uint256` - Returns BOND_ROOM_ID (12)
 - `_getBondRoomAddr() -> address` - Returns BondRoom address
 
-### [CreditEngine](../core/CreditEngine.md) Functions
+### [CreditEngine](../core-lending/CreditEngine.md) Functions
 - `_getCreditEngineId() -> uint256` - Returns CREDIT_ENGINE_ID (13)
 - `_getCreditEngineAddr() -> address` - Returns CreditEngine address
 
-### [Endaoment](../core/Endaoment.md) Functions
+### [Endaoment](../treasury-rewards/Endaoment.md) Functions
 - `_getEndaomentId() -> uint256` - Returns ENDAOMENT_ID (14)
 - `_getEndaomentAddr() -> address` - Returns Endaoment address
 
-### [HumanResources](../core/HumanResources.md) Functions
+### [HumanResources](../treasury-rewards/HumanResources.md) Functions
 - `_getHumanResourcesId() -> uint256` - Returns HUMAN_RESOURCES_ID (15)
 - `_getHumanResourcesAddr() -> address` - Returns HumanResources address
 
-### [Lootbox](../core/Lootbox.md) Functions
+### [Lootbox](../treasury-rewards/Lootbox.md) Functions
 - `_getLootboxId() -> uint256` - Returns LOOTBOX_ID (16)
 - `_getLootboxAddr() -> address` - Returns Lootbox address
 
-### [Teller](../core/Teller.md) Functions
+### [Teller](../core-lending/Teller.md) Functions
 - `_getTellerId() -> uint256` - Returns TELLER_ID (17)
 - `_getTellerAddr() -> address` - Returns Teller address
 

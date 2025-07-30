@@ -11,7 +11,7 @@ PriceDesk is the centralized oracle registry that aggregates multiple price sour
 - **Smart Aggregation**: Checks priority sources first, then falls back to all registered oracles
 - **Value Conversions**: Automatic USD/asset conversions with decimal normalization
 
-Built on LocalGov and AddressRegistry modules, PriceDesk implements resilient price discovery through priority-based oracle selection. It handles diverse token decimals automatically and provides specialized ETH conversion utilities, ensuring protocol-wide access to accurate pricing data. It integrates with price sources like [ChainlinkPrices](../priceSources/ChainlinkPrices.md), [CurvePrices](../priceSources/CurvePrices.md), and [PythPrices](../priceSources/PythPrices.md), with configuration managed through [MissionControl](../data/MissionControl.md).
+Built on LocalGov and AddressRegistry modules, PriceDesk implements resilient price discovery through priority-based oracle selection. It handles diverse token decimals automatically and provides specialized ETH conversion utilities, ensuring protocol-wide access to accurate pricing data. It integrates with price sources like [ChainlinkPrices](../pricing/ChainlinkPrices.md), [CurvePrices](../pricing/CurvePrices.md), and [PythPrices](../pricing/PythPrices.md), with configuration managed through [MissionControl](../governance-control/MissionControl.md).
 
 ## Architecture & Modules
 
@@ -21,7 +21,7 @@ PriceDesk is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/modules/LocalGov.vy`
 - **Purpose**: Provides governance functionality with time-locked changes
-- **Documentation**: See [LocalGov Technical Documentation](../modules/LocalGov.md)
+- **Documentation**: See [LocalGov Technical Documentation](../governance-control/LocalGov.md)
 - **Key Features**:
   - Governance address management
   - Time-locked transitions
@@ -32,7 +32,7 @@ PriceDesk is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/registries/modules/AddressRegistry.vy`
 - **Purpose**: Manages the registry of price source addresses
-- **Documentation**: See [AddressRegistry Technical Documentation](../modules/AddressRegistry.md)
+- **Documentation**: See [AddressRegistry Technical Documentation](../registries/AddressRegistry.md)
 - **Key Features**:
   - Sequential registry ID assignment for price sources
   - Time-locked address additions, updates, and disabling
@@ -43,7 +43,7 @@ PriceDesk is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides RipeHq integration for address lookups
-- **Documentation**: See [Addys Technical Documentation](../modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
 - **Key Features**:
   - Access to MissionControl address
   - Validation of Ripe protocol addresses
@@ -53,7 +53,7 @@ PriceDesk is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism
   - Department interface compliance
@@ -153,12 +153,12 @@ struct PriceConfig:
 
 ### Inherited State Variables
 
-From [LocalGov](../modules/LocalGov.md):
+From [LocalGov](../governance-control/LocalGov.md):
 
 - `governance: address` - Current governance address
 - `govChangeTimeLock: uint256` - Timelock for governance changes
 
-From [AddressRegistry](../modules/AddressRegistry.md):
+From [AddressRegistry](../registries/AddressRegistry.md):
 
 - `registryChangeTimeLock: uint256` - Timelock for registry changes
 - Registry mappings for oracle management
@@ -167,7 +167,7 @@ From Addys:
 
 - RipeHq address reference
 
-From [DeptBasics](../modules/DeptBasics.md):
+From [DeptBasics](../shared-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 
@@ -499,11 +499,11 @@ def startAddNewAddressToRegistry(_addr: address, _description: String[64]) -> bo
 
 #### Access
 
-Only callable by governance AND only when the contract is not paused (see [LocalGov](../modules/LocalGov.md) for governance details)
+Only callable by governance AND only when the contract is not paused (see [LocalGov](../governance-control/LocalGov.md) for governance details)
 
 #### Events Emitted
 
-- `NewAddressPending` (from [AddressRegistry](../modules/AddressRegistry.md)) - Contains address, description, and confirmation block
+- `NewAddressPending` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains address, description, and confirmation block
 
 #### Example Usage
 
@@ -545,7 +545,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `NewAddressConfirmed` (from [AddressRegistry](../modules/AddressRegistry.md)) - Contains registry ID, address, description
+- `NewAddressConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, address, description
 
 #### Example Usage
 
@@ -586,7 +586,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `NewAddressCancelled` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `NewAddressCancelled` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 #### Example Usage
 
@@ -625,7 +625,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressUpdatePending` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `AddressUpdatePending` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 #### Example Usage
 
@@ -665,7 +665,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressUpdateConfirmed` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `AddressUpdateConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 #### Example Usage
 
@@ -705,7 +705,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressUpdateCancelled` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `AddressUpdateCancelled` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 ### `startAddressDisableInRegistry`
 
@@ -734,7 +734,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressDisablePending` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `AddressDisablePending` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 #### Example Usage
 
@@ -773,7 +773,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressDisableConfirmed` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `AddressDisableConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 ### `cancelAddressDisableInRegistry`
 
@@ -802,7 +802,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressDisableCancelled` (from [AddressRegistry](../modules/AddressRegistry.md))
+- `AddressDisableCancelled` (from [AddressRegistry](../registries/AddressRegistry.md))
 
 ## Price Snapshot Functions
 
