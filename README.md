@@ -1,6 +1,7 @@
 # Ripe Protocol Technical Documentation
 
-For deployed contract addresses on Base Mainnet, see [Deployments](Deployments.md).
+For deployed contract addresses on Base Mainnet, see [Deployments](Deployments.md). To see our full source code, check out our [GitHub](https://github.com/Ripe-Foundation/ripe-protocol).
+
 
 ## Overview  
 
