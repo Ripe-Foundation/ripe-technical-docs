@@ -1,5 +1,7 @@
 # Ripe Protocol Technical Documentation
 
+For deployed contract addresses on Base Mainnet, see [Deployments](Deployments.md).
+
 ## Overview  
 
 Ripe Protocol is an onchain credit layer that turns **any tokenized asset—crypto‑native *or* real‑world**—into both a yield source *and* instant liquidity.  
