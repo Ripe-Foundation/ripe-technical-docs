@@ -1,6 +1,6 @@
 # CurvePrices Technical Documentation
 
-[📄 View Source Code](../../contracts/priceSources/CurvePrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/priceSources/CurvePrices.vy)
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # HumanResources Technical Documentation
 
-[📄 View Source Code](../../contracts/core/HumanResources.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/core/HumanResources.vy)
 
 ## Overview
 

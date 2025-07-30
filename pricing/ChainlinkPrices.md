@@ -1,6 +1,6 @@
 # ChainlinkPrices Technical Documentation
 
-[📄 View Source Code](../../contracts/priceSources/ChainlinkPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/priceSources/ChainlinkPrices.vy)
 
 ## Overview
 

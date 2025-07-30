@@ -1,6 +1,6 @@
 # StorkPrices Technical Documentation
 
-[📄 View Source Code](../../contracts/priceSources/StorkPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/priceSources/StorkPrices.vy)
 
 ## Overview
 

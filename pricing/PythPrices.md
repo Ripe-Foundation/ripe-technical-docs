@@ -1,6 +1,6 @@
 # PythPrices Technical Documentation
 
-[📄 View Source Code](../../contracts/priceSources/PythPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/priceSources/PythPrices.vy)
 
 ## Overview
 

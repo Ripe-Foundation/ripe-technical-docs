@@ -1,6 +1,6 @@
 # RipeHq Technical Documentation
 
-[📄 View Source Code](../../contracts/registries/RipeHq.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/registries/RipeHq.vy)
 
 ## Overview
 

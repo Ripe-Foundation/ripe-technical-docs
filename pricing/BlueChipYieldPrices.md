@@ -1,6 +1,6 @@
 # BlueChipYieldPrices Technical Documentation
 
-[📄 View Source Code](../../contracts/priceSources/BlueChipYieldPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/priceSources/BlueChipYieldPrices.vy)
 
 ## Overview
 

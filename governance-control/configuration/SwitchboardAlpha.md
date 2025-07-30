@@ -1,6 +1,6 @@
 # SwitchboardAlpha Technical Documentation
 
-[📄 View Source Code](../../contracts/config/SwitchboardAlpha.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/config/SwitchboardAlpha.vy)
 
 ## Overview
 

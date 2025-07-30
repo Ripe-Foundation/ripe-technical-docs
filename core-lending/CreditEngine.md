@@ -1,6 +1,6 @@
 # CreditEngine Technical Documentation
 
-[📄 View Source Code](../../contracts/core/CreditEngine.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/core/CreditEngine.vy)
 
 ## Overview
 

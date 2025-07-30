@@ -1,6 +1,6 @@
 # Endaoment Technical Documentation
 
-[📄 View Source Code](../../contracts/core/Endaoment.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/core/Endaoment.vy)
 
 ## Overview
 

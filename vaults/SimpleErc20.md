@@ -1,6 +1,6 @@
 # SimpleErc20 Vault Technical Documentation
 
-[📄 View Source Code](../../contracts/vaults/SimpleErc20.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/vaults/SimpleErc20.vy)
 
 ## Overview
 

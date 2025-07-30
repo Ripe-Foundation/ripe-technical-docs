@@ -1,6 +1,6 @@
 # TimeLock Technical Documentation
 
-[📄 View Source Code](../../contracts/modules/TimeLock.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/modules/TimeLock.vy)
 
 ## Overview
 
