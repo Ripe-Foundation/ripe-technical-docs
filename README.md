@@ -81,7 +81,7 @@ Access control, configuration management, and protocol governance systems.
 Protocol tokens for value transfer and governance.
 
 | Contract | Description |
-|----------|-------------||
+|----------|-------------|
 | [GreenToken.vy](tokens/GreenToken.md) | USD-pegged stablecoin minted through overcollateralized positions |
 | [RipeToken.vy](tokens/RipeToken.md) | Governance token for voting on protocol parameters and treasury |
 | [SavingsGreen.vy](tokens/SavingsGreen.md) | Yield-bearing GREEN vault implementing ERC4626 standard |
