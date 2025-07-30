@@ -88,8 +88,8 @@ This gives the inheriting contract access to all internal functions and the abil
 +------------------+    +-------------------+    +------------------+
 | Core Contracts   |    | Vault System      |    | Config System    |
 | * Green Token    |    | * VaultBook       |    | * Switchboard    |
-| * [CreditEngine](../core-lending/CreditEngine.md)   |    | * Registered      |    | * Registered     |
-| * [Teller](../core-lending/Teller.md), etc.   |    |   Vaults          |    |   Configs        |
+| * CreditEngine   |    | * Registered      |    | * Registered     |
+| * Teller, etc.   |    |   Vaults          |    |   Configs        |
 +------------------+    +-------------------+    +------------------+
 ```
 

@@ -77,55 +77,55 @@ initializes: deptBasics[addys := addys]
 +-----------------------------------------------------------------------+
 |                                                                       |
 |  +-------------------------------------------------------------------+|
-|  |                      Vault Management Flow                        ||
-|  |                                                                   ||
-|  |  1. Vault Registration                                            ||
-|  |     - New vaults added with time-lock                             ||
-|  |     - Assigned sequential registry IDs                            ||
-|  |                                                                   ||
-|  |  2. Safety Checks for Updates/Disables                            ||
-|  |     - Check vault.doesVaultHaveAnyFunds()                         ||
-|  |     - Block changes if funds present                              ||
-|  |     - Protect user deposits                                       ||
-|  |                                                                   ||
-|  |  3. Stability Pool Reward Flow                                    ||
-|  |     +------------------+                                          ||
-|  |     | Registered Vault |                                          ||
-|  |     | (Stability Pool) |                                          ||
-|  |     +--------+---------+                                          ||
-|  |              |                                                    ||
-|  |              v                                                    ||
-|  |     +------------------+                                          ||
-|  |     | VaultBook       |                                           ||
-|  |     | - Verify caller |                                           ||
-|  |     | - Mint RIPE     |                                           ||
-|  |     | - Update Ledger |                                           ||
-|  |     +--------+---------+                                          ||
-|  |              |                                                    ||
-|  |              +--------+--------+                                  ||
-|  |              |                 |                                  ||
-|  |              v                 v                                  ||
-|  |     +------------------+  +------------------+                    ||
-|  |     | Ripe Token      |  | Ledger           |                     ||
-|  |     | - Mint rewards  |  | - Track rewards  |                     ||
-|  |     +------------------+  +------------------+                    ||
-|  |                                                                   ||
+|  |                      Vault Management Flow                        |  |
+|  |                                                                   |  |
+|  |  1. Vault Registration                                            |  |
+|  |     - New vaults added with time-lock                             |  |
+|  |     - Assigned sequential registry IDs                            |  |
+|  |                                                                   |  |
+|  |  2. Safety Checks for Updates/Disables                            |  |
+|  |     - Check vault.doesVaultHaveAnyFunds()                         |  |
+|  |     - Block changes if funds present                              |  |
+|  |     - Protect user deposits                                       |  |
+|  |                                                                   |  |
+|  |  3. Stability Pool Reward Flow                                    |  |
+|  |     +------------------+                                          |  |
+|  |     | Registered Vault |                                          |  |
+|  |     | (Stability Pool) |                                          |  |
+|  |     +--------+---------+                                          |  |
+|  |              |                                                    |  |
+|  |              v                                                    |  |
+|  |     +------------------+                                          |  |
+|  |     | VaultBook       |                                           |  |
+|  |     | - Verify caller |                                           |  |
+|  |     | - Mint RIPE     |                                           |  |
+|  |     | - Update Ledger |                                           |  |
+|  |     +--------+---------+                                          |  |
+|  |              |                                                    |  |
+|  |              +--------+--------+                                  |  |
+|  |              |                 |                                  |  |
+|  |              v                 v                                  |  |
+|  |     +------------------+  +------------------+                    |  |
+|  |     | Ripe Token      |  | Ledger           |                     |  |
+|  |     | - Mint rewards  |  | - Track rewards  |                     |  |
+|  |     +------------------+  +------------------+                    |  |
+|  |                                                                   |  |
 |  +-------------------------------------------------------------------+|
 |                                                                       |
 |  +-------------------------------------------------------------------+|
-|  |                     Module Components                             ||
-|  |                                                                   ||
-|  |  +----------------+  +------------------+  +------------------+   ||
-|  |  | LocalGov      |  | AddressRegistry  |  | Addys            |    ||
-|  |  | * Governance  |  | * Vault registry |  | * RipeHq lookup  |    ||
-|  |  | * Time-locks  |  | * ID management  |  | * Validation     |    ||
-|  |  +----------------+  +------------------+  +------------------+   ||
-|  |                                                                   ||
-|  |  +------------------+                                             ||
-|  |  | DeptBasics      |                                              ||
-|  |  | * Pause state   |                                              ||
-|  |  | * RIPE minting  |  <-- Enabled for rewards                     ||
-|  |  +------------------+                                             ||
+|  |                     Module Components                             |  |
+|  |                                                                   |  |
+|  |  +----------------+  +------------------+  +------------------+   |  |
+|  |  | LocalGov      |  | AddressRegistry  |  | Addys            |    |  |
+|  |  | * Governance  |  | * Vault registry |  | * RipeHq lookup  |    |  |
+|  |  | * Time-locks  |  | * ID management  |  | * Validation     |    |  |
+|  |  +----------------+  +------------------+  +------------------+   |  |
+|  |                                                                   |  |
+|  |  +------------------+                                             |  |
+|  |  | DeptBasics      |                                              |  |
+|  |  | * Pause state   |                                              |  |
+|  |  | * RIPE minting  |  <-- Enabled for rewards                     |  |
+|  |  +------------------+                                             |  |
 |  +-------------------------------------------------------------------+|
 +-----------------------------------------------------------------------+
                                     |

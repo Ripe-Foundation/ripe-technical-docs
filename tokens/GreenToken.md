@@ -96,11 +96,11 @@ initializes: token
 | RipeHq           |    | Protocol          |    | Users &          |
 | Validation       |    | Contracts         |    | External         |
 |                  |    |                   |    | Interfaces       |
-| * canMintGreen   |    | * [CreditEngine](../core-lending/CreditEngine.md)    |    |                  |
-| * governance     |    | * [Teller](../core-lending/Teller.md)          |    | * ERC20 ops      |
-| * blacklist      |    | * [AuctionHouse](../core-lending/AuctionHouse.md)    |    | * Permit         |
-| * permissions    |    | * [StabilityPool](../vaults/StabilityPool.md)   |    | * Transfers      |
-+------------------+    | * [VaultBook](../registries/VaultBook.md)       |    | * Approvals      |
+| * canMintGreen   |    | * CreditEngine    |    |                  |
+| * governance     |    | * Teller          |    | * ERC20 ops      |
+| * blacklist      |    | * AuctionHouse    |    | * Permit         |
+| * permissions    |    | * StabilityPool   |    | * Transfers      |
++------------------+    | * VaultBook       |    | * Approvals      |
                         +-------------------+    +------------------+
 ```
 

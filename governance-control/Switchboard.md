@@ -77,72 +77,72 @@ initializes: deptBasics[addys := addys]
 +---------------------------------------------------------------------+
 |                                                                     |
 |  +-----------------------------------------------------------------+|
-|  |              Configuration Authorization Flow                    ||
-|  |                                                                 ||
-|  |  1. Configuration Contract Registration                         ||
-|  |     - Contract added to registry with time-lock                 ||
-|  |     - Assigned unique registry ID                               ||
-|  |     - Gains authority to modify protocol config                 ||
-|  |                                                                 ||
-|  |  2. Protocol Configuration Update Flow                          ||
-|  |     +--------------------+                                      ||
-|  |     | Config Manager     |                                      ||
-|  |     | (Registered in     |                                      ||
-|  |     |  Switchboard)      |                                      ||
-|  |     +--------+-----------+                                      ||
-|  |              |                                                  ||
-|  |              | Calls setter functions                           ||
-|  |              v                                                  ||
-|  |     +--------------------+                                      ||
-|  |     | Mission Control    |                                      ||
-|  |     | - Validates caller |                                      ||
-|  |     |   via Switchboard  |                                      ||
-|  |     | - Updates config:  |                                      ||
-|  |     |   * GenConfig      |                                      ||
-|  |     |   * DebtConfig     |                                      ||
-|  |     |   * RewardsConfig  |                                      ||
-|  |     |   * AssetConfig    |                                      ||
-|  |     |   * VaultConfig    |                                      ||
-|  |     |   * PriceConfig    |                                      ||
-|  |     +--------------------+                                      ||
-|  |                                                                 ||
-|  |  3. Token Blacklist Update Flow                                 ||
-|  |     +--------------------+                                      ||
-|  |     | Blacklist Manager  |                                      ||
-|  |     | (Registered)       |                                      ||
-|  |     +--------+-----------+                                      ||
-|  |              |                                                  ||
-|  |              v                                                  ||
-|  |     +--------------------+                                      ||
-|  |     | Switchboard        |                                      ||
-|  |     | - Verify caller    |                                      ||
-|  |     | - Pass through     |                                      ||
-|  |     +--------+-----------+                                      ||
-|  |              |                                                  ||
-|  |              v                                                  ||
-|  |     +--------------------+                                      ||
-|  |     | Token Contracts    |                                      ||
-|  |     | - Update blacklist |                                      ||
-|  |     +--------------------+                                      ||
-|  |                                                                 ||
+|  |              Configuration Authorization Flow                    |  |
+|  |                                                                 |  |
+|  |  1. Configuration Contract Registration                         |  |
+|  |     - Contract added to registry with time-lock                 |  |
+|  |     - Assigned unique registry ID                               |  |
+|  |     - Gains authority to modify protocol config                 |  |
+|  |                                                                 |  |
+|  |  2. Protocol Configuration Update Flow                          |  |
+|  |     +--------------------+                                      |  |
+|  |     | Config Manager     |                                      |  |
+|  |     | (Registered in     |                                      |  |
+|  |     |  Switchboard)      |                                      |  |
+|  |     +--------+-----------+                                      |  |
+|  |              |                                                  |  |
+|  |              | Calls setter functions                           |  |
+|  |              v                                                  |  |
+|  |     +--------------------+                                      |  |
+|  |     | Mission Control    |                                      |  |
+|  |     | - Validates caller |                                      |  |
+|  |     |   via Switchboard  |                                      |  |
+|  |     | - Updates config:  |                                      |  |
+|  |     |   * GenConfig      |                                      |  |
+|  |     |   * DebtConfig     |                                      |  |
+|  |     |   * RewardsConfig  |                                      |  |
+|  |     |   * AssetConfig    |                                      |  |
+|  |     |   * VaultConfig    |                                      |  |
+|  |     |   * PriceConfig    |                                      |  |
+|  |     +--------------------+                                      |  |
+|  |                                                                 |  |
+|  |  3. Token Blacklist Update Flow                                 |  |
+|  |     +--------------------+                                      |  |
+|  |     | Blacklist Manager  |                                      |  |
+|  |     | (Registered)       |                                      |  |
+|  |     +--------+-----------+                                      |  |
+|  |              |                                                  |  |
+|  |              v                                                  |  |
+|  |     +--------------------+                                      |  |
+|  |     | Switchboard        |                                      |  |
+|  |     | - Verify caller    |                                      |  |
+|  |     | - Pass through     |                                      |  |
+|  |     +--------+-----------+                                      |  |
+|  |              |                                                  |  |
+|  |              v                                                  |  |
+|  |     +--------------------+                                      |  |
+|  |     | Token Contracts    |                                      |  |
+|  |     | - Update blacklist |                                      |  |
+|  |     +--------------------+                                      |  |
+|  |                                                                 |  |
 |  +-----------------------------------------------------------------+|
 |                                                                     |
 |  +-----------------------------------------------------------------+|
-|  |                    Module Components                            ||
-|  |                                                                 ||
-|  |  +----------------+  +------------------+  +-----------------+  ||
-|  |  | LocalGov      |  | AddressRegistry  |  | Addys           |   ||
-|  |  | * Governance  |  | * Config registry|  | * RipeHq lookup |   ||
-|  |  | * Time-locks  |  | * ID management  |  | * Validation    |   ||
-|  |  +----------------+  +------------------+  +-----------------+  ||
-|  |                                                                 ||
-|  |  +----------------+                                             ||
-|  |  | DeptBasics    |                                              ||
-|  |  | * Pause state |                                              ||
-|  |  | * No minting  |                                              ||
-|  |  +----------------+                                             ||
-|  +-----------------------------------------------------------------+|
-+---------------------------------------------------------------------+
+|  |                    Module Components                            |  |
+|  |                                                                 |  |
+|  |  +----------------+  +------------------+  +-----------------+  |  |
+|  |  | LocalGov      |  | AddressRegistry  |  | Addys           |   |  |
+|  |  | * Governance  |  | * Config registry|  | * RipeHq lookup |   |  |
+|  |  | * Time-locks  |  | * ID management  |  | * Validation    |  |  |
+|  |  +----------------+  +------------------+  +-----------------+  |  |
+|  |                                                                  |  |
+|  |  +----------------+                                             |  |
+|  |  | DeptBasics    |                                              |  |
+|  |  | * Pause state |                                              |  |
+|  |  | * No minting  |                                              |  |
+|  |  +----------------+                                              |  |
+|  +------------------------------------------------------------------+  |
++------------------------------------------------------------------------+
                                    |
         +--------------------------+--------------------------+
         |                          |                          |

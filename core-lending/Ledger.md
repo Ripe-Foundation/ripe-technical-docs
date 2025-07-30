@@ -58,28 +58,28 @@ initializes: deptBasics[addys := addys]
 |  +------------------------------------------------------------------+  |
 |  |                     Data Storage Categories                      |  |
 |  |                                                                  |  |
-|  |  +--------------+ +--------------+ +--------------+             |  |
-|  |  | User Vault   | | Debt Mgmt    | | Points &     |             |  |
-|  |  | Tracking     | |              | | Rewards      |             |  |
-|  |  | * userVaults | | * userDebt   | | * userDeposit|             |  |
-|  |  | * numUser    | | * totalDebt  | |   Points     |             |  |
-|  |  |   Vaults     | | * borrowers  | | * globalDep  |             |  |
-|  |  | * indexOfV   | | * intervals  | |   Points     |             |  |
-|  |  |   ault       | | * unrealized | | * userBorrow |             |  |
-|  |  |              | |   Yield      | |   Points     |             |  |
-|  |  +--------------+ +--------------+ +--------------+             |  |
+|  |  +--------------+ +--------------+ +--------------+              |  |
+|  |  | User Vault   | | Debt Mgmt    | | Points &     |              |  |
+|  |  | Tracking     | |              | | Rewards      |              |  |
+|  |  | * userVaults | | * userDebt   | | * userDeposit|              |  |
+|  |  | * numUser    | | * totalDebt  | |   Points     |              |  |
+|  |  |   Vaults     | | * borrowers  | | * globalDep  |              |  |
+|  |  | * indexOfV   | | * intervals  | |   Points     |              |  |
+|  |  |   ault       | | * unrealized | | * userBorrow |              |  |
+|  |  |              | |   Yield      | |   Points     |              |  |
+|  |  +--------------+ +--------------+ +--------------+              |  |
 |  |                                                                  |  |
-|  |  +--------------+ +--------------+ +--------------+             |  |
-|  |  | Auction Data | | HR Contrib   | | Bond & Bad   |             |  |
-|  |  |              | |              | | Debt Data    |             |  |
-|  |  | * fungible   | | * contrib    | | * epochStart |             |  |
-|  |  |   Auctions   | |   utors      | | * epochEnd   |             |  |
-|  |  | * numFung    | | * indexOfC   | | * badDebt    |             |  |
-|  |  |   Auctions   | |   ontrib     | | * ripeAvail  |             |  |
-|  |  | * fungLiq    | | * ripeAvail  | |   ForBonds   |             |  |
-|  |  |   Users      | |   ForHr      | | * greenPool  |             |  |
-|  |  |              | |              | |   Debt       |             |  |
-|  |  +--------------+ +--------------+ +--------------+             |  |
+|  |  +--------------+ +--------------+ +--------------+              |  |
+|  |  | Auction Data | | HR Contrib   | | Bond & Bad   |              |  |
+|  |  |              | |              | | Debt Data    |              |  |
+|  |  | * fungible   | | * contrib    | | * epochStart |              |  |
+|  |  |   Auctions   | |   utors      | | * epochEnd   |              |  |
+|  |  | * numFung    | | * indexOfC   | | * badDebt    |              |  |
+|  |  |   Auctions   | |   ontrib     | | * ripeAvail  |              |  |
+|  |  | * fungLiq    | | * ripeAvail  | |   ForBonds   |              |  |
+|  |  |   Users      | |   ForHr      | | * greenPool  |              |  |
+|  |  |              | |              | |   Debt       |              |  |
+|  |  +--------------+ +--------------+ +--------------+              |  |
 |  +------------------------------------------------------------------+  |
 |                                                                        |
 |  +------------------------------------------------------------------+  |
