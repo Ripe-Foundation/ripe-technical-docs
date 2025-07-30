@@ -1,6 +1,6 @@
 # GreenToken Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/tokens/GreenToken.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/tokens/GreenToken.vy)
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # AddressRegistry Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/modules/AddressRegistry.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/modules/AddressRegistry.vy)
 
 ## Overview
 

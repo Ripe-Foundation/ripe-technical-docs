@@ -1,6 +1,6 @@
 # SwitchboardBravo Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/config/SwitchboardBravo.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/config/SwitchboardBravo.vy)
 
 ## Overview
 

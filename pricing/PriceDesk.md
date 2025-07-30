@@ -1,6 +1,6 @@
 # PriceDesk Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/registries/PriceDesk.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/registries/PriceDesk.vy)
 
 ## Overview
 

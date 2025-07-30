@@ -1,6 +1,6 @@
 # Teller Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/core/Teller.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/Teller.vy)
 
 ## Overview
 

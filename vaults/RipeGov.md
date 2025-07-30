@@ -1,6 +1,6 @@
 # RipeGov Vault Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/vaults/RipeGov.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/RipeGov.vy)
 
 ## Overview
 

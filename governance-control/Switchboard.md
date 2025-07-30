@@ -1,6 +1,6 @@
 # Switchboard Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/registries/Switchboard.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/registries/Switchboard.vy)
 
 ## Overview
 

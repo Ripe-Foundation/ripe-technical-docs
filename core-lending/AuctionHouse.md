@@ -1,6 +1,6 @@
 # AuctionHouse Technical Documentation
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/tree/master/contracts/core/AuctionHouse.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/AuctionHouse.vy)
 
 ## Overview
 
