@@ -2,6 +2,8 @@
 
 - [Technical Documentation](README.md)
 - [Deployed Contracts](Deployments.md)
+- [Github](https://github.com/Ripe-Foundation/ripe-protocol)
+- [User Docs](https://docs.ripe.finance/)
 
 ## Core Lending
 
