@@ -17,7 +17,7 @@ This document contains all deployed contract addresses for the Ripe Protocol on 
 | Contract                                        | Address                                                                                                               | Description                  |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | [Credit Engine](core-lending/CreditEngine.md)   | [0xC4d54b999D333E8c8293f83DDcF3B9A19B76645F](https://basescan.org/address/0xC4d54b999D333E8c8293f83DDcF3B9A19B76645F) | Lending and borrowing engine |
-| [Teller](core-lending/Teller.md)                | [0xad4a471C8D57715d3D8585a593305a43bc7389fa](https://basescan.org/address/0xad4a471C8D57715d3D8585a593305a43bc7389fa) | User interaction gateway     |
+| [Teller](core-lending/Teller.md)                | [0x84B8D2Cb281a6E604EEE09e13cF820aD5C8ac82d](https://basescan.org/address/0x84B8D2Cb281a6E604EEE09e13cF820aD5C8ac82d) | User interaction gateway     |
 | [Ledger](core-lending/Ledger.md)                | [0x365256e322a47Aa2015F6724783F326e9B24fA47](https://basescan.org/address/0x365256e322a47Aa2015F6724783F326e9B24fA47) | Protocol data storage        |
 | [Auction House](core-lending/AuctionHouse.md)   | [0x3228b04a4b4b498dA7235154131374077600989F](https://basescan.org/address/0x3228b04a4b4b498dA7235154131374077600989F) | Liquidation auctions         |
 | [Stability Pool](core-lending/StabilityPool.md) | [0x2a157096af6337b2b4bd47de435520572ed5a439](https://basescan.org/address/0x2a157096af6337b2b4bd47de435520572ed5a439) | Liquidation backstop vault   |
