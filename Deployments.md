@@ -56,7 +56,7 @@ This document contains all deployed contract addresses for the Ripe Protocol on 
 | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
 | [Price Desk](pricing/PriceDesk.md)                      | [0xDFe8D79bc05420a3fFa14824135016a738eE8299](https://basescan.org/address/0xDFe8D79bc05420a3fFa14824135016a738eE8299) | Price aggregation hub        |
 | [Chainlink Prices](pricing/ChainlinkPrices.md)          | [0x253f55e455701fF0B835128f55668ed159aAB3D9](https://basescan.org/address/0x253f55e455701fF0B835128f55668ed159aAB3D9) | Chainlink oracle integration |
-| [Curve Prices](pricing/CurvePrices.md)                  | [0xEF3cB7750FF6158d9f9B27651BbBA2299096483B](https://basescan.org/address/0xEF3cB7750FF6158d9f9B27651BbBA2299096483B) | Curve pool pricing           |
+| [Curve Prices](pricing/CurvePrices.md)                  | [0x7B2aeE8B6A4bdF0885dEF48CCda8453Fdc1Bba5d](https://basescan.org/address/0x7B2aeE8B6A4bdF0885dEF48CCda8453Fdc1Bba5d) | Curve pool pricing           |
 | [BlueChip Yield Prices](pricing/BlueChipYieldPrices.md) | [0x90C70ACfF302c8a7f00574EC3547B0221f39cD28](https://basescan.org/address/0x90C70ACfF302c8a7f00574EC3547B0221f39cD28) | Yield-bearing asset pricing  |
 | [Pyth Prices](pricing/PythPrices.md)                    | [0x4dfbFaC4592699A84377C7E8d6Be8d0fEDb4b9c0](https://basescan.org/address/0x4dfbFaC4592699A84377C7E8d6Be8d0fEDb4b9c0) | Pyth oracle integration      |
 | [Stork Prices](pricing/StorkPrices.md)                  | [0xd83187f7484FE9b92334d2a5bbCC6dDdA3E4e774](https://basescan.org/address/0xd83187f7484FE9b92334d2a5bbCC6dDdA3E4e774) | Stork oracle integration     |
