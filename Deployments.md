@@ -29,7 +29,7 @@ This document contains all deployed contract addresses for the Ripe Protocol on 
 | [Endaoment](treasury-rewards/Endaoment.md)            | [0xd00A4A131b26920b6f407D177bCCa94454EAEF7d](https://basescan.org/address/0xd00A4A131b26920b6f407D177bCCa94454EAEF7d) | Treasury yield strategies    |
 | [Bond Room](treasury-rewards/BondRoom.md)             | [0x7D0A292032c44e3e25871a1FB08288b85BdD816f](https://basescan.org/address/0x7D0A292032c44e3e25871a1FB08288b85BdD816f) | RIPE bond sales              |
 | [Bond Booster](treasury-rewards/BondBooster.md)       | [0xF9E38714E01DA439E4211F8275F141d3A896bb74](https://basescan.org/address/0xF9E38714E01DA439E4211F8275F141d3A896bb74) | Bond purchase incentives     |
-| [Lootbox](treasury-rewards/Lootbox.md)                | [0xE05605ba1Fb0551c6f4b0089FD46D42D63c795bA](https://basescan.org/address/0xE05605ba1Fb0551c6f4b0089FD46D42D63c795bA) | Rewards distribution         |
+| [Lootbox](treasury-rewards/Lootbox.md)                | [0xef52d8a4732b96b98A0Bd47a69beFb40CdCF2515](https://basescan.org/address/0xef52d8a4732b96b98A0Bd47a69beFb40CdCF2515) | Rewards distribution         |
 | [Human Resources](treasury-rewards/HumanResources.md) | [0xF9aCDFd0d167b741f9144Ca01E52FcdE16BE108b](https://basescan.org/address/0xF9aCDFd0d167b741f9144Ca01E52FcdE16BE108b) | Contributor management       |
 | [Contributor](treasury-rewards/Contributor.md)        | [0x4965578D80E54b5EbE3BB5D7b1B3E0425559C1D1](https://basescan.org/address/0x4965578D80E54b5EbE3BB5D7b1B3E0425559C1D1) | Contributor vesting template |
 
