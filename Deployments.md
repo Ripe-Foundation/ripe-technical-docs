@@ -47,7 +47,7 @@ This document contains all deployed contract addresses for the Ripe Protocol on 
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | [Switchboard Alpha](governance-control/configuration/SwitchboardAlpha.md)     | [0xAb5Cc2381b8F637D772fF927A0a7c2852d4B819b](https://basescan.org/address/0xAb5Cc2381b8F637D772fF927A0a7c2852d4B819b) | Config manager A |
 | [Switchboard Bravo](governance-control/configuration/SwitchboardBravo.md)     | [0xD18AC028cBe1AbebDb118E9C7A60018d58C846e7](https://basescan.org/address/0xD18AC028cBe1AbebDb118E9C7A60018d58C846e7) | Config manager B |
-| [Switchboard Charlie](governance-control/configuration/SwitchboardCharlie.md) | [0xB96D9862838f17Ca51603EEECd54E99f33D3461d](https://basescan.org/address/0xB96D9862838f17Ca51603EEECd54E99f33D3461d) | Config manager C |
+| [Switchboard Charlie](governance-control/configuration/SwitchboardCharlie.md) | [0xDa6bC244103888347339Dd41dACB7c4AD0EE89F4](https://basescan.org/address/0xDa6bC244103888347339Dd41dACB7c4AD0EE89F4) | Config manager C |
 | [Switchboard Delta](governance-control/configuration/SwitchboardDelta.md)     | [0x7c3a6D04DF0e066FDa6c2CBC570C25022EA31276](https://basescan.org/address/0x7c3a6D04DF0e066FDa6c2CBC570C25022EA31276) | Config manager D |
 
 ## Pricing
