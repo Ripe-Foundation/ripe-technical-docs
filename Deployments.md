@@ -60,6 +60,7 @@ This document contains all deployed contract addresses for the Ripe Protocol on 
 | [BlueChip Yield Prices](pricing/BlueChipYieldPrices.md) | [0x90C70ACfF302c8a7f00574EC3547B0221f39cD28](https://basescan.org/address/0x90C70ACfF302c8a7f00574EC3547B0221f39cD28) | Yield-bearing asset pricing  |
 | [Pyth Prices](pricing/PythPrices.md)                    | [0x4dfbFaC4592699A84377C7E8d6Be8d0fEDb4b9c0](https://basescan.org/address/0x4dfbFaC4592699A84377C7E8d6Be8d0fEDb4b9c0) | Pyth oracle integration      |
 | [Stork Prices](pricing/StorkPrices.md)                  | [0xd83187f7484FE9b92334d2a5bbCC6dDdA3E4e774](https://basescan.org/address/0xd83187f7484FE9b92334d2a5bbCC6dDdA3E4e774) | Stork oracle integration     |
+| Aero Ripe Prices | [0x5ce2BbD5eBe9f7d9322a8F56740F95b9576eE0A2](https://basescan.org/address/0x5ce2BbD5eBe9f7d9322a8F56740F95b9576eE0A2) | Aerodrome Ripe Price oracle integration     |
 
 ## Vault Registry
 
