@@ -84,8 +84,8 @@ def __init__(
 |------|------|-------------|
 | `_ripeHq` | `address` | RipeHq address (or empty for top-level governance) |
 | `_initialGov` | `address` | Initial governance address |
-| `_minTimeLock` | `uint256` | Minimum time-lock blocks (0 to inherit from [RipeHq](../../governance-control/RipeHq.md)) |
-| `_maxTimeLock` | `uint256` | Maximum time-lock blocks (0 to inherit from [RipeHq](../../governance-control/RipeHq.md)) |
+| `_minTimeLock` | `uint256` | Minimum time-lock blocks (0 to inherit from [RipeHq](./RipeHq.md)) |
+| `_maxTimeLock` | `uint256` | Maximum time-lock blocks (0 to inherit from [RipeHq](./RipeHq.md)) |
 | `_initialTimeLock` | `uint256` | Initial time-lock setting |
 
 #### Returns
@@ -113,8 +113,8 @@ dept_gov = boa.load(
     "contracts/modules/LocalGov.vy",
     ripe_hq.address,  # RipeHq address
     dept_owner,       # Initial local governor
-    0,                # Inherit min from [RipeHq](../../governance-control/RipeHq.md)
-    0,                # Inherit max from [RipeHq](../../governance-control/RipeHq.md)
+    0,                # Inherit min from [RipeHq](./RipeHq.md)
+    0,                # Inherit max from [RipeHq](./RipeHq.md)
     200               # Initial timelock
 )
 ```
@@ -156,7 +156,7 @@ ripe_hq_addr = local_gov.getRipeHqFromGov()
 
 ### `canGovern`
 
-Checks if an address has governance permissions (either local or from [RipeHq](../../governance-control/RipeHq.md)).
+Checks if an address has governance permissions (either local or from [RipeHq](./RipeHq.md)).
 
 ```vyper
 @view

@@ -528,20 +528,26 @@ Only callable by governance
 - Automatically discovers GREEN position in pool
 - Automatically determines alt asset and its decimals from pool
 - Validates pool contains exactly GREEN and one other asset
-- Requires time-locked confirmation via `confirmSetGreenRefPoolConfig`
+- Requires time-locked confirmation via `confirmGreenRefPoolConfig`
 
 #### Events Emitted
 
 - `GreenRefPoolPending` - GREEN pool configuration initiated
 
-### `confirmSetGreenRefPoolConfig`
+### `confirmGreenRefPoolConfig`
 
 Confirms pending GREEN reference pool configuration after timelock.
 
 ```vyper
 @external
-def confirmSetGreenRefPoolConfig() -> bool:
+def confirmGreenRefPoolConfig(_aid: uint256) -> bool:
 ```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_aid` | `uint256` | TimeLock action ID from setGreenRefPoolConfig |
 
 #### Access
 
@@ -549,7 +555,30 @@ Only callable by governance
 
 #### Events Emitted
 
-- `GreenRefPoolSet` - GREEN pool configured
+- `GreenRefPoolConfigUpdated` - GREEN pool configured
+
+### `cancelGreenRefPoolConfig`
+
+Cancels a pending GREEN reference pool configuration change.
+
+```vyper
+@external
+def cancelGreenRefPoolConfig(_aid: uint256) -> bool:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_aid` | `uint256` | TimeLock action ID to cancel |
+
+#### Access
+
+Only callable by governance
+
+#### Events Emitted
+
+- `GreenRefPoolConfigUpdateCancelled` - Configuration update cancelled
 
 ### `addGreenRefPoolSnapshot`
 

@@ -195,6 +195,16 @@ struct ClaimLootConfig:
 - `MAX_VAULTS_TO_CLEAN: uint256 = 10` - Vault cleanup limit
 - `MAX_CLAIM_USERS: uint256 = 25` - Batch claim limit
 - `RIPE_GOV_VAULT_ID: uint256 = 2` - Governance vault ID for staking
+- `UNDERSCORE_LOOT_DISTRIBUTOR_ID: uint256 = 6` - Underscore loot distributor registry ID
+- `ONE_DAY: uint256 = 43_200` - One day in blocks (on Base)
+
+### Storage Variables
+
+- `hasUnderscoreRewards: bool` - Whether underscore rewards distribution is enabled
+- `underscoreSendInterval: uint256` - Minimum blocks between underscore reward distributions
+- `lastUnderscoreSend: uint256` - Block number of last underscore reward distribution
+- `undyDepositRewardsAmount: uint256` - RIPE amount for underscore deposit rewards per distribution
+- `undyYieldBonusAmount: uint256` - RIPE amount for underscore yield bonus per distribution
 
 ### Inherited State Variables
 From [DeptBasics](../shared-modules/DeptBasics.md):
@@ -205,11 +215,16 @@ From [DeptBasics](../shared-modules/DeptBasics.md):
 
 ### `__init__`
 
-Initializes Lootbox with Ripe minting capability for rewards.
+Initializes Lootbox with Ripe minting capability for rewards and optional Underscore reward configuration.
 
 ```vyper
 @deploy
-def __init__(_ripeHq: address):
+def __init__(
+    _ripeHq: address,
+    _underscoreSendInterval: uint256,
+    _undyDepositRewardsAmount: uint256,
+    _undyYieldBonusAmount: uint256,
+):
 ```
 
 #### Parameters
@@ -217,6 +232,9 @@ def __init__(_ripeHq: address):
 | Name | Type | Description |
 |------|------|-------------|
 | `_ripeHq` | `address` | RipeHq contract address |
+| `_underscoreSendInterval` | `uint256` | Blocks between underscore distributions (0 to disable, min ONE_DAY) |
+| `_undyDepositRewardsAmount` | `uint256` | RIPE per distribution for deposits |
+| `_undyYieldBonusAmount` | `uint256` | RIPE per distribution for yield bonus |
 
 #### Returns
 
@@ -228,10 +246,22 @@ Called only during deployment
 
 #### Example Usage
 ```python
-# Deploy Lootbox
+# Deploy Lootbox with underscore rewards enabled
 lootbox = boa.load(
     "contracts/core/Lootbox.vy",
-    ripe_hq.address
+    ripe_hq.address,
+    43_200,    # 1 day interval
+    1000e18,   # 1000 RIPE deposit rewards
+    500e18     # 500 RIPE yield bonus
+)
+
+# Deploy without underscore rewards
+lootbox = boa.load(
+    "contracts/core/Lootbox.vy",
+    ripe_hq.address,
+    0,   # Disabled
+    0,
+    0
 )
 ```
 
@@ -885,6 +915,136 @@ The contract implements automatic cleanup:
 1. **Asset Cleanup**: Removes user-asset associations when balance reaches zero
 2. **Vault Cleanup**: Removes user-vault associations when no assets remain
 3. **Batch Processing**: Limits cleanup operations to prevent gas issues
+
+## Underscore Rewards Functions
+
+### `distributeUnderscoreRewards`
+
+Distributes RIPE rewards to the Underscore protocol's loot distributor for deposit rewards and yield bonuses.
+
+```vyper
+@external
+def distributeUnderscoreRewards() -> (uint256, uint256):
+```
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `(uint256, uint256)` | (deposit rewards amount, yield bonus amount) |
+
+#### Access
+
+Only callable by Switchboard-registered contracts
+
+#### Events Emitted
+
+- `UnderscoreRewardsDistributed` - Distribution details including amounts and block number
+
+#### Example Usage
+```python
+# Distribute underscore rewards (must wait for interval)
+deposit_rewards, yield_bonus = lootbox.distributeUnderscoreRewards(
+    sender=switchboard.address
+)
+```
+
+**Constraints**:
+- `hasUnderscoreRewards` must be true
+- Must wait at least `underscoreSendInterval` blocks since last distribution
+- Requires available RIPE rewards in Ledger
+
+### `setHasUnderscoreRewards`
+
+Enables or disables underscore rewards distribution.
+
+```vyper
+@external
+def setHasUnderscoreRewards(_hasRewards: bool):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_hasRewards` | `bool` | Whether to enable underscore rewards |
+
+#### Access
+
+Only callable by Switchboard-registered contracts
+
+#### Events Emitted
+
+- `HasUnderscoreRewardsUpdated` - New enabled state
+
+### `setUnderscoreSendInterval`
+
+Sets the minimum blocks between underscore reward distributions.
+
+```vyper
+@external
+def setUnderscoreSendInterval(_numBlocks: uint256):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_numBlocks` | `uint256` | Minimum blocks between distributions (min: ONE_DAY) |
+
+#### Access
+
+Only callable by Switchboard-registered contracts
+
+#### Events Emitted
+
+- `UnderscoreSendIntervalUpdated` - New interval value
+
+### `setUndyDepositRewardsAmount`
+
+Sets the RIPE amount for underscore deposit rewards per distribution.
+
+```vyper
+@external
+def setUndyDepositRewardsAmount(_amount: uint256):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_amount` | `uint256` | RIPE amount per distribution |
+
+#### Access
+
+Only callable by Switchboard-registered contracts
+
+#### Events Emitted
+
+- `UndyDepositRewardsAmountUpdated` - New amount
+
+### `setUndyYieldBonusAmount`
+
+Sets the RIPE amount for underscore yield bonus per distribution.
+
+```vyper
+@external
+def setUndyYieldBonusAmount(_amount: uint256):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_amount` | `uint256` | RIPE amount per distribution |
+
+#### Access
+
+Only callable by Switchboard-registered contracts
+
+#### Events Emitted
+
+- `UndyYieldBonusAmountUpdated` - New amount
 
 ## Testing
 

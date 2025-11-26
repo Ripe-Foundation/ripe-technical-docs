@@ -22,7 +22,7 @@ SwitchboardCharlie is built using a modular architecture with the following comp
 ### LocalGov Module
 - **Location**: `contracts/modules/LocalGov.vy`
 - **Purpose**: Provides governance functionality
-- **Documentation**: See [LocalGov Technical Documentation](../governance-control/LocalGov.md)
+- **Documentation**: See [LocalGov Technical Documentation](../LocalGov.md)
 - **Key Features**:
   - Governance address management
   - Permission validation
@@ -32,7 +32,7 @@ SwitchboardCharlie is built using a modular architecture with the following comp
 ### TimeLock Module
 - **Location**: `contracts/modules/TimeLock.vy`
 - **Purpose**: Manages time-locked configuration changes
-- **Documentation**: See [TimeLock Technical Documentation](../governance-control/TimeLock.md)
+- **Documentation**: See [TimeLock Technical Documentation](../TimeLock.md)
 - **Key Features**:
   - Action ID generation
   - Time-lock enforcement
@@ -42,7 +42,7 @@ SwitchboardCharlie is built using a modular architecture with the following comp
 ### Addys Module (imported for interfaces)
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides address resolution interfaces
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../../shared-modules/Addys.md)
 - **Usage**: Used for UndyLego integration and type definitions
 
 ### Module Initialization

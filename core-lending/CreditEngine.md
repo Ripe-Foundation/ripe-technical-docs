@@ -12,7 +12,7 @@ CreditEngine is the lending and borrowing powerhouse of Ripe Protocol, managing 
 - **Collateral Redemption**: Allow GREEN holders to redeem unhealthy positions directly
 - **Risk Controls**: Enforce debt ceilings, interval-based limits, and automatic liquidation triggers
 
-CreditEngine implements advanced DeFi mechanics including position-weighted risk parameters, transient storage for gas optimization, atomic debt updates with compounding, and integration with boost systems. It ensures capital efficiency while maintaining robust protections against flash attacks and bad debt, working closely with [AuctionHouse](AuctionHouse.md) for liquidations, [Ledger](./Ledger.md) for debt tracking, and [Lootbox](Lootbox.md) for points updates.
+CreditEngine implements advanced DeFi mechanics including position-weighted risk parameters, transient storage for gas optimization, atomic debt updates with compounding, and integration with boost systems. It ensures capital efficiency while maintaining robust protections against flash attacks and bad debt, working closely with [AuctionHouse](AuctionHouse.md) for liquidations, [Ledger](./Ledger.md) for debt tracking, and [Lootbox](../treasury-rewards/Lootbox.md) for points updates.
 
 ## Architecture & Modules
 
@@ -131,6 +131,8 @@ struct UserBorrowTerms:
     collateralVal: uint256      # Total USD collateral value
     totalMaxDebt: uint256       # Maximum borrowing power
     debtTerms: cs.DebtTerms     # Weighted average terms
+    lowestLtv: uint256          # Lowest LTV across positions
+    highestLtv: uint256         # Highest LTV across positions
 ```
 
 ### IntervalBorrow Struct
@@ -172,6 +174,59 @@ struct CollateralRedemption:
     maxGreenAmount: uint256    # Max Green to spend
 ```
 
+## Events
+
+### NewBorrow
+
+Emitted when a user borrows GREEN:
+
+```vyper
+event NewBorrow:
+    user: indexed(address)      # User borrowing
+    newLoan: uint256            # Loan amount after fees
+    daowry: uint256             # Origination fee
+    didReceiveSavingsGreen: bool # Received as sGREEN
+    outstandingUserDebt: uint256 # Total debt after borrow
+    userCollateralVal: uint256   # User's collateral value
+    maxUserDebt: uint256        # Maximum debt capacity
+    globalYieldRealized: uint256 # Yield flushed from ledger
+```
+
+### RepayDebt
+
+Emitted when debt is repaid:
+
+```vyper
+event RepayDebt:
+    user: indexed(address)      # User repaying
+    repayValue: uint256         # Amount repaid
+    repayType: RepayType        # Type of repayment (STANDARD, LIQUIDATION, AUCTION, REDEMPTION, DELEVERAGE)
+    refundAmount: uint256       # Excess refunded
+    refundWasSavingsGreen: bool # Refund as sGREEN
+    outstandingUserDebt: uint256 # Remaining debt
+    userCollateralVal: uint256   # User's collateral value
+    maxUserDebt: uint256        # Maximum debt capacity
+    hasGoodDebtHealth: bool     # Position health status
+```
+
+### UnderscoreVaultDiscountSet
+
+Emitted when underscore vault discount is updated:
+
+```vyper
+event UnderscoreVaultDiscountSet:
+    discount: uint256           # New discount percentage
+```
+
+### BuybackRatioSet
+
+Emitted when buyback ratio is updated:
+
+```vyper
+event BuybackRatioSet:
+    ratio: uint256              # New buyback ratio
+```
+
 ## State Variables
 
 ### Constants
@@ -180,10 +235,14 @@ struct CollateralRedemption:
 - `HUNDRED_PERCENT: uint256 = 100_00` - 100.00% in basis points
 - `DANGER_BLOCKS_DENOMINATOR: uint256 = 100_0000` - For danger calculations
 - `ONE_PERCENT: uint256 = 1_00` - 1.00% in basis points
-- `MAX_DEBT_UPDATES: uint256 = 25` - Batch update limit
-- `MAX_COLLATERAL_REDEMPTIONS: uint256 = 20` - Batch redemption limit
 - `STABILITY_POOL_ID: uint256 = 1` - Stability pool vault ID
 - `CURVE_PRICES_ID: uint256 = 2` - Curve prices registry ID
+- `UNDERSCORE_VAULT_REGISTRY_ID: uint256 = 10` - Underscore vault registry ID
+
+### Storage Variables
+
+- `undyVaulDiscount: uint256` - Borrow rate discount for underscore vaults (default: 50.00%)
+- `buybackRatio: uint256` - Revenue split ratio for governance buyback (default: 0)
 
 ### Inherited State Variables
 
@@ -384,30 +443,32 @@ is_healthy = credit_engine.repayForUser(
 )
 ```
 
-### `repayDuringLiquidation`
+### `repayFromDept`
 
-Special repayment path for liquidations.
+Generic repayment path used by liquidation, deleverage, and redemption departments.
 
 ```vyper
 @external
-def repayDuringLiquidation(
-    _liqUser: address,
+def repayFromDept(
+    _user: address,
     _userDebt: UserDebt,
     _repayValue: uint256,
     _newInterest: uint256,
+    _numUserVaults: uint256,
     _a: addys.Addys = empty(addys.Addys),
 ) -> bool:
 ```
 
 #### Parameters
 
-| Name           | Type          | Description                 |
-| -------------- | ------------- | --------------------------- |
-| `_liqUser`     | `address`     | User being liquidated       |
-| `_userDebt`    | `UserDebt`    | Current debt state          |
-| `_repayValue`  | `uint256`     | Amount to repay             |
-| `_newInterest` | `uint256`     | Accrued interest            |
-| `_a`           | `addys.Addys` | Cached addresses (optional) |
+| Name             | Type          | Description                    |
+| ---------------- | ------------- | ------------------------------ |
+| `_user`          | `address`     | User whose debt to repay       |
+| `_userDebt`      | `UserDebt`    | Current debt state             |
+| `_repayValue`    | `uint256`     | Amount to repay                |
+| `_newInterest`   | `uint256`     | Accrued interest               |
+| `_numUserVaults` | `uint256`     | Number of user vaults (0 = fetch) |
+| `_a`             | `addys.Addys` | Cached addresses (optional)    |
 
 #### Returns
 
@@ -417,7 +478,7 @@ def repayDuringLiquidation(
 
 #### Access
 
-Only callable by AuctionHouse contract
+Only callable by Deleverage, AuctionHouse, or CreditRedeem contracts
 
 ### `repayDuringAuctionPurchase`
 
@@ -449,100 +510,6 @@ def repayDuringAuctionPurchase(
 #### Access
 
 Only callable by AuctionHouse contract
-
-## Collateral Redemption Functions
-
-### `redeemCollateralFromMany`
-
-Redeems collateral from multiple positions using Green.
-
-```vyper
-@external
-def redeemCollateralFromMany(
-    _redemptions: DynArray[CollateralRedemption, MAX_COLLATERAL_REDEMPTIONS],
-    _greenAmount: uint256,
-    _recipient: address,
-    _caller: address,
-    _shouldTransferBalance: bool,
-    _shouldRefundSavingsGreen: bool,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name                        | Type                                 | Description                 |
-| --------------------------- | ------------------------------------ | --------------------------- |
-| `_redemptions`              | `DynArray[CollateralRedemption, 20]` | Redemption requests         |
-| `_greenAmount`              | `uint256`                            | Total Green to spend        |
-| `_recipient`                | `address`                            | Collateral recipient        |
-| `_caller`                   | `address`                            | Transaction initiator       |
-| `_shouldTransferBalance`    | `bool`                               | Transfer vs withdraw        |
-| `_shouldRefundSavingsGreen` | `bool`                               | Refund excess as sGreen     |
-| `_a`                        | `addys.Addys`                        | Cached addresses (optional) |
-
-#### Returns
-
-| Type      | Description       |
-| --------- | ----------------- |
-| `uint256` | Total Green spent |
-
-#### Access
-
-Only callable by Teller contract
-
-#### Events Emitted
-
-- `CollateralRedeemed` - Per redemption including:
-  - User, vault, and asset details
-  - Amount redeemed
-  - Repay value applied
-  - Health status
-
-#### Example Usage
-
-```python
-# Redeem collateral from unhealthy positions
-redemptions = [
-    CollateralRedemption(user1, vault1, weth, 1000e18),
-    CollateralRedemption(user2, vault1, wbtc, 500e18)
-]
-green_spent = credit_engine.redeemCollateralFromMany(
-    redemptions,
-    1500e18,  # Total budget
-    redeemer.address,
-    redeemer.address,
-    False,    # Withdraw
-    True,     # Refund as sGreen
-    sender=teller.address
-)
-```
-
-### `getMaxRedeemValue`
-
-Calculates maximum redeemable value for a position.
-
-```vyper
-@view
-@external
-def getMaxRedeemValue(_user: address) -> uint256:
-```
-
-#### Parameters
-
-| Name    | Type      | Description            |
-| ------- | --------- | ---------------------- |
-| `_user` | `address` | User position to check |
-
-#### Returns
-
-| Type      | Description                    |
-| --------- | ------------------------------ |
-| `uint256` | Maximum Green value redeemable |
-
-#### Access
-
-Public view function
 
 ## Borrowing Terms Functions
 
@@ -593,6 +560,44 @@ terms = credit_engine.getUserBorrowTerms(
 # Returns: Weighted LTV, rates, collateral value
 ```
 
+### `getUserBorrowTermsWithNumVaults`
+
+Gets aggregated borrowing terms when number of user vaults is already known.
+
+```vyper
+@view
+@external
+def getUserBorrowTermsWithNumVaults(
+    _user: address,
+    _numUserVaults: uint256,
+    _shouldRaise: bool,
+    _skipVaultId: uint256 = 0,
+    _skipAsset: address = empty(address),
+    _a: addys.Addys = empty(addys.Addys),
+) -> UserBorrowTerms:
+```
+
+#### Parameters
+
+| Name             | Type          | Description                 |
+| ---------------- | ------------- | --------------------------- |
+| `_user`          | `address`     | User to analyze             |
+| `_numUserVaults` | `uint256`     | Known number of user vaults |
+| `_shouldRaise`   | `bool`        | Raise on price errors       |
+| `_skipVaultId`   | `uint256`     | Vault to exclude (optional) |
+| `_skipAsset`     | `address`     | Asset to exclude (optional) |
+| `_a`             | `addys.Addys` | Cached addresses (optional) |
+
+#### Returns
+
+| Type              | Description                 |
+| ----------------- | --------------------------- |
+| `UserBorrowTerms` | Aggregated terms and values |
+
+#### Access
+
+Public view function
+
 ### `getCollateralValue`
 
 Gets total USD value of user's collateral.
@@ -614,6 +619,116 @@ def getCollateralValue(_user: address) -> uint256:
 | Type      | Description                   |
 | --------- | ----------------------------- |
 | `uint256` | Total collateral value in USD |
+
+#### Access
+
+Public view function
+
+### `getUserCollateralValueAndDebtAmount`
+
+Gets both collateral value and debt amount for a user in a single call.
+
+```vyper
+@view
+@external
+def getUserCollateralValueAndDebtAmount(_user: address) -> (uint256, uint256):
+```
+
+#### Parameters
+
+| Name    | Type      | Description   |
+| ------- | --------- | ------------- |
+| `_user` | `address` | User to check |
+
+#### Returns
+
+| Type                  | Description                            |
+| --------------------- | -------------------------------------- |
+| `(uint256, uint256)`  | (collateral value, debt amount) in USD |
+
+#### Access
+
+Public view function
+
+### `getUserDebtAmount`
+
+Gets the current debt amount for a user with interest accrued.
+
+```vyper
+@view
+@external
+def getUserDebtAmount(_user: address) -> uint256:
+```
+
+#### Parameters
+
+| Name    | Type      | Description   |
+| ------- | --------- | ------------- |
+| `_user` | `address` | User to check |
+
+#### Returns
+
+| Type      | Description                        |
+| --------- | ---------------------------------- |
+| `uint256` | Current debt amount with interest  |
+
+#### Access
+
+Public view function
+
+### `getLatestUserDebtAndTerms`
+
+Gets comprehensive debt state including user debt, borrow terms, and new interest.
+
+```vyper
+@view
+@external
+def getLatestUserDebtAndTerms(
+    _user: address,
+    _shouldRaise: bool,
+    _a: addys.Addys = empty(addys.Addys),
+) -> (UserDebt, UserBorrowTerms, uint256):
+```
+
+#### Parameters
+
+| Name           | Type          | Description                 |
+| -------------- | ------------- | --------------------------- |
+| `_user`        | `address`     | User to check               |
+| `_shouldRaise` | `bool`        | Raise on price errors       |
+| `_a`           | `addys.Addys` | Cached addresses (optional) |
+
+#### Returns
+
+| Type                                   | Description                                    |
+| -------------------------------------- | ---------------------------------------------- |
+| `(UserDebt, UserBorrowTerms, uint256)` | (debt state, borrow terms, new interest amount) |
+
+#### Access
+
+Public view function
+
+### `getLatestUserDebtWithInterest`
+
+Calculates user debt with accrued interest from a given debt state.
+
+```vyper
+@view
+@external
+def getLatestUserDebtWithInterest(_userDebt: UserDebt) -> (UserDebt, uint256):
+```
+
+#### Parameters
+
+| Name        | Type       | Description             |
+| ----------- | ---------- | ----------------------- |
+| `_userDebt` | `UserDebt` | User's current debt state |
+
+#### Returns
+
+| Type                    | Description                           |
+| ----------------------- | ------------------------------------- |
+| `(UserDebt, uint256)`   | (updated debt state, new interest)    |
 
 #### Access
 
@@ -864,6 +979,144 @@ base_rate = 500  # 5%
 dynamic_rate = credit_engine.getDynamicBorrowRate(base_rate)
 # Returns: 700 (7% if stability pool in danger)
 ```
+
+## Utility Functions
+
+### `transferOrWithdrawViaRedemption`
+
+Wrapper function used by CreditRedeem to transfer or withdraw collateral during redemptions.
+
+```vyper
+@external
+def transferOrWithdrawViaRedemption(
+    _shouldTransferBalance: bool,
+    _asset: address,
+    _user: address,
+    _recipient: address,
+    _amount: uint256,
+    _vaultId: uint256,
+    _vaultAddr: address,
+    _a: addys.Addys,
+) -> uint256:
+```
+
+#### Parameters
+
+| Name                    | Type          | Description                      |
+| ----------------------- | ------------- | -------------------------------- |
+| `_shouldTransferBalance`| `bool`        | Transfer within vault vs withdraw|
+| `_asset`                | `address`     | Asset to move                    |
+| `_user`                 | `address`     | Source user                      |
+| `_recipient`            | `address`     | Destination address              |
+| `_amount`               | `uint256`     | Amount to transfer/withdraw      |
+| `_vaultId`              | `uint256`     | Vault ID                         |
+| `_vaultAddr`            | `address`     | Vault address                    |
+| `_a`                    | `addys.Addys` | Cached addresses                 |
+
+#### Returns
+
+| Type      | Description            |
+| --------- | ---------------------- |
+| `uint256` | Amount actually moved  |
+
+#### Access
+
+Only callable by CreditRedeem contract
+
+### `getMaxWithdrawableForAsset`
+
+Calculates the maximum amount of an asset a user can withdraw while maintaining debt health.
+
+```vyper
+@view
+@external
+def getMaxWithdrawableForAsset(
+    _user: address,
+    _vaultId: uint256,
+    _asset: address,
+    _vaultAddr: address = empty(address),
+    _a: addys.Addys = empty(addys.Addys),
+) -> uint256:
+```
+
+#### Parameters
+
+| Name         | Type          | Description                 |
+| ------------ | ------------- | --------------------------- |
+| `_user`      | `address`     | User to check               |
+| `_vaultId`   | `uint256`     | Vault containing asset      |
+| `_asset`     | `address`     | Asset to withdraw           |
+| `_vaultAddr` | `address`     | Vault address (optional)    |
+| `_a`         | `addys.Addys` | Cached addresses (optional) |
+
+#### Returns
+
+| Type      | Description                               |
+| --------- | ----------------------------------------- |
+| `uint256` | Max withdrawable amount (max_value = unlimited) |
+
+#### Access
+
+Public view function
+
+#### Example Usage
+
+```python
+# Check max withdrawable WETH
+max_withdraw = credit_engine.getMaxWithdrawableForAsset(
+    user.address,
+    1,             # Vault ID
+    weth.address
+)
+```
+
+## Admin Functions
+
+### `setUnderscoreVaultDiscount`
+
+Sets the borrow rate discount for Underscore vaults.
+
+```vyper
+@external
+def setUnderscoreVaultDiscount(_discount: uint256):
+```
+
+#### Parameters
+
+| Name        | Type      | Description                         |
+| ----------- | --------- | ----------------------------------- |
+| `_discount` | `uint256` | Discount percentage (max 100.00%)   |
+
+#### Access
+
+Only callable by Switchboard
+
+#### Events Emitted
+
+- `UnderscoreVaultDiscountSet` - New discount value
+
+### `setBuybackRatio`
+
+Sets the revenue split ratio for governance buyback.
+
+```vyper
+@external
+def setBuybackRatio(_ratio: uint256):
+```
+
+#### Parameters
+
+| Name     | Type      | Description                    |
+| -------- | --------- | ------------------------------ |
+| `_ratio` | `uint256` | Buyback ratio (max 100.00%)    |
+
+#### Access
+
+Only callable by Switchboard
+
+#### Events Emitted
+
+- `BuybackRatioSet` - New ratio value
 
 ## Key Mathematical Functions
 

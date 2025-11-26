@@ -14,7 +14,7 @@ interfaces and robust permission management.
 - **Rewards & Governance**: Loot claiming, Ripe bond purchases, and governance vault management
 - **Delegation System**: Comprehensive permissions allowing authorized proxy operations with Underscore wallet integration
 
-The contract abstracts protocol complexity through automatic vault selection, batch processing for gas efficiency, flexible payment handling, sophisticated permission hierarchies, and comprehensive event logging while maintaining security through thoughtful validation layers. It interfaces with [CreditEngine](CreditEngine.md) for borrowing operations, [VaultBook](../registries/VaultBook.md) for vault validation, and [Lootbox](Lootbox.md) for rewards coordination.
+The contract abstracts protocol complexity through automatic vault selection, batch processing for gas efficiency, flexible payment handling, sophisticated permission hierarchies, and comprehensive event logging while maintaining security through thoughtful validation layers. It interfaces with [CreditEngine](CreditEngine.md) for borrowing operations, [VaultBook](../registries/VaultBook.md) for vault validation, and [Lootbox](../treasury-rewards/Lootbox.md) for rewards coordination.
 
 ## Architecture & Modules
 
@@ -166,8 +166,11 @@ struct WithdrawalAction:
 - `MAX_LIQ_USERS: uint256 = 50` - Liquidation batch limit
 - `MAX_STAB_CLAIMS: uint256 = 15` - Stability pool claim limit
 - `MAX_STAB_REDEMPTIONS: uint256 = 15` - Stability pool redemption limit
+- `MAX_DELEVERAGE_USERS: uint256 = 25` - Deleverage batch limit
+- `MAX_DELEVERAGE_ASSETS: uint256 = 25` - Assets per deleverage limit
 - `STABILITY_POOL_ID: uint256 = 1` - Stability pool vault ID
 - `RIPE_GOV_VAULT_ID: uint256 = 2` - Governance vault ID
+- `CURVE_PRICES_ID: uint256 = 2` - Curve prices registry ID
 
 ### Inherited State Variables
 From [DeptBasics](../shared-modules/DeptBasics.md):
@@ -432,6 +435,65 @@ def withdrawMany(_user: address, _withdrawals: DynArray[WithdrawalAction, MAX_BA
 
 Public function with permission checks
 
+## Rebalance Functions
+
+### `rebalance`
+
+Swaps collateral by depositing one asset and withdrawing another while maintaining debt health.
+
+```vyper
+@external
+def rebalance(
+    _depositAsset: address,
+    _depositVaultId: uint256,
+    _withdrawAsset: address,
+    _withdrawVaultId: uint256,
+    _depositAmount: uint256 = max_value(uint256),
+    _withdrawAmount: uint256 = max_value(uint256),
+    _user: address = msg.sender,
+) -> (uint256, uint256):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_depositAsset` | `address` | Asset to deposit |
+| `_depositVaultId` | `uint256` | Vault ID to deposit into |
+| `_withdrawAsset` | `address` | Asset to withdraw |
+| `_withdrawVaultId` | `uint256` | Vault ID to withdraw from |
+| `_depositAmount` | `uint256` | Amount to deposit (max for all) |
+| `_withdrawAmount` | `uint256` | Amount to withdraw (max for all) |
+| `_user` | `address` | User to rebalance for |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `(uint256, uint256)` | (withdrawnAmount, depositedAmount) |
+
+#### Access
+
+Public function with permission checks
+
+#### Events Emitted
+
+- `TellerRebalance` - Rebalance details including both deposit and withdrawal info
+
+#### Example Usage
+```python
+# Rebalance from WETH to USDC
+withdrawn, deposited = teller.rebalance(
+    usdc.address,     # Deposit USDC
+    1,                # Into vault 1
+    weth.address,     # Withdraw WETH
+    1,                # From vault 1
+    1000e6,           # Deposit 1000 USDC
+    1e18,             # Withdraw 1 WETH
+    user.address
+)
+```
+
 ## Credit Functions
 
 ### `borrow`
@@ -442,9 +504,9 @@ Borrows Green tokens against collateral.
 @nonreentrant
 @external
 def borrow(
-    _user: address,
-    _greenAmount: uint256,
-    _wantsSavingsGreen: bool = False,
+    _greenAmount: uint256 = max_value(uint256),
+    _user: address = msg.sender,
+    _wantsSavingsGreen: bool = True,
     _shouldEnterStabPool: bool = False,
 ) -> uint256:
 ```
@@ -453,9 +515,9 @@ def borrow(
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_user` | `address` | User to borrow for |
-| `_greenAmount` | `uint256` | Amount to borrow |
-| `_wantsSavingsGreen` | `bool` | Receive as sGreen |
+| `_greenAmount` | `uint256` | Amount to borrow (max = maximum borrowable) |
+| `_user` | `address` | User to borrow for (default: caller) |
+| `_wantsSavingsGreen` | `bool` | Receive as sGreen (default: True) |
 | `_shouldEnterStabPool` | `bool` | Auto-deposit to stability pool |
 
 #### Returns
@@ -470,12 +532,15 @@ Public function with permission checks
 
 #### Example Usage
 ```python
-# Borrow Green tokens
+# Borrow max Green tokens as sGreen (defaults)
+amount_borrowed = teller.borrow()
+
+# Borrow specific amount
 amount_borrowed = teller.borrow(
+    1000e18,       # 1000 Green
     user.address,
-    1000e18,  # 1000 Green
-    True,     # Want sGreen
-    False     # Don't enter stability pool
+    True,          # Want sGreen
+    False          # Don't enter stability pool
 )
 ```
 
@@ -487,10 +552,10 @@ Repays debt using Green or Savings Green tokens.
 @nonreentrant
 @external
 def repay(
-    _user: address,
-    _greenAmount: uint256,
+    _paymentAmount: uint256 = max_value(uint256),
+    _user: address = msg.sender,
     _isPaymentSavingsGreen: bool = False,
-    _shouldRefundSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
 ) -> bool:
 ```
 
@@ -498,10 +563,10 @@ def repay(
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_user` | `address` | User whose debt to repay |
-| `_greenAmount` | `uint256` | Amount to repay |
+| `_paymentAmount` | `uint256` | Amount to repay (max = full debt) |
+| `_user` | `address` | User whose debt to repay (default: caller) |
 | `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
 
 #### Returns
 
@@ -712,25 +777,31 @@ Claims rewards from a single stability pool position.
 @nonreentrant
 @external
 def claimFromStabilityPool(
-    _user: address,
-    _stabVaultAddr: address,
-    _wantsSavingsGreen: bool = False,
-) -> (uint256, uint256):
+    _vaultId: uint256,
+    _stabAsset: address,
+    _claimAsset: address,
+    _maxUsdValue: uint256 = max_value(uint256),
+    _user: address = msg.sender,
+    _shouldAutoDeposit: bool = False,
+) -> uint256:
 ```
 
 #### Parameters
 
 | Name | Type | Description |
 |------|------|-------------|
+| `_vaultId` | `uint256` | Stability pool vault ID |
+| `_stabAsset` | `address` | Stability asset (GREEN/sGREEN) |
+| `_claimAsset` | `address` | Asset to claim |
+| `_maxUsdValue` | `uint256` | Maximum USD value to claim |
 | `_user` | `address` | User claiming rewards |
-| `_stabVaultAddr` | `address` | Stability pool vault address |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen |
+| `_shouldAutoDeposit` | `bool` | Auto-deposit claimed assets |
 
 #### Returns
 
 | Type | Description |
 |------|-------------|
-| `(uint256, uint256)` | (greenRewards, ripeRewards) |
+| `uint256` | USD value of assets claimed |
 
 #### Access
 
@@ -739,68 +810,28 @@ Public function with permission checks
 #### Example Usage
 ```python
 # Claim stability pool rewards
-green_rewards, ripe_rewards = teller.claimFromStabilityPool(
+claim_value = teller.claimFromStabilityPool(
+    1,                # Vault ID
+    sgreen.address,   # Stability asset
+    weth.address,     # Claim WETH
+    1000e18,          # Max $1000
     user.address,
-    stab_vault.address,
-    True  # Want rewards as sGreen
+    False             # Don't auto-deposit
 )
 ```
 
 ### `claimManyFromStabilityPool`
 
-Batch claims rewards from multiple stability pool positions.
+Batch claims rewards from a stability pool position.
 
 ```vyper
 @nonreentrant
 @external
 def claimManyFromStabilityPool(
-    _user: address,
-    _stabVaults: DynArray[address, MAX_STAB_CLAIMS],
-    _wantsSavingsGreen: bool = False,
-) -> (uint256, uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User claiming rewards |
-| `_stabVaults` | `DynArray[address, 15]` | List of stability pool vaults |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(uint256, uint256)` | (totalGreenRewards, totalRipeRewards) |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Claim from multiple stability pools
-vaults = [stab_vault1.address, stab_vault2.address, stab_vault3.address]
-green_total, ripe_total = teller.claimManyFromStabilityPool(
-    user.address,
-    vaults,
-    False  # Want Green tokens
-)
-```
-
-### `redeemFromStabilityPool`
-
-Redeems collateral from liquidations using stability pool position.
-
-```vyper
-@nonreentrant
-@external
-def redeemFromStabilityPool(
-    _user: address,
-    _stabVaultAddr: address,
-    _redemptions: DynArray[StabVaultRedemption, MAX_BALANCE_ACTION],
-    _shouldTransferBalance: bool = False,
+    _vaultId: uint256,
+    _claims: DynArray[StabPoolClaim, MAX_STAB_CLAIMS],
+    _user: address = msg.sender,
+    _shouldAutoDeposit: bool = False,
 ) -> uint256:
 ```
 
@@ -808,16 +839,71 @@ def redeemFromStabilityPool(
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_user` | `address` | User redeeming collateral |
-| `_stabVaultAddr` | `address` | Stability pool vault |
-| `_redemptions` | `DynArray[StabVaultRedemption, 20]` | Redemption specifications |
-| `_shouldTransferBalance` | `bool` | Transfer vs withdraw collateral |
+| `_vaultId` | `uint256` | Stability pool vault ID |
+| `_claims` | `DynArray[StabPoolClaim, 15]` | List of claim specifications |
+| `_user` | `address` | User claiming rewards |
+| `_shouldAutoDeposit` | `bool` | Auto-deposit claimed assets |
 
 #### Returns
 
 | Type | Description |
 |------|-------------|
-| `uint256` | Total collateral value redeemed |
+| `uint256` | Total USD value of assets claimed |
+
+#### Access
+
+Public function with permission checks
+
+#### Example Usage
+```python
+# Claim multiple assets from stability pool
+claims = [
+    StabPoolClaim(sgreen.address, weth.address, 500e18),
+    StabPoolClaim(sgreen.address, usdc.address, 500e18),
+]
+total_value = teller.claimManyFromStabilityPool(
+    1,          # Vault ID
+    claims,
+    user.address,
+    False       # Don't auto-deposit
+)
+```
+
+### `redeemFromStabilityPool`
+
+Redeems collateral from liquidations using GREEN tokens.
+
+```vyper
+@nonreentrant
+@external
+def redeemFromStabilityPool(
+    _vaultId: uint256,
+    _claimAsset: address,
+    _paymentAmount: uint256 = max_value(uint256),
+    _recipient: address = msg.sender,
+    _shouldAutoDeposit: bool = False,
+    _isPaymentSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
+) -> uint256:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_vaultId` | `uint256` | Stability pool vault ID |
+| `_claimAsset` | `address` | Collateral asset to redeem |
+| `_paymentAmount` | `uint256` | GREEN payment amount |
+| `_recipient` | `address` | Collateral recipient |
+| `_shouldAutoDeposit` | `bool` | Auto-deposit collateral |
+| `_isPaymentSavingsGreen` | `bool` | Paying with sGREEN |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGREEN |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `uint256` | GREEN spent on redemption |
 
 #### Access
 
@@ -826,29 +912,32 @@ Public function with permission checks
 #### Example Usage
 ```python
 # Redeem collateral from stability pool
-redemptions = [
-    StabVaultRedemption(weth.address, 2e18),    # 2 ETH
-    StabVaultRedemption(wbtc.address, 0.5e8),   # 0.5 BTC
-]
-value_redeemed = teller.redeemFromStabilityPool(
-    user.address,
-    stab_vault.address,
-    redemptions,
-    False  # Withdraw to user
+green_spent = teller.redeemFromStabilityPool(
+    1,                # Vault ID
+    weth.address,     # Claim WETH
+    500e18,           # 500 GREEN budget
+    user.address,     # Recipient
+    False,            # Don't auto-deposit
+    False,            # Pay with GREEN
+    True              # Refund as sGREEN
 )
 ```
 
 ### `redeemManyFromStabilityPool`
 
-Batch redeems collateral from multiple stability pools.
+Batch redeems collateral from stability pools.
 
 ```vyper
 @nonreentrant
 @external
 def redeemManyFromStabilityPool(
-    _user: address,
-    _stabRedemptions: DynArray[StabPoolRedemptions, MAX_STAB_REDEMPTIONS],
-    _shouldTransferBalance: bool = False,
+    _vaultId: uint256,
+    _redemptions: DynArray[StabPoolRedemption, MAX_STAB_REDEMPTIONS],
+    _paymentAmount: uint256 = max_value(uint256),
+    _recipient: address = msg.sender,
+    _shouldAutoDeposit: bool = False,
+    _isPaymentSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
 ) -> uint256:
 ```
 
@@ -856,15 +945,19 @@ def redeemManyFromStabilityPool(
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_user` | `address` | User redeeming collateral |
-| `_stabRedemptions` | `DynArray[StabPoolRedemptions, 15]` | Pool redemption specs |
-| `_shouldTransferBalance` | `bool` | Transfer vs withdraw |
+| `_vaultId` | `uint256` | Stability pool vault ID |
+| `_redemptions` | `DynArray[StabPoolRedemption, 15]` | Redemption specs |
+| `_paymentAmount` | `uint256` | GREEN payment amount |
+| `_recipient` | `address` | Collateral recipient |
+| `_shouldAutoDeposit` | `bool` | Auto-deposit collateral |
+| `_isPaymentSavingsGreen` | `bool` | Paying with sGREEN |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGREEN |
 
 #### Returns
 
 | Type | Description |
 |------|-------------|
-| `uint256` | Total collateral value redeemed |
+| `uint256` | Total GREEN spent on redemptions |
 
 #### Access
 
@@ -984,6 +1077,97 @@ total_spent = teller.redeemCollateralFromMany(
 )
 ```
 
+## Deleverage Functions
+
+The deleverage functions allow users to reduce their debt by liquidating their own collateral. See [Deleverage](./Deleverage.md) for detailed documentation.
+
+### `deleverageUser`
+
+Deleverages a single user's position.
+
+```vyper
+@external
+def deleverageUser(
+    _user: address = msg.sender,
+    _targetRepayAmount: uint256 = max_value(uint256)
+) -> uint256:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_user` | `address` | User to deleverage |
+| `_targetRepayAmount` | `uint256` | Target debt reduction (max for all available) |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `uint256` | Actual amount repaid |
+
+#### Access
+
+Public function
+
+#### Example Usage
+```python
+# Deleverage own position
+repaid = teller.deleverageUser(user.address, 500e18)
+```
+
+### `deleverageManyUsers`
+
+Batch deleverages multiple users.
+
+```vyper
+@external
+def deleverageManyUsers(
+    _users: DynArray[DeleverageUserRequest, MAX_DELEVERAGE_USERS]
+) -> uint256:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_users` | `DynArray[DeleverageUserRequest, 25]` | Users and target amounts |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `uint256` | Total amount repaid |
+
+### `deleverageWithSpecificAssets`
+
+Deleverages using specific assets in a specified order. Requires trusted caller or delegation.
+
+```vyper
+@external
+def deleverageWithSpecificAssets(
+    _assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS],
+    _user: address = msg.sender
+) -> uint256:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_assets` | `DynArray[DeleverageAsset, 25]` | Ordered list of assets to use |
+| `_user` | `address` | User to deleverage |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `uint256` | Total amount repaid |
+
+#### Access
+
+Public function - requires user to be caller or have delegation
+
 ## Permission Management Functions
 
 ### `setUserConfig`
@@ -1086,15 +1270,15 @@ Public view function
 
 ### `claimLoot`
 
-Claims Ripe token rewards from the Lootbox contract.
+Claims RIPE token rewards from the Lootbox contract.
 
 ```vyper
 @nonreentrant
 @external
 def claimLoot(
-    _user: address,
-    _wantsSavingsGreen: bool = False,
-) -> (uint256, uint256):
+    _user: address = msg.sender,
+    _shouldStake: bool = True,
+) -> uint256:
 ```
 
 #### Parameters
@@ -1102,13 +1286,13 @@ def claimLoot(
 | Name | Type | Description |
 |------|------|-------------|
 | `_user` | `address` | User claiming rewards |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen |
+| `_shouldStake` | `bool` | Auto-stake RIPE to governance vault |
 
 #### Returns
 
 | Type | Description |
 |------|-------------|
-| `(uint256, uint256)` | (greenTokenRewards, ripeTokenRewards) |
+| `uint256` | Total RIPE rewards claimed |
 
 #### Access
 
@@ -1116,24 +1300,24 @@ Public function with permission checks
 
 #### Example Usage
 ```python
-# Claim loot rewards
-green_rewards, ripe_rewards = teller.claimLoot(
-    user.address,
-    True  # Want sGreen
-)
+# Claim and auto-stake RIPE
+ripe_rewards = teller.claimLoot(user.address, True)
+
+# Claim without staking
+ripe_rewards = teller.claimLoot(user.address, False)
 ```
 
 ### `claimLootForManyUsers`
 
-Batch claims Ripe token rewards for multiple users.
+Batch claims RIPE token rewards for multiple users.
 
 ```vyper
 @nonreentrant
 @external
 def claimLootForManyUsers(
     _users: DynArray[address, MAX_CLAIM_USERS],
-    _wantsSavingsGreen: bool = False,
-) -> (uint256, uint256):
+    _shouldStake: bool = True,
+) -> uint256:
 ```
 
 #### Parameters
@@ -1141,13 +1325,13 @@ def claimLootForManyUsers(
 | Name | Type | Description |
 |------|------|-------------|
 | `_users` | `DynArray[address, 25]` | Users to claim for |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen |
+| `_shouldStake` | `bool` | Auto-stake RIPE to governance vault |
 
 #### Returns
 
 | Type | Description |
 |------|-------------|
-| `(uint256, uint256)` | (totalGreenRewards, totalRipeRewards) |
+| `uint256` | Total RIPE rewards claimed for all users |
 
 #### Access
 
@@ -1155,41 +1339,83 @@ Public function with permission checks for each user
 
 #### Example Usage
 ```python
-# Claim for multiple users
+# Claim and stake for multiple users
 users = [user1.address, user2.address, user3.address]
-total_green, total_ripe = teller.claimLootForManyUsers(
-    users,
-    False  # Want Green tokens
-)
+total_ripe = teller.claimLootForManyUsers(users, True)
 ```
 
 ## Ripe Governance Vault Functions
 
+### `depositIntoGovVault`
+
+Deposits assets into the governance vault with an optional lock duration.
+
+```vyper
+@nonreentrant
+@external
+def depositIntoGovVault(
+    _asset: address,
+    _amount: uint256,
+    _lockDuration: uint256,
+    _user: address = msg.sender,
+) -> uint256:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_asset` | `address` | Asset to deposit (typically RIPE) |
+| `_amount` | `uint256` | Amount to deposit |
+| `_lockDuration` | `uint256` | Lock duration in seconds |
+| `_user` | `address` | User to deposit for |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `uint256` | Amount deposited |
+
+#### Access
+
+Public function with permission checks
+
+#### Example Usage
+```python
+# Deposit RIPE with 1 year lock
+amount = teller.depositIntoGovVault(
+    ripe.address,
+    1000e18,              # 1000 RIPE
+    365 * 24 * 60 * 60,   # 1 year lock
+    user.address
+)
+```
+
 ### `adjustLock`
 
-Adjusts lock duration for Ripe tokens in the governance vault.
+Adjusts lock duration for a specific asset in the governance vault.
 
 ```vyper
 @nonreentrant
 @external
 def adjustLock(
-    _user: address,
-    _newUnlockTime: uint256,
-) -> uint256:
+    _asset: address,
+    _newLockDuration: uint256,
+    _user: address = msg.sender,
+):
 ```
 
 #### Parameters
 
 | Name | Type | Description |
 |------|------|-------------|
+| `_asset` | `address` | Asset to adjust lock for |
+| `_newLockDuration` | `uint256` | New lock duration in seconds |
 | `_user` | `address` | User adjusting lock |
-| `_newUnlockTime` | `uint256` | New unlock timestamp |
 
 #### Returns
 
-| Type | Description |
-|------|-------------|
-| `uint256` | New unlock time |
+*No return value*
 
 #### Access
 
@@ -1197,38 +1423,37 @@ Public function with permission checks
 
 #### Example Usage
 ```python
-# Extend lock to 1 year from now
-new_unlock_time = teller.adjustLock(
-    user.address,
-    block.timestamp + 365 * 24 * 60 * 60
+# Extend lock to 1 year duration
+teller.adjustLock(
+    ripe.address,
+    365 * 24 * 60 * 60,  # 1 year
+    user.address
 )
 ```
 
 ### `releaseLock`
 
-Releases unlocked Ripe tokens from the governance vault.
+Releases unlocked tokens from the governance vault.
 
 ```vyper
 @nonreentrant
 @external
 def releaseLock(
-    _user: address,
-    _amount: uint256 = max_value(uint256),
-) -> uint256:
+    _asset: address,
+    _user: address = msg.sender,
+):
 ```
 
 #### Parameters
 
 | Name | Type | Description |
 |------|------|-------------|
+| `_asset` | `address` | Asset to release |
 | `_user` | `address` | User releasing lock |
-| `_amount` | `uint256` | Amount to release (max for all) |
 
 #### Returns
 
-| Type | Description |
-|------|-------------|
-| `uint256` | Amount released |
+*No return value*
 
 #### Access
 
@@ -1236,15 +1461,10 @@ Public function with permission checks
 
 #### Example Usage
 ```python
-# Release all unlocked Ripe
-released = teller.releaseLock(
+# Release all unlocked RIPE
+teller.releaseLock(
+    ripe.address,
     user.address
-)
-
-# Release specific amount
-released = teller.releaseLock(
-    user.address,
-    100_000000000000000000  # 100 RIPE
 )
 ```
 
@@ -1252,16 +1472,16 @@ released = teller.releaseLock(
 
 ### `purchaseRipeBond`
 
-Purchases Ripe bonds from the BondRoom.
+Purchases Ripe bonds from the BondRoom with optional lock duration.
 
 ```vyper
 @nonreentrant
 @external
 def purchaseRipeBond(
-    _bondUser: address,
-    _greenAmount: uint256,
-    _isPaymentSavingsGreen: bool = False,
-    _shouldRefundSavingsGreen: bool = False,
+    _paymentAsset: address,
+    _paymentAmount: uint256 = max_value(uint256),
+    _lockDuration: uint256 = 0,
+    _recipient: address = msg.sender,
 ) -> uint256:
 ```
 
@@ -1269,16 +1489,16 @@ def purchaseRipeBond(
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_bondUser` | `address` | User purchasing bond |
-| `_greenAmount` | `uint256` | Green to spend on bond |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen |
+| `_paymentAsset` | `address` | Asset to pay with (GREEN or sGREEN) |
+| `_paymentAmount` | `uint256` | Amount to spend (max for all balance) |
+| `_lockDuration` | `uint256` | Lock duration for purchased RIPE (0 for no lock) |
+| `_recipient` | `address` | Recipient of RIPE tokens |
 
 #### Returns
 
 | Type | Description |
 |------|-------------|
-| `uint256` | Ripe tokens received from bond |
+| `uint256` | RIPE tokens received from bond |
 
 #### Access
 
@@ -1288,10 +1508,18 @@ Public function with permission checks
 ```python
 # Purchase Ripe bond with Green
 ripe_received = teller.purchaseRipeBond(
-    user.address,
-    1000_000000000000000000,  # 1000 Green
-    False,  # Paying with Green
-    True    # Refund excess as sGreen
+    green.address,
+    1000e18,                 # 1000 GREEN
+    365 * 24 * 60 * 60,      # 1 year lock
+    user.address
+)
+
+# Purchase with sGREEN, no lock
+ripe_received = teller.purchaseRipeBond(
+    sgreen.address,
+    500e18,
+    0,
+    user.address
 )
 ```
 

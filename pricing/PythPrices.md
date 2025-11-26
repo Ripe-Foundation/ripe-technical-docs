@@ -75,6 +75,7 @@ struct PendingPythFeed:
 ### Feed Configuration
 - `feedConfig: HashMap[address, PythFeedConfig]` - Maps assets to Pyth feed configurations
 - `pendingUpdates: HashMap[address, PendingPythFeed]` - Pending changes
+- `maxConfidenceRatio: uint256` - Maximum allowed confidence ratio (default: percentage of price)
 
 ### Constants
 - `NORMALIZED_DECIMALS: constant(uint256) = 18` - Standard decimals
@@ -271,13 +272,41 @@ def getPriceAndHasFeed(_asset: address, _staleTime: uint256 = 0, _priceDesk: add
 | `uint256` | Current price (0 if no feed) |
 | `bool` | True if feed exists |
 
+### `getLastPriceAndLastUpdate`
+
+Returns the last price and last update timestamp for an asset.
+
+```vyper
+@view
+@external
+def getLastPriceAndLastUpdate(_asset: address) -> (uint256, uint256):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_asset` | `address` | Asset to get price and timestamp for |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `uint256` | Last price in 18 decimals (0 if no feed) |
+| `uint256` | Last update timestamp (0 if no feed) |
+
+#### Notes
+- Does not apply staleness checks
+- Useful for checking when price was last updated
+
 ## Price Update Functions
 
 ### `updatePythPrice`
 
-Brings fresh price data on-chain for configured feeds.
+Brings fresh price data on-chain for configured feeds. Requires ETH payment for Pyth update fee.
 
 ```vyper
+@payable
 @external
 def updatePythPrice(_payload: Bytes[2048]) -> bool:
 ```
@@ -331,6 +360,35 @@ def updateManyPythPrices(_payloads: DynArray[Bytes[2048], MAX_PRICE_UPDATES]) ->
 | `uint256` | Number of successful updates |
 
 Stops processing on first failure to save gas.
+
+### `updatePythPriceNoPay`
+
+Updates a price feed without requiring ETH payment (uses contract balance).
+
+```vyper
+@external
+def updatePythPriceNoPay(_payload: Bytes[2048]) -> bool:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_payload` | `Bytes[2048]` | Signed price update from Pyth |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `bool` | True if update successful |
+
+#### Access
+
+Only callable by addresses with lite action permission (via MissionControl)
+
+#### Notes
+- Uses existing contract ETH balance for fees
+- Useful for automated keepers that don't send ETH with call
 
 ## Feed Management Functions
 
@@ -446,6 +504,42 @@ pyth_prices.recoverEthBalance(
 )
 ```
 
+## Configuration Functions
+
+### `setMaxConfidenceRatio`
+
+Sets the maximum allowed confidence ratio for price validation.
+
+```vyper
+@external
+def setMaxConfidenceRatio(_newRatio: uint256) -> bool:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_newRatio` | `uint256` | New max confidence ratio (must be < 100%) |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `bool` | True if successfully set |
+
+#### Access
+
+Only callable by Switchboard
+
+#### Events Emitted
+
+- `MaxConfidenceRatioUpdated` - New ratio value
+
+#### Notes
+- Ratio must be less than HUNDRED_PERCENT (100%)
+- Ratio cannot be same as current value
+- Higher ratio = more lenient confidence checks
+
 ## Price Processing Details
 
 ### Exponent Handling
@@ -529,6 +623,7 @@ Ensures:
 ### Operational Events
 - `PythPriceUpdated` - Price update submitted
 - `EthRecoveredFromPyth` - ETH withdrawn
+- `MaxConfidenceRatioUpdated` - Max confidence ratio changed
 
 All events include relevant addresses, feed IDs, and action details.
 

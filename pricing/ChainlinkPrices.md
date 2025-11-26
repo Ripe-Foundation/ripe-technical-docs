@@ -376,6 +376,29 @@ def confirmNewPriceFeed(_asset: address) -> bool:
 
 - `NewChainlinkFeedAdded` - Confirms feed is active
 
+### `cancelNewPendingPriceFeed`
+
+Cancels a pending new price feed addition.
+
+```vyper
+@external
+def cancelNewPendingPriceFeed(_asset: address) -> bool:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_asset` | `address` | Asset with pending feed to cancel |
+
+#### Access
+
+Only callable by governance
+
+#### Events Emitted
+
+- `NewChainlinkFeedCancelled` - Pending feed cancelled
+
 ### `updatePriceFeed`
 
 Updates existing feed configuration.
@@ -393,6 +416,46 @@ def updatePriceFeed(
 
 Used when Chainlink migrates to new aggregator addresses.
 
+### `confirmPriceFeedUpdate`
+
+Confirms a pending feed update after timelock.
+
+```vyper
+@external
+def confirmPriceFeedUpdate(_asset: address) -> bool:
+```
+
+#### Access
+
+Only callable by governance
+
+#### Events Emitted
+
+- `ChainlinkFeedUpdated` - Feed update confirmed
+
+### `cancelPriceFeedUpdate`
+
+Cancels a pending price feed update.
+
+```vyper
+@external
+def cancelPriceFeedUpdate(_asset: address) -> bool:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_asset` | `address` | Asset with pending update to cancel |
+
+#### Access
+
+Only callable by governance
+
+#### Events Emitted
+
+- `ChainlinkFeedUpdateCancelled` - Pending update cancelled
+
 ### `disablePriceFeed`
 
 Removes a price feed (except core assets).
@@ -405,6 +468,46 @@ def disablePriceFeed(_asset: address) -> bool:
 #### Restrictions
 - Cannot disable ETH, WETH, or BTC feeds
 - Requires time-locked confirmation
+
+### `confirmDisablePriceFeed`
+
+Confirms a pending feed removal after timelock.
+
+```vyper
+@external
+def confirmDisablePriceFeed(_asset: address) -> bool:
+```
+
+#### Access
+
+Only callable by governance
+
+#### Events Emitted
+
+- `ChainlinkFeedDisabled` - Feed removed
+
+### `cancelDisablePriceFeed`
+
+Cancels a pending price feed removal.
+
+```vyper
+@external
+def cancelDisablePriceFeed(_asset: address) -> bool:
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_asset` | `address` | Asset with pending disable to cancel |
+
+#### Access
+
+Only callable by governance
+
+#### Events Emitted
+
+- `DisableChainlinkFeedCancelled` - Pending disable cancelled
 
 ## Oracle Interaction
 

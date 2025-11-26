@@ -113,6 +113,7 @@ struct BoosterConfig:
 - `unitsUsed: HashMap[address, uint256]` - Tracks units consumed per user
 - `maxBoostRatio: uint256` - Protocol-wide maximum boost ratio
 - `maxUnits: uint256` - Protocol-wide maximum units per user
+- `minLockDuration: uint256` - Minimum lock duration for boosts
 
 ### Constants
 - `MAX_BOOSTERS: uint256 = 50` - Maximum boosters in batch operations
@@ -129,6 +130,7 @@ def __init__(
     _ripeHq: address,
     _maxBoostRatio: uint256,
     _maxUnits: uint256,
+    _minLockDuration: uint256,
 ):
 ```
 
@@ -139,6 +141,7 @@ def __init__(
 | `_ripeHq` | `address` | RipeHq registry address |
 | `_maxBoostRatio` | `uint256` | Maximum allowed boost ratio |
 | `_maxUnits` | `uint256` | Maximum units per user |
+| `_minLockDuration` | `uint256` | Minimum lock duration for boosts |
 
 #### Returns
 
@@ -432,6 +435,38 @@ Only callable by Switchboard-registered contracts
 bond_booster.setMaxBoostAndMaxUnits(
     40000,  # 4x max boost
     2000,   # 2000 max units
+    sender=switchboard.address
+)
+```
+
+### `setMinLockDuration`
+
+Updates the minimum lock duration for boosts.
+
+```vyper
+@external
+def setMinLockDuration(_minLockDuration: uint256):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_minLockDuration` | `uint256` | New minimum lock duration |
+
+#### Access
+
+Only callable by Switchboard-registered contracts
+
+#### Events Emitted
+
+- `MinLockDurationSet` - Contains new minimum lock duration
+
+#### Example Usage
+```python
+# Update minimum lock duration
+bond_booster.setMinLockDuration(
+    86400,  # 1 day in seconds
     sender=switchboard.address
 )
 ```

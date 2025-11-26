@@ -11,7 +11,7 @@ AuctionHouse is the liquidation engine for Ripe Protocol, executing multi-phase 
 - **Auction Management**: Time-based discounts from 0% to maximum, paid in GREEN
 - **Keeper Rewards**: Incentivizes decentralized position monitoring with debt-based rewards
 
-Built with transient storage optimization, AuctionHouse implements unified repayment formulas across all liquidation types. It integrates with [CreditEngine](CreditEngine.md), [StabilityPool](../vaults/StabilityPool.md), and [Ledger](./Ledger.md) for atomic execution while maintaining strict value flow accounting and configurable per-asset auction parameters.
+Built with transient storage optimization, AuctionHouse implements unified repayment formulas across all liquidation types. It integrates with [CreditEngine](CreditEngine.md), [StabilityPool](./StabilityPool.md), and [Ledger](./Ledger.md) for atomic execution while maintaining strict value flow accounting and configurable per-asset auction parameters.
 
 ## Architecture & Modules
 
@@ -54,19 +54,18 @@ initializes: deptBasics[addys := addys]
 +------------------------------------------------------------------------+
 |                                                                        |
 |  +------------------------------------------------------------------+  |
-|  |                   Liquidation Flow (3 Phases)                    |  |
+|  |                   Liquidation Flow (2 Phases)                    |  |
 |  |                                                                  |  |
-|  |  Phase 1: Stability Pool Assets                                  |  |
-|  |  - Check if user has stablecoin positions                       |  |
-|  |  - Burn Green/sGreen as repayment                               |  |
-|  |  - Transfer other stables to Endaoment                          |  |
+|  |  Note: GREEN/sGREEN burning and stablecoin transfers are now    |  |
+|  |  handled by the Deleverage contract, not AuctionHouse            |  |
 |  |                                                                  |  |
-|  |  Phase 2: Priority Liquidation Assets                           |  |
+|  |  Phase 1: Priority Liquidation Assets                           |  |
 |  |  - Process assets in MissionControl priority order              |  |
-|  |  - Swap with stability pools for instant liquidity              |  |
-|  |  - Handle special asset configurations                          |  |
+|  |  - Skip GREEN/sGREEN (handled by Deleverage)                    |  |
+|  |  - Skip stablecoins for Endaoment (handled by Deleverage)       |  |
+|  |  - Swap remaining with stability pools for instant liquidity    |  |
 |  |                                                                  |  |
-|  |  Phase 3: Remaining User Vaults                                 |  |
+|  |  Phase 2: Remaining User Vaults                                 |  |
 |  |  - Iterate through all user positions                           |  |
 |  |  - Apply same liquidation logic                                 |  |
 |  |  - Create auctions for unsold collateral                        |  |
@@ -140,6 +139,8 @@ struct UserBorrowTerms:
     collateralVal: uint256            # Total collateral value in USD
     totalMaxDebt: uint256             # Maximum allowed debt
     debtTerms: cs.DebtTerms           # Detailed debt parameters
+    lowestLtv: uint256                # Lowest LTV across positions
+    highestLtv: uint256               # Highest LTV across positions
 ```
 
 ### UserDebt Struct
@@ -221,6 +222,8 @@ struct FungibleAuction:
 - `PRIORITY_LIQ_VAULT_DATA: uint256 = 20` - Max priority assets
 - `MAX_LIQ_USERS: uint256 = 50` - Max batch liquidations
 - `MAX_AUCTIONS: uint256 = 20` - Max batch auctions
+- `UNDERSCORE_VAULT_REGISTRY_ID: uint256 = 10` - Underscore vault registry ID
+- `ONE_CENT: uint256 = 10 ** 16` - $0.01 threshold for remaining debt
 
 ### Inherited State Variables
 
@@ -304,10 +307,8 @@ Only callable by Teller contract
 #### Events Emitted
 
 - `LiquidateUser` - Complete liquidation details including fees, repayments, and auction starts
-- `StabAssetBurntAsRepayment` - When Green/sGreen is burned for debt repayment (Phase 1)
-- `CollateralSentToEndaoment` - When stablecoins are sent to Endaoment (Phase 1)
-- `CollateralSwappedWithStabPool` - When collateral is swapped with stability pools (Phase 2)
-- `FungibleAuctionUpdated` - When auctions are created for remaining collateral (Phase 3)
+- `CollateralSwappedWithStabPool` - When collateral is swapped with stability pools
+- `FungibleAuctionUpdated` - When auctions are created for remaining collateral
 
 #### Example Usage
 
@@ -359,10 +360,8 @@ Only callable by Teller contract
 #### Events Emitted
 
 - `LiquidateUser` - Complete liquidation details for each user including fees, repayments, and auction starts
-- `StabAssetBurntAsRepayment` - When Green/sGreen is burned for debt repayment (Phase 1)
-- `CollateralSentToEndaoment` - When stablecoins are sent to Endaoment (Phase 1)  
-- `CollateralSwappedWithStabPool` - When collateral is swapped with stability pools (Phase 2)
-- `FungibleAuctionUpdated` - When auctions are created for remaining collateral (Phase 3)
+- `CollateralSwappedWithStabPool` - When collateral is swapped with stability pools
+- `FungibleAuctionUpdated` - When auctions are created for remaining collateral
 
 #### Example Usage
 
@@ -717,6 +716,77 @@ total_spent = auction_house.buyManyFungibleAuctions(
 )
 ```
 
+
+## Utility Functions
+
+### `withdrawTokensFromVault`
+
+Wrapper function for the Deleverage contract to withdraw tokens from a vault during deleverage operations.
+
+```vyper
+@external
+def withdrawTokensFromVault(
+    _user: address,
+    _asset: address,
+    _amount: uint256,
+    _recipient: address,
+    _vaultAddr: address,
+    _a: addys.Addys,
+) -> (uint256, bool):
+```
+
+#### Parameters
+
+| Name         | Type          | Description                 |
+| ------------ | ------------- | --------------------------- |
+| `_user`      | `address`     | User to withdraw from       |
+| `_asset`     | `address`     | Asset to withdraw           |
+| `_amount`    | `uint256`     | Amount to withdraw          |
+| `_recipient` | `address`     | Recipient of withdrawn tokens|
+| `_vaultAddr` | `address`     | Vault address               |
+| `_a`         | `addys.Addys` | Cached addresses            |
+
+#### Returns
+
+| Type              | Description                              |
+| ----------------- | ---------------------------------------- |
+| `(uint256, bool)` | (amount withdrawn, is position depleted) |
+
+#### Access
+
+Only callable by Deleverage contract
+
+### `calcTargetRepayAmount`
+
+Calculates the target repayment amount to restore a healthy LTV position.
+
+```vyper
+@view
+@external
+def calcTargetRepayAmount(
+    _debtAmount: uint256,
+    _collateralValue: uint256,
+    _targetLtv: uint256,
+) -> uint256:
+```
+
+#### Parameters
+
+| Name               | Type      | Description              |
+| ------------------ | --------- | ------------------------ |
+| `_debtAmount`      | `uint256` | Current debt amount      |
+| `_collateralValue` | `uint256` | Current collateral value |
+| `_targetLtv`       | `uint256` | Target LTV to achieve    |
+
+#### Returns
+
+| Type      | Description           |
+| --------- | --------------------- |
+| `uint256` | Target repayment amount |
+
+#### Access
+
+Public view function
 
 ## Key Mathematical Functions
 

@@ -145,7 +145,7 @@ struct PriceConfig:
 ### Constants
 
 - `MAX_PRIORITY_PRICE_SOURCES: uint256 = 10` - Maximum priority sources in config
-- `UNDERSCORE_APPRAISER_ID: uint256 = 8` - Registry ID for underscore appraiser
+- `UNDERSCORE_APPRAISER_ID: uint256 = 7` - Registry ID for underscore appraiser
 
 ### Immutable Variables
 
