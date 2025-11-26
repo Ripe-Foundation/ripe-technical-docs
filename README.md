@@ -43,9 +43,12 @@ Essential contracts for lending operations, liquidations, and user interactions.
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | [CreditEngine.vy](core-lending/CreditEngine.md)   | Lending powerhouse managing collateralized borrowing, interest accrual, and debt repayment               |
 | [Teller.vy](core-lending/Teller.md)               | Primary user interface for deposits, withdrawals, borrowing, and account management                      |
+| [TellerUtils.vy](core-lending/TellerUtils.md)     | Utility library for complex Teller operations including batch processing and delegation                  |
 | [Ledger.vy](core-lending/Ledger.md)               | Comprehensive data storage for user positions, debt, and protocol metrics                                |
 | [AuctionHouse.vy](core-lending/AuctionHouse.md)   | Liquidation engine executing multi-phase strategies to recover value from under-collateralized positions |
 | [StabilityPool.vy](core-lending/StabilityPool.md) | Insurance fund where stablecoin deposits earn discounted liquidated collateral                           |
+| [CreditRedeem.vy](core-lending/CreditRedeem.md)   | Collateral redemption mechanism allowing GREEN holders to redeem against unhealthy positions             |
+| [Deleverage.vy](core-lending/Deleverage.md)       | Automated deleveraging system for reducing user debt through collateral liquidation                      |
 
 ## Treasury & Rewards
 
@@ -54,6 +57,8 @@ Treasury management, bonding mechanisms, and reward distribution systems.
 | Contract                                                | Description                                                                                          |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | [Endaoment.vy](treasury-rewards/Endaoment.md)           | Treasury and liquidity hub deploying funds across DeFi strategies while maintaining GREEN stability  |
+| [EndaomentFunds.vy](treasury-rewards/EndaomentFunds.md) | Fund management module handling yield distribution and treasury accounting for Endaoment             |
+| [EndaomentPSM.vy](treasury-rewards/EndaomentPSM.md)     | Peg Stability Module enabling 1:1 stablecoin swaps to maintain GREEN peg                             |
 | [BondRoom.vy](treasury-rewards/BondRoom.md)             | Decentralized bond marketplace for GREEN/RIPE exchanges with dynamic pricing based on treasury needs |
 | [Lootbox.vy](treasury-rewards/Lootbox.md)               | Rewards distribution engine calculating time-weighted points for RIPE token allocation               |
 | [HumanResources.vy](treasury-rewards/HumanResources.md) | On-chain payroll system managing contributor vesting schedules and token compensation                |
@@ -128,6 +133,7 @@ Oracle integrations and price aggregation for reliable asset valuations.
 | [PriceDesk.vy](pricing/PriceDesk.md)                     | Oracle aggregator routing price requests through prioritized sources    |
 | [ChainlinkPrices.vy](pricing/ChainlinkPrices.md)         | Integration with Chainlink's decentralized oracle network               |
 | [PythPrices.vy](pricing/PythPrices.md)                   | High-frequency pricing with Pyth Network's pull-based oracles           |
+| [RedStone.vy](pricing/RedStone.md)                       | RedStone oracle integration with Chainlink-compatible interface         |
 | [StorkPrices.vy](pricing/StorkPrices.md)                 | Stork Network integration with nanosecond-precision timestamps          |
 | [CurvePrices.vy](pricing/CurvePrices.md)                 | Curve LP token pricing and GREEN stabilizer monitoring                  |
 | [BlueChipYieldPrices.vy](pricing/BlueChipYieldPrices.md) | Specialized pricing for yield-bearing vault tokens with snapshot system |

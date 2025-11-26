@@ -9,13 +9,18 @@
 
 - [CreditEngine](core-lending/CreditEngine.md)
 - [Teller](core-lending/Teller.md)
+- [TellerUtils](core-lending/TellerUtils.md)
 - [Ledger](core-lending/Ledger.md)
 - [AuctionHouse](core-lending/AuctionHouse.md)
 - [StabilityPool](core-lending/StabilityPool.md)
+- [CreditRedeem](core-lending/CreditRedeem.md)
+- [Deleverage](core-lending/Deleverage.md)
 
 ## Treasury & Rewards
 
 - [Endaoment](treasury-rewards/Endaoment.md)
+- [EndaomentFunds](treasury-rewards/EndaomentFunds.md)
+- [EndaomentPSM](treasury-rewards/EndaomentPSM.md)
 - [BondRoom](treasury-rewards/BondRoom.md)
 - [Lootbox](treasury-rewards/Lootbox.md)
 - [HumanResources](treasury-rewards/HumanResources.md)
@@ -60,6 +65,7 @@
 - [PriceDesk](pricing/PriceDesk.md)
 - [ChainlinkPrices](pricing/ChainlinkPrices.md)
 - [PythPrices](pricing/PythPrices.md)
+- [RedStone](pricing/RedStone.md)
 - [StorkPrices](pricing/StorkPrices.md)
 - [CurvePrices](pricing/CurvePrices.md)
 - [BlueChipYieldPrices](pricing/BlueChipYieldPrices.md)
