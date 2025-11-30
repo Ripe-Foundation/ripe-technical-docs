@@ -85,6 +85,8 @@ Access control, configuration management, and protocol governance systems.
 | [SwitchboardBravo.vy](governance-control/configuration/SwitchboardBravo.md)     | Reward distribution and points system configuration                   |
 | [SwitchboardCharlie.vy](governance-control/configuration/SwitchboardCharlie.md) | Protocol operations including deposits, withdrawals, and liquidations |
 | [SwitchboardDelta.vy](governance-control/configuration/SwitchboardDelta.md)     | HR, contributor management, and auxiliary feature configuration       |
+| [SwitchboardEcho.vy](governance-control/configuration/SwitchboardEcho.md)       | Endaoment and PSM operations with time-locked treasury management     |
+| [TrainingWheels.vy](governance-control/TrainingWheels.md)                       | User allowlist for restricted protocol access during early deployment |
 
 ## Tokens
 
@@ -137,6 +139,9 @@ Oracle integrations and price aggregation for reliable asset valuations.
 | [StorkPrices.vy](pricing/StorkPrices.md)                 | Stork Network integration with nanosecond-precision timestamps          |
 | [CurvePrices.vy](pricing/CurvePrices.md)                 | Curve LP token pricing and GREEN stabilizer monitoring                  |
 | [BlueChipYieldPrices.vy](pricing/BlueChipYieldPrices.md) | Specialized pricing for yield-bearing vault tokens with snapshot system |
+| [AeroRipePrices.vy](pricing/AeroRipePrices.md)           | RIPE token pricing from Aerodrome pools with TWAP protection            |
+| [wsuperOETHbPrices.vy](pricing/wsuperOETHbPrices.md)     | Wrapped superOETHb pricing using ERC4626 share conversion               |
+| [UndyVaultPrices.vy](pricing/UndyVaultPrices.md)         | Underscore Protocol vault token pricing with snapshot-based TWAP        |
 
 ### Pricing Modules
 

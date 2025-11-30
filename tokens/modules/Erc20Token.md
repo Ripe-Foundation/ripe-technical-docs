@@ -1,6 +1,6 @@
 # Erc20Token Technical Documentation
 
-[📄 View Source Code](../../../contracts/tokens/modules/Erc20Token.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/tokens/modules/Erc20Token.vy)
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # Erc4626Token Technical Documentation
 
-[📄 View Source Code](../../../contracts/tokens/modules/Erc4626Token.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/tokens/modules/Erc4626Token.vy)
 
 ## Overview
 

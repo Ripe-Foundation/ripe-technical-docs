@@ -1,6 +1,6 @@
 # BasicVault Module Technical Documentation
 
-[📄 View Source Code](../../../contracts/vaults/modules/BasicVault.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/modules/BasicVault.vy)
 
 ## Overview
 

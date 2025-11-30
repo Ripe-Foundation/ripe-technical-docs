@@ -34,11 +34,13 @@
 - [MissionControl](governance-control/MissionControl.md)
 - [LocalGov](governance-control/LocalGov.md)
 - [TimeLock](governance-control/TimeLock.md)
+- [TrainingWheels](governance-control/TrainingWheels.md)
 - Configuration
   - [SwitchboardAlpha](governance-control/configuration/SwitchboardAlpha.md)
   - [SwitchboardBravo](governance-control/configuration/SwitchboardBravo.md)
   - [SwitchboardCharlie](governance-control/configuration/SwitchboardCharlie.md)
   - [SwitchboardDelta](governance-control/configuration/SwitchboardDelta.md)
+  - [SwitchboardEcho](governance-control/configuration/SwitchboardEcho.md)
 
 ## Tokens
 
@@ -69,6 +71,9 @@
 - [StorkPrices](pricing/StorkPrices.md)
 - [CurvePrices](pricing/CurvePrices.md)
 - [BlueChipYieldPrices](pricing/BlueChipYieldPrices.md)
+- [AeroRipePrices](pricing/AeroRipePrices.md)
+- [wsuperOETHbPrices](pricing/wsuperOETHbPrices.md)
+- [UndyVaultPrices](pricing/UndyVaultPrices.md)
 - Pricing Modules
   - [PriceSourceData](pricing/modules/PriceSourceData.md)
 

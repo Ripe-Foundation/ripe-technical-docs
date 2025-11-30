@@ -1,6 +1,6 @@
 # PriceSourceData Module Technical Documentation
 
-[📄 View Source Code](../../../contracts/priceSources/modules/PriceSourceData.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/modules/PriceSourceData.vy)
 
 ## Overview
 

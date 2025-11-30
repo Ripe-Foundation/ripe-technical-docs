@@ -1,6 +1,6 @@
 # StabVault Module Technical Documentation
 
-[📄 View Source Code](../../../contracts/vaults/modules/StabVault.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/modules/StabVault.vy)
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # SharesVault Module Technical Documentation
 
-[📄 View Source Code](../../../contracts/vaults/modules/SharesVault.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/modules/SharesVault.vy)
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # VaultData Module Technical Documentation
 
-[📄 View Source Code](../../../contracts/vaults/modules/VaultData.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/modules/VaultData.vy)
 
 ## Overview
 
