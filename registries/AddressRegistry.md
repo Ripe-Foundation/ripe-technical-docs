@@ -777,7 +777,3 @@ These functions emit the following events:
 - `AddressDisablePending` - When disable is initiated
 - `AddressDisableConfirmed` - When disable is confirmed
 - `AddressDisableCancelled` - When disable is cancelled
-
-## Testing
-
-For comprehensive test examples, see: [`tests/registries/modules/test_address_registry.py`](../tests/registries/modules/test_address_registry.py)

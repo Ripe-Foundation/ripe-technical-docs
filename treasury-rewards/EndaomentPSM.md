@@ -1,6 +1,6 @@
 # EndaomentPSM Technical Documentation
 
-[View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/EndaomentPSM.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/EndaomentPSM.vy)
 
 ## Overview
 
@@ -753,7 +753,3 @@ else:
 6. **Yield Position Safety**: Cannot change yield position while vault tokens exist
 7. **Price Protection**: Uses min() of PriceDesk value and decimal conversion
 8. **Pause Mechanism**: All functions respect `isPaused` flag
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_endaoment_psm.py`](../../tests/core/test_endaoment_psm.py)

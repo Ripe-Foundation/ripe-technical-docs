@@ -843,7 +843,3 @@ Emitted when user exits early with fee.
 - **Long-Term Alignment**: Higher rewards for longer commitments
 - **Exit Costs**: Economic penalty for early exit discourages gaming
 - **Weighted Averaging**: Fair blending of multiple deposits with different locks
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_ripe_gov_vault.py`](../../tests/vaults/test_ripe_gov_vault.py)

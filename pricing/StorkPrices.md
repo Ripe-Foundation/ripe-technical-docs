@@ -595,7 +595,3 @@ def migrate_feed(asset, old_feed_id, new_feed_id):
 - Pull-based model saves gas
 - Batch updates reduce costs
 - Pay only for what you use
-
-## Testing
-
-For comprehensive test examples, see: [`tests/priceSources/test_stork_prices.py`](../../tests/priceSources/test_stork_prices.py)

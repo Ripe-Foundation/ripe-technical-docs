@@ -832,7 +832,3 @@ Where progress is the percentage of auction duration elapsed.
 5. **Keeper MEV**: Liquidation rewards may be subject to MEV extraction
 6. **Auction Timing**: Dutch auction discounts increase linearly, potentially allowing manipulation
 7. **Multi-Phase Safety**: Phased liquidation approach minimizes market impact
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_auction_house.py`](../../tests/core/test_auction_house.py)

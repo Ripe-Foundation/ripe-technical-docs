@@ -1,6 +1,6 @@
 # Deleverage Technical Documentation
 
-[View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/Deleverage.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/Deleverage.vy)
 
 ## Overview
 
@@ -758,7 +758,3 @@ requiredRepayment = numerator / denominator × 101%  # 1% buffer
 6. **Buffer Application**: 1% buffer applied to withdrawal deleverage calculations
 7. **Pause Mechanism**: All functions respect `isPaused` flag for emergency stops
 8. **Cap Enforcement**: Maximum users (25) and assets (25) per batch to prevent gas exhaustion
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_deleverage.py`](../../tests/core/test_deleverage.py)

@@ -652,7 +652,3 @@ auction_house.liquidate(
     # AuctionHouse calls transferBalanceWithinVault automatically
 )
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_simple_erc20.py`](../../tests/vaults/test_simple_erc20.py)

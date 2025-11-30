@@ -650,7 +650,3 @@ def cancelPendingAction(_aid: uint256) -> bool:
 4. **Access Hierarchy**: Clear separation of governance vs operational permissions
 5. **Contributor Protection**: Multiple safeguards for vesting contracts
 6. **Economic Guards**: Limits on compensation and bond parameters
-
-## Testing
-
-For comprehensive test examples, see: [`tests/config/test_switchboard_delta.py`](../../tests/config/test_switchboard_delta.py)

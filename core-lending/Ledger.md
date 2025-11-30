@@ -1632,7 +1632,3 @@ ledger.updateGreenPoolDebt(
 5. **Data Integrity**: Read-only contract ensures data cannot be corrupted
 6. **Points Manipulation**: Reward calculations must be carefully validated by callers
 7. **No Token Handling**: Ledger never handles tokens directly, only tracks data
-
-## Testing
-
-For comprehensive test examples, see: [`tests/data/test_ledger.py`](../../tests/data/test_ledger.py)

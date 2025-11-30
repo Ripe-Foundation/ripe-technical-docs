@@ -1,6 +1,6 @@
 # EndaomentFunds Technical Documentation
 
-[View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/EndaomentFunds.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/EndaomentFunds.vy)
 
 ## Overview
 
@@ -247,7 +247,3 @@ amount = endaoment_funds.transfer(
 
 ### Sends Assets To:
 - **Endaoment**: The only authorized recipient
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_endaoment_funds.py`](../../tests/core/test_endaoment_funds.py)

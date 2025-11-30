@@ -1008,6 +1008,15 @@ greenAdjustFull = (greenBalance - targetBalance) × 2
 maxRemovable = max(poolDebt, userLpShare × greenBalance)
 ```
 
-## Testing
+## Security Considerations
 
-For comprehensive test examples, see: [`tests/core/test_endaoment.py`](../../tests/core/test_endaoment.py)
+1. **Access Control**: All external functions restricted to Switchboard-registered contracts
+2. **Reentrancy Protection**: Critical functions use `@nonreentrant` decorator
+3. **Green Minting Authorization**: Can mint GREEN tokens through RipeHq's two-factor authentication for stabilizer operations
+4. **Pool Debt Tracking**: Maintains accurate debt accounting for minted Green used in liquidity
+5. **Partner Fund Isolation**: Partner funds are tracked separately from protocol funds
+6. **Lego Validation**: All yield strategies must be registered in the Lego registry
+7. **Slippage Protection**: Minimum amount parameters on liquidity and swap operations
+8. **ETH Handling**: Proper ETH/WETH conversion with balance checks
+9. **Pause Mechanism**: Inherits pause capability from DeptBasics for emergency stops
+10. **Stabilizer Limits**: Maximum pool debt prevents excessive Green minting for stabilization

@@ -1186,7 +1186,3 @@ success = green_token.finishTokenSetup(
 5. **Time-Locked Governance**: RipeHq changes require time lock to prevent sudden takeovers
 6. **EIP-2612 Permits**: Off-chain signatures enable gasless approvals but require replay protection
 7. **Supply Control**: No maximum supply cap, relying on collateralization for stability
-
-## Testing
-
-For comprehensive test examples, see: [`tests/tokens/test_erc20.py`](../../tests/tokens/test_erc20.py)

@@ -497,7 +497,3 @@ class LendingVault(Erc4626Token):
         # Include assets in lending protocol
         return balance + lending_deposits + accrued_interest
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/tokens/modules/test_erc4626_token.py`](../../tests/tokens/modules/test_erc4626_token.py)

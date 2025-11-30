@@ -1643,6 +1643,14 @@ has_access = mission_control.doesUndyLegoHaveAccess(
 # delegate withdraw/borrow/claim permissions to lego
 ```
 
-## Testing
+## Security Considerations
 
-For comprehensive test examples, see: [`tests/data/test_mission_control.py`](../../tests/data/test_mission_control.py)
+1. **Write Access Control**: Only Switchboard-registered contracts can modify configuration data
+2. **Asset Registration**: Assets are automatically registered when first configured, ensuring data integrity
+3. **Delegation System**: Fine-grained delegation permissions with explicit action-level controls
+4. **No Minting Capability**: MissionControl cannot mint GREEN or RIPE tokens
+5. **Configuration Validation**: Asset indices start at 1 to allow 0 to indicate "not found"
+6. **Priority Vault Limits**: Maximum limits on priority vaults prevent unbounded gas consumption
+7. **Pause Mechanism**: Inherits pause capability from DeptBasics for emergency stops
+8. **Training Wheels**: Optional training wheels contract for additional operational controls
+9. **Underscore Integration**: Dedicated registry support for underscore protocol integration

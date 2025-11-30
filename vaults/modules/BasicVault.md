@@ -505,7 +505,3 @@ All core functions check `vaultData.isPaused` before proceeding, allowing for em
 - Withdrawal amounts capped by user balance
 - Token transfer amounts capped by contract balance
 - Internal transfers don't affect vault total balances
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_basic_vault.py`](../../tests/vaults/test_basic_vault.py)

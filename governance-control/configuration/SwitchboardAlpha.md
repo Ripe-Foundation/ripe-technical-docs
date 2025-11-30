@@ -625,7 +625,3 @@ Disable functions bypass time-lock when called by:
 3. **Parameter Validation**: Comprehensive checks prevent invalid configurations
 4. **Access Control**: Strict governance requirements for enabling functions
 5. **Event Logging**: Complete audit trail of all changes
-
-## Testing
-
-For comprehensive test examples, see: [`tests/config/test_switchboard_alpha.py`](../../tests/config/test_switchboard_alpha.py)

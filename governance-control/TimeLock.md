@@ -539,7 +539,3 @@ class ParentContract:
         if self._cancelAction(action_id):
             del self.pending_operations[action_id]
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/modules/test_time_lock.py`](../tests/modules/test_time_lock.py)

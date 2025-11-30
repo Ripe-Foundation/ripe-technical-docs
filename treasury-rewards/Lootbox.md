@@ -1045,7 +1045,3 @@ Only callable by Switchboard-registered contracts
 #### Events Emitted
 
 - `UndyYieldBonusAmountUpdated` - New amount
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_lootbox.py`](../../tests/core/test_lootbox.py)

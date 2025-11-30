@@ -563,7 +563,3 @@ newLTV must be within [lowerBound, upperBound]
 4. **Access Control**: Strict governance requirements for enabling functions
 5. **Asset Isolation**: Each asset configured independently
 6. **LTV Protection**: Deviation limits prevent market manipulation
-
-## Testing
-
-For comprehensive test examples, see: [`tests/config/test_switchboard_bravo.py`](../../tests/config/test_switchboard_bravo.py)

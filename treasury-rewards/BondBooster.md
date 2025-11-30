@@ -513,7 +513,3 @@ unitsConsumed = greenSpent / UNIT_SIZE
 3. **Limit Enforcement**: Global and per-user limits prevent abuse
 4. **Expiration**: Time-based expiry prevents perpetual boosts
 5. **Zero Prevention**: Validates against zero values
-
-## Testing
-
-For comprehensive test examples, see: [`tests/config/test_bond_booster.py`](../../tests/config/test_bond_booster.py)

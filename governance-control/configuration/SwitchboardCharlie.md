@@ -639,7 +639,3 @@ Functions requiring governance:
 4. **Parameter Validation**: Comprehensive checks on all inputs
 5. **Event Logging**: Complete audit trail of all operations
 6. **Fail-Safe Design**: Emergency functions prioritize safety over functionality
-
-## Testing
-
-For comprehensive test examples, see: [`tests/config/test_switchboard_charlie.py`](../../tests/config/test_switchboard_charlie.py)

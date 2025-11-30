@@ -570,7 +570,3 @@ token.setBlacklist(bad_actor.address, True, sender=authorized)
 # Burn blacklisted tokens
 token.burnBlacklistTokens(bad_actor.address, sender=governance)
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/tokens/modules/test_erc20_token.py`](../../tests/tokens/modules/test_erc20_token.py)

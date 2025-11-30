@@ -662,7 +662,3 @@ success = switchboard.setBlacklist(
 5. **No Direct User Access**: All functions require governance or authorized contract access
 6. **Registry Validation**: Validates configuration contracts before allowing registration
 7. **Immutable Core**: Cannot modify its own registry after initial setup
-
-## Testing
-
-For comprehensive test examples, see: [`tests/registries/test_switchboard.py`](../../tests/registries/test_switchboard.py)

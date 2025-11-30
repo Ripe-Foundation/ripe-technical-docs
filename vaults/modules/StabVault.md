@@ -721,7 +721,3 @@ def _handleClaimRewards(
 - **Batch Operation Safety**: Individual failures don't break batch operations
 - **Price Oracle Dependencies**: Handles price failures gracefully
 - **Reward Availability**: Continues operation even when rewards unavailable
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_stab_vault.py`](../../tests/vaults/test_stab_vault.py)

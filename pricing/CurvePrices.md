@@ -711,7 +711,3 @@ Uses pool-specific oracle methods to calculate relative prices.
 - **Automatic Discovery**: Reduces configuration errors
 - **Registry Validation**: Cross-checks with Curve registries
 - **Reentrancy Protection**: View functions only
-
-## Testing
-
-For comprehensive test examples, see: [`tests/priceSources/test_curve_prices.py`](../../tests/priceSources/test_curve_prices.py)

@@ -1001,7 +1001,3 @@ SavingsGreen inherits comprehensive security features:
 - **Time-locked Governance**: Secure transitions with proper delays
 - **Nonreentrant Deposits/Withdrawals**: Protection against reentrancy attacks
 - **Access Controls**: RipeHq-based permission system
-
-## Testing
-
-For comprehensive test examples, see: [`tests/tokens/test_erc4626.py`](../../tests/tokens/test_erc4626.py)

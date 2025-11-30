@@ -620,7 +620,3 @@ if emergency_situation:
     # Returns unvested to protocol
     contributor.cancelPaycheck(sender=switchboard)
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/modules/test_contributor.py`](../../tests/modules/test_contributor.py)

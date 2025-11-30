@@ -470,7 +470,3 @@ The Addys module implements several gas optimization strategies:
 2. **Registry Authority**: All addresses come from the authoritative RipeHq registry
 3. **Validation Layers**: Multiple validation checks ensure comprehensive coverage
 4. **No Direct State**: Module has no mutable state, reducing attack surface
-
-## Testing
-
-For comprehensive test examples, see: [`tests/modules/test_addys.py`](../../tests/modules/test_addys.py)

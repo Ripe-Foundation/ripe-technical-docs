@@ -375,7 +375,3 @@ RipeHq uses DeptBasics minting declarations as part of its two-factor authentica
 3. **Both Must Pass**: Minting only allowed if both checks return true
 
 This ensures departments explicitly declare their minting intentions and prevents unauthorized minting even if misconfigured in RipeHq.
-
-## Testing
-
-For comprehensive test examples, see: [`tests/modules/test_dept_basics.py`](../tests/modules/test_dept_basics.py)

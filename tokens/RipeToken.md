@@ -1176,7 +1176,3 @@ success = ripe_token.finishTokenSetup(
     sender=initial_gov.address
 )
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/tokens/test_erc20.py`](../../tests/tokens/test_erc20.py)

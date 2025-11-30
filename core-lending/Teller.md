@@ -1598,7 +1598,3 @@ vaultAddr = getAddr(vaultId)
 ```
 
 This provides seamless UX by automatically routing to appropriate vaults.
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_teller.py`](../../tests/core/test_teller.py)

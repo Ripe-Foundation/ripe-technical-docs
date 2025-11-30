@@ -697,7 +697,3 @@ chainlink_prices.confirmPriceFeedUpdate(asset.address, sender=governance)
 - `DisableChainlinkFeedCancelled` - Removal cancelled
 
 All events include relevant addresses, configuration flags, and timelock details.
-
-## Testing
-
-For comprehensive test examples, see: [`tests/priceSources/test_chainlink_prices.py`](../../tests/priceSources/test_chainlink_prices.py)

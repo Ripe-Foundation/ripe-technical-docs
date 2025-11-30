@@ -1,6 +1,6 @@
 # RedStone Technical Documentation
 
-[View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/RedStone.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/RedStone.vy)
 
 ## Overview
 
@@ -380,7 +380,3 @@ if needsEthToUsd:
 5. **Future Timestamp Check**: Rejects timestamps in the future
 6. **Decimal Overflow**: Only accepts feeds with ≤ 18 decimals
 7. **Pause Mechanism**: Respects `isPaused` from PriceSourceData
-
-## Testing
-
-For comprehensive test examples, see: [`tests/pricing/test_redstone.py`](../../tests/pricing/test_redstone.py)

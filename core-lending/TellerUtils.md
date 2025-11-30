@@ -1,6 +1,6 @@
 # TellerUtils Technical Documentation
 
-[View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/TellerUtils.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/TellerUtils.vy)
 
 ## Overview
 
@@ -370,7 +370,3 @@ def isUnderscoreOwnerOrLego(_user: address, _caller: address, _mc: address = emp
 4. **Underscore Integration**: Proper validation of underscore wallet ownership
 5. **Trusted Deposits**: Ripe departments bypass user limits
 6. **Pause Respect**: Inherits pause mechanism from DeptBasics
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_teller_utils.py`](../../tests/core/test_teller_utils.py)

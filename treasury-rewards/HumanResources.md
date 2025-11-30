@@ -529,7 +529,3 @@ total_comp = hr.getTotalCompensation()
 total_claimed = hr.getTotalClaimed()
 print(f"Total: {total_comp/10**18} allocated, {total_claimed/10**18} claimed")
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_human_resources.py`](../../tests/core/test_human_resources.py)

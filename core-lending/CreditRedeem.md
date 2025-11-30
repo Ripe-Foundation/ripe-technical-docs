@@ -1,6 +1,6 @@
 # CreditRedeem Technical Documentation
 
-[View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/CreditRedeem.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/CreditRedeem.vy)
 
 ## Overview
 
@@ -420,7 +420,3 @@ CreditRedeem relies on CreditEngine for:
 - `getLatestUserDebtWithInterest()` - Get current debt with interest
 - `transferOrWithdrawViaRedemption()` - Move collateral to recipient
 - `repayFromDept()` - Reduce user's debt
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_credit_redeem.py`](../../tests/core/test_credit_redeem.py)

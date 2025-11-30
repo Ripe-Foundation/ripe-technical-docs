@@ -643,7 +643,3 @@ def _getTotalAmountForVault(_asset: address) -> uint256:
 - High precision calculations prevent dust accumulation
 - Proper handling of edge cases (zero balances, empty vaults)
 - Maintains share accounting invariants
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_shares_vault.py`](../../tests/vaults/test_shares_vault.py)

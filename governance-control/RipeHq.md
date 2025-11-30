@@ -1102,7 +1102,3 @@ assert charlie_token.balanceOf(treasury.address) == 2000
 ```
 
 **Example Output**: Transfers all balances, emits `RipeHqFundsRecovered` for each token
-
-## Testing
-
-For comprehensive test examples, see: [`tests/registries/test_ripe_hq.py`](../../tests/registries/test_ripe_hq.py)

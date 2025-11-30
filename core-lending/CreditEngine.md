@@ -1172,7 +1172,3 @@ If pool in danger:
 5. **Time-based Attacks**: Uses block.timestamp for interest, subject to miner manipulation
 6. **Reentrancy**: External calls follow checks-effects-interactions pattern
 7. **Oracle Dependency**: Relies on PriceDesk for accurate collateral valuations
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/test_credit_engine.py`](../../tests/core/test_credit_engine.py)

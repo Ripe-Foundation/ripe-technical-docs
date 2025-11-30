@@ -742,7 +742,3 @@ auction_house.liquidate(
 - **Use Current Values**: Always query current asset values for accurate collateral assessment
 - **Account for Yield**: Consider that user balances increase over time
 - **Share-based Calculations**: When possible, work with shares rather than converting to assets
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_rebase_erc20.py`](../../tests/vaults/test_rebase_erc20.py)

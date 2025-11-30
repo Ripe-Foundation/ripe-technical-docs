@@ -702,7 +702,3 @@ for i in range(1, num_assets + 1):  # Start at 1, not 0
     balance = vault_data.userBalances(user, asset)
     # Process each asset position
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_vault_data.py`](../../tests/vaults/test_vault_data.py)

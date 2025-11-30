@@ -849,7 +849,3 @@ updated = price_desk.addPriceSnapshot(
 ```
 
 **Example Output**: Calls `addPriceSnapshot` on all oracles with the asset feed
-
-## Testing
-
-For comprehensive test examples, see: [`tests/registries/test_price_desk.py`](../../tests/registries/test_price_desk.py)

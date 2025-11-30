@@ -631,7 +631,3 @@ success = vault_book.mintRipeForStabPoolClaims(
 1. Mints Ripe tokens to the calling vault
 2. Calls `didGetRewardsFromStabClaims` on Ledger to record the reward
 3. Returns `True`
-
-## Testing
-
-For comprehensive test examples, see: [`tests/registries/test_vault_book.py`](../../tests/registries/test_vault_book.py)

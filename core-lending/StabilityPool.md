@@ -578,7 +578,3 @@ result = teller.redeemFromStabilityPool(
     sender=user.address
 )
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/vaults/test_stability_pool.py`](../../tests/vaults/test_stability_pool.py)

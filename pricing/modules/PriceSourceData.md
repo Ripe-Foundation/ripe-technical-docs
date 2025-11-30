@@ -559,7 +559,3 @@ Emitted when funds are recovered from contract.
 | `asset` | `indexed(address)` | Token recovered |
 | `recipient` | `indexed(address)` | Address receiving funds |
 | `balance` | `uint256` | Amount recovered |
-
-## Testing
-
-For comprehensive test examples, see: [`tests/priceSources/test_price_source_data.py`](../../tests/priceSources/test_price_source_data.py)

@@ -693,7 +693,3 @@ boa.env.time_travel(seconds=timelock_duration)
 # 3. Confirm update
 pyth_prices.confirmPriceFeedUpdate(asset.address, sender=governance)
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/priceSources/test_pyth_prices.py`](../../tests/priceSources/test_pyth_prices.py)

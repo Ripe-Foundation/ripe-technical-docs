@@ -570,7 +570,3 @@ All configuration events include full details: asset, protocol, underlying, para
 - **Registry Validation**: Only accepts registered protocol vaults
 - **Underlying Verification**: Ensures underlying asset is valid
 - **Decimal Handling**: Proper conversion between different decimal scales
-
-## Testing
-
-For comprehensive test examples, see: [`tests/priceSources/test_blue_chip_yield_prices.py`](../../tests/priceSources/test_blue_chip_yield_prices.py)

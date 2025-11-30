@@ -489,7 +489,3 @@ If paymentValue <= badDebt:
 Else:
     ripeForBadDebt = totalRipePayout * badDebt / paymentValue
 ```
-
-## Testing
-
-For comprehensive test examples, see: [`tests/core/bondRoom/test_ripe_bonds.py`](../../tests/core/bondRoom/test_ripe_bonds.py)

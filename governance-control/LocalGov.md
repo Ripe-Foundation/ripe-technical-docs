@@ -566,7 +566,3 @@ success = ripe_hq.finishRipeHqSetup(
 ```
 
 **Example Output**: Governance transferred, time-lock set, `numGovChanges` = 1
-
-## Testing
-
-For comprehensive test examples, see: [`tests/modules/test_local_gov.py`](../tests/modules/test_local_gov.py)
