@@ -54,13 +54,13 @@ This document contains all deployed contract addresses for the Ripe Protocol on 
 | [Switchboard Bravo](governance-control/configuration/SwitchboardBravo.md)     | [0xD18AC028cBe1AbebDb118E9C7A60018d58C846e7](https://basescan.org/address/0xD18AC028cBe1AbebDb118E9C7A60018d58C846e7) | Config manager B |
 | [Switchboard Charlie](governance-control/configuration/SwitchboardCharlie.md) | [0x6D798bD44b1591571c9d95b6D51c9c34a5534008](https://basescan.org/address/0x6D798bD44b1591571c9d95b6D51c9c34a5534008) | Config manager C |
 | [Switchboard Delta](governance-control/configuration/SwitchboardDelta.md)     | [0x50e815AC356798E42EB35De538a0376459ce11cb](https://basescan.org/address/0x50e815AC356798E42EB35De538a0376459ce11cb) | Config manager D |
-| Switchboard Echo                                                              | [0xdF99a86e4450163e8DbA47C928131e75D2995dbb](https://basescan.org/address/0xdF99a86e4450163e8DbA47C928131e75D2995dbb) | Config manager D |
+| Switchboard Echo                                                              | [0xdF99a86e4450163e8DbA47C928131e75D2995dbb](https://basescan.org/address/0xdF99a86e4450163e8DbA47C928131e75D2995dbb) | Config manager E |
 
 ## Pricing
 
 | Contract                                                | Address                                                                                                               | Description                                 |
 | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| [Price Desk](pricing/PriceDesk.md)                      | [0xDFe8D79bc05420a3fFa14824135016a738eE8299](https://basescan.org/address/0xDFe8D79bc05420a3fFa14824135016a738eE8299) | Price aggregation hub                       |
+| [Price Desk](pricing/PriceDesk.md)                      | [0x68564c6035e8Dc21F0Ce6CB9592dC47B59dE2Ff6](https://basescan.org/address/0x68564c6035e8Dc21F0Ce6CB9592dC47B59dE2Ff6) | Price aggregation hub                       |
 | [Chainlink Prices](pricing/ChainlinkPrices.md)          | [0x253f55e455701fF0B835128f55668ed159aAB3D9](https://basescan.org/address/0x253f55e455701fF0B835128f55668ed159aAB3D9) | Chainlink oracle integration                |
 | [Curve Prices](pricing/CurvePrices.md)                  | [0x7B2aeE8B6A4bdF0885dEF48CCda8453Fdc1Bba5d](https://basescan.org/address/0x7B2aeE8B6A4bdF0885dEF48CCda8453Fdc1Bba5d) | Curve pool pricing                          |
 | [BlueChip Yield Prices](pricing/BlueChipYieldPrices.md) | [0x90C70ACfF302c8a7f00574EC3547B0221f39cD28](https://basescan.org/address/0x90C70ACfF302c8a7f00574EC3547B0221f39cD28) | Yield-bearing asset pricing                 |
