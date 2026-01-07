@@ -20,14 +20,14 @@ TrainingWheels uses a standard department architecture:
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution and validation
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Exported Interface**: Address utilities via `addys.__interface__`
 
 ### DeptBasics Module
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism
   - Department interface compliance

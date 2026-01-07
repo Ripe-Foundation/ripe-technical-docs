@@ -13,7 +13,7 @@ MissionControl is the central configuration hub for Ripe Protocol, storing all o
 - **Rewards Configuration**: Points allocation across borrowers, stakers, voters, and depositors
 - **Advanced Features**: Priority vaults, stability pools, bond markets, and dynamic rates
 
-MissionControl implements read-only access for queries with writes restricted to [Switchboard](../governance-control/Switchboard.md)-registered contracts. Extensive bundling functions package related configurations for efficient consumption, while automatic asset registration and validation ensure data integrity across the protocol. It serves all major protocol components including [CreditEngine](../core-lending/CreditEngine.md), [AuctionHouse](../core-lending/AuctionHouse.md), [PriceDesk](../pricing/PriceDesk.md), and vault systems.
+MissionControl implements read-only access for queries with writes restricted to [Switchboard](../governance/Switchboard.md)-registered contracts. Extensive bundling functions package related configurations for efficient consumption, while automatic asset registration and validation ensure data integrity across the protocol. It serves all major protocol components including [CreditEngine](../core/CreditEngine.md), [AuctionHouse](../core/AuctionHouse.md), [PriceDesk](../pricing/PriceDesk.md), and vault systems.
 
 ## Architecture & Modules
 
@@ -23,7 +23,7 @@ MissionControl is built using a modular architecture that provides foundational 
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution and validation
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation that only Switchboard-registered contracts can modify configurations
@@ -34,7 +34,7 @@ MissionControl is built using a modular architecture that provides foundational 
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Department interface compliance
@@ -184,7 +184,7 @@ Asset-specific liquidation configuration:
 struct AssetLiqConfig:
     hasConfig: bool                   # Has custom liquidation config
     shouldBurnAsPayment: bool         # Burn asset as debt repayment
-    shouldTransferToEndaoment: bool   # Transfer asset to [Endaoment](../treasury-rewards/Endaoment.md)
+    shouldTransferToEndaoment: bool   # Transfer asset to [Endaoment](../treasury/Endaoment.md)
     shouldSwapInStabPools: bool       # Allow stability pool swaps
     shouldAuctionInstantly: bool      # Create auctions immediately
     customAuctionParams: cs.AuctionParams # Asset-specific auction params
@@ -303,7 +303,7 @@ struct PurchaseRipeBondConfig:
 
 ### Inherited State Variables
 
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 - `canMintGreen: bool` - Set to `False`
@@ -378,7 +378,7 @@ _Function does not return any values_
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 #### Example Usage
 
@@ -427,7 +427,7 @@ _Function does not return any values_
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 #### Example Usage
 
@@ -469,7 +469,7 @@ def setHrConfig(_config: cs.HrConfig):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setRipeBondConfig`
 
@@ -488,7 +488,7 @@ def setRipeBondConfig(_config: cs.RipeBondConfig):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ## Asset Configuration Functions
 
@@ -514,7 +514,7 @@ _Function does not return any values_
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 #### Example Usage
 
@@ -575,7 +575,7 @@ def deregisterAsset(_asset: address) -> bool:
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 #### Example Usage
 
@@ -607,7 +607,7 @@ def setUserConfig(_user: address, _config: cs.UserConfig):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts or Teller
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts or Teller
 
 #### Example Usage
 
@@ -645,7 +645,7 @@ def setUserDelegation(_user: address, _delegate: address, _config: cs.ActionDele
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts or Teller
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts or Teller
 
 #### Example Usage
 
@@ -685,7 +685,7 @@ def setRipeRewardsConfig(_config: cs.RipeRewardsConfig):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 #### Example Usage
 
@@ -736,7 +736,7 @@ def setRipeGovVaultConfig(
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setPriorityLiqAssetVaults`
 
@@ -755,7 +755,7 @@ def setPriorityLiqAssetVaults(_priorityLiqAssetVaults: DynArray[cs.VaultLite, PR
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setPriorityStabVaults`
 
@@ -774,7 +774,7 @@ def setPriorityStabVaults(_priorityStabVaults: DynArray[cs.VaultLite, PRIORITY_V
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ## Access Control Functions
 
@@ -796,7 +796,7 @@ def setCanPerformLiteAction(_user: address, _canDo: bool):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setTrainingWheels`
 
@@ -815,7 +815,7 @@ def setTrainingWheels(_trainingWheels: address):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setUnderscoreRegistry`
 
@@ -834,7 +834,7 @@ def setUnderscoreRegistry(_underscoreRegistry: address):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setPriorityPriceSourceIds`
 
@@ -853,7 +853,7 @@ def setPriorityPriceSourceIds(_priorityIds: DynArray[uint256, MAX_PRIORITY_PRICE
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ### `setShouldCheckLastTouch`
 
@@ -872,7 +872,7 @@ def setShouldCheckLastTouch(_shouldCheck: bool):
 
 #### Access
 
-Only callable by [Switchboard](../governance-control/Switchboard.md)-registered contracts
+Only callable by [Switchboard](../governance/Switchboard.md)-registered contracts
 
 ## Asset Query Functions
 

@@ -382,7 +382,7 @@ def setBlacklist(_addr: address, _shouldBlacklist: bool) -> bool:
 
 #### Access
 
-Only addresses with `canSetTokenBlacklist` permission in [RipeHq](../../governance-control/RipeHq.md).
+Only addresses with `canSetTokenBlacklist` permission in [RipeHq](../../governance/RipeHq.md).
 
 #### Restrictions
 - Cannot blacklist token contract itself

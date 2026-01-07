@@ -5,42 +5,42 @@
 - [Github](https://github.com/Ripe-Foundation/ripe-protocol)
 - [User Docs](https://docs.ripe.finance/)
 
-## Core Lending
+## Core
 
-- [CreditEngine](core-lending/CreditEngine.md)
-- [Teller](core-lending/Teller.md)
-- [TellerUtils](core-lending/TellerUtils.md)
-- [Ledger](core-lending/Ledger.md)
-- [AuctionHouse](core-lending/AuctionHouse.md)
-- [StabilityPool](core-lending/StabilityPool.md)
-- [CreditRedeem](core-lending/CreditRedeem.md)
-- [Deleverage](core-lending/Deleverage.md)
+- [CreditEngine](core/CreditEngine.md)
+- [Teller](core/Teller.md)
+- [TellerUtils](core/TellerUtils.md)
+- [Ledger](core/Ledger.md)
+- [AuctionHouse](core/AuctionHouse.md)
+- [StabilityPool](core/StabilityPool.md)
+- [CreditRedeem](core/CreditRedeem.md)
+- [Deleverage](core/Deleverage.md)
 
-## Treasury & Rewards
+## Treasury
 
-- [Endaoment](treasury-rewards/Endaoment.md)
-- [EndaomentFunds](treasury-rewards/EndaomentFunds.md)
-- [EndaomentPSM](treasury-rewards/EndaomentPSM.md)
-- [BondRoom](treasury-rewards/BondRoom.md)
-- [Lootbox](treasury-rewards/Lootbox.md)
-- [HumanResources](treasury-rewards/HumanResources.md)
-- [Contributor](treasury-rewards/Contributor.md)
-- [BondBooster](treasury-rewards/BondBooster.md)
+- [Endaoment](treasury/Endaoment.md)
+- [EndaomentFunds](treasury/EndaomentFunds.md)
+- [EndaomentPSM](treasury/EndaomentPSM.md)
+- [BondRoom](treasury/BondRoom.md)
+- [Lootbox](treasury/Lootbox.md)
+- [HumanResources](treasury/HumanResources.md)
+- [Contributor](treasury/Contributor.md)
+- [BondBooster](treasury/BondBooster.md)
 
-## Governance & Control
+## Governance
 
-- [RipeHq](governance-control/RipeHq.md)
-- [Switchboard](governance-control/Switchboard.md)
-- [MissionControl](governance-control/MissionControl.md)
-- [LocalGov](governance-control/LocalGov.md)
-- [TimeLock](governance-control/TimeLock.md)
-- [TrainingWheels](governance-control/TrainingWheels.md)
+- [RipeHq](governance/RipeHq.md)
+- [Switchboard](governance/Switchboard.md)
+- [MissionControl](governance/MissionControl.md)
+- [LocalGov](governance/LocalGov.md)
+- [TimeLock](governance/TimeLock.md)
+- [TrainingWheels](governance/TrainingWheels.md)
 - Configuration
-  - [SwitchboardAlpha](governance-control/configuration/SwitchboardAlpha.md)
-  - [SwitchboardBravo](governance-control/configuration/SwitchboardBravo.md)
-  - [SwitchboardCharlie](governance-control/configuration/SwitchboardCharlie.md)
-  - [SwitchboardDelta](governance-control/configuration/SwitchboardDelta.md)
-  - [SwitchboardEcho](governance-control/configuration/SwitchboardEcho.md)
+  - [SwitchboardAlpha](governance/configuration/SwitchboardAlpha.md)
+  - [SwitchboardBravo](governance/configuration/SwitchboardBravo.md)
+  - [SwitchboardCharlie](governance/configuration/SwitchboardCharlie.md)
+  - [SwitchboardDelta](governance/configuration/SwitchboardDelta.md)
+  - [SwitchboardEcho](governance/configuration/SwitchboardEcho.md)
 
 ## Tokens
 
@@ -77,12 +77,9 @@
 - Pricing Modules
   - [PriceSourceData](pricing/modules/PriceSourceData.md)
 
-## Registries
+## Core Modules
 
-- [VaultBook](registries/VaultBook.md)
-- [AddressRegistry](registries/AddressRegistry.md)
-
-## Shared Modules
-
-- [Addys](shared-modules/Addys.md)
-- [DeptBasics](shared-modules/DeptBasics.md)
+- [VaultBook](core-modules/VaultBook.md)
+- [AddressRegistry](core-modules/AddressRegistry.md)
+- [Addys](core-modules/Addys.md)
+- [DeptBasics](core-modules/DeptBasics.md)

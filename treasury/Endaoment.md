@@ -22,7 +22,7 @@ Endaoment is built using a modular architecture with the following components:
 ### Addys Module
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -32,7 +32,7 @@ Endaoment is built using a modular architecture with the following components:
 ### DeptBasics Module
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Green token minting capability (for stabilizer)
@@ -150,7 +150,7 @@ struct StabilizerConfig:
 - `MAX_PROOFS: uint256 = 25` - Maximum merkle proofs for incentive claims
 
 ### Inherited State Variables
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 - `isPaused: bool` - Department pause state
 - `canMintGreen: bool` - Set to `True` for stabilizer
 

@@ -20,7 +20,7 @@ RipeHq is built using a modular architecture that separates concerns and promote
 ### LocalGov Module
 - **Location**: `contracts/modules/LocalGov.vy`
 - **Purpose**: Provides governance functionality with time-locked changes
-- **Documentation**: See [LocalGov Technical Documentation](../governance-control/LocalGov.md)
+- **Documentation**: See [LocalGov Technical Documentation](../governance/LocalGov.md)
 - **Key Features**:
   - Governance address management with time-locked transitions
   - Configurable min/max timelock periods for security
@@ -30,7 +30,7 @@ RipeHq is built using a modular architecture that separates concerns and promote
 ### AddressRegistry Module  
 - **Location**: `contracts/registries/modules/AddressRegistry.vy`
 - **Purpose**: Manages the registry of protocol addresses
-- **Documentation**: See [AddressRegistry Technical Documentation](../registries/AddressRegistry.md)
+- **Documentation**: See [AddressRegistry Technical Documentation](../core-modules/AddressRegistry.md)
 - **Key Features**:
   - Sequential registry ID assignment (starting from 1)
   - Time-locked address additions, updates, and disabling
@@ -124,7 +124,7 @@ From [LocalGov](./LocalGov.md):
 - `governance: address` - Current governance address
 - `govChangeTimeLock: uint256` - Timelock for governance changes
 
-From [AddressRegistry](../registries/AddressRegistry.md):
+From [AddressRegistry](../core-modules/AddressRegistry.md):
 - `registryChangeTimeLock: uint256` - Timelock for registry changes
 - Various internal registry mappings for address management
 
@@ -217,7 +217,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `NewAddressPending` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains address, description, and confirmation block
+- `NewAddressPending` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains address, description, and confirmation block
 
 #### Example Usage
 ```python
@@ -258,7 +258,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `NewAddressConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, address, description
+- `NewAddressConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, address, description
 
 #### Example Usage
 ```python
@@ -300,7 +300,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `NewAddressCancelled` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains address, description, initiation and confirmation blocks
+- `NewAddressCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains address, description, initiation and confirmation blocks
 
 #### Example Usage
 ```python
@@ -341,7 +341,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `AddressUpdatePending` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, old address, new address, and confirmation block
+- `AddressUpdatePending` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, old address, new address, and confirmation block
 
 #### Example Usage
 ```python
@@ -382,7 +382,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `AddressUpdateConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, old address, new address, version
+- `AddressUpdateConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, old address, new address, version
 
 #### Example Usage
 ```python
@@ -423,7 +423,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `AddressUpdateCancelled` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, old address, new address, initiation and confirmation blocks
+- `AddressUpdateCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, old address, new address, initiation and confirmation blocks
 
 #### Example Usage
 ```python
@@ -463,7 +463,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `AddressDisablePending` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, address, description, and confirmation block
+- `AddressDisablePending` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, address, description, and confirmation block
 
 #### Example Usage
 ```python
@@ -503,7 +503,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `AddressDisableConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, address, description, version
+- `AddressDisableConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, address, description, version
 
 #### Example Usage
 ```python
@@ -544,7 +544,7 @@ Only callable by governance (see [LocalGov](./LocalGov.md) for governance detail
 
 #### Events Emitted
 
-- `AddressDisableCancelled` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, address, description, initiation and confirmation blocks
+- `AddressDisableCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, address, description, initiation and confirmation blocks
 
 #### Example Usage
 ```python

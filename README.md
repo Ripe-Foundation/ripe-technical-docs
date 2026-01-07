@@ -8,85 +8,84 @@ For deployed contract addresses on Base Mainnet, see [Deployments](Deployments.m
 
 Ripe Protocol is an onchain credit layer that turns **any tokenized asset—crypto‑native _or_ real‑world**—into both a yield source _and_ instant liquidity.
 
-Users deposit assets that keep earning through external strategies **plus** Ripe’s Endaoment, then draw a **single GREEN loan** against their diversified portfolio—no order books, no counterparties, predictable rates. Governance, driven by RIPE tokens and dynamic committee voting, steers risk, monetary policy and treasury allocations, giving the community full ownership of the protocol’s economics.
+Users deposit assets that keep earning through external strategies **plus** Ripe's Endaoment, then draw a **single GREEN loan** against their diversified portfolio—no order books, no counterparties, predictable rates. Governance, driven by RIPE tokens and dynamic committee voting, steers risk, monetary policy and treasury allocations, giving the community full ownership of the protocol's economics.
 
-### Key Features
+### Key Features
 
 | Feature                                        | Why it matters                                                                                                                                                |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Earn Yield on Anything**                     | The Endaoment reinvests all protocol revenues and Bonding proceeds, distributing sustainable yield (and RIPE incentives) even to idle NFTs or tokenized RWAs. |
+| **Earn Yield on Anything**                     | The Endaoment reinvests all protocol revenues and Bonding proceeds, distributing sustainable yield (and RIPE incentives) even to idle NFTs or tokenized RWAs. |
 | **One‑Loan‑for‑All Collateral**                | Aggregate every deposit—stablecoins, LP tokens, NFTs, houses—to back a _single_ GREEN debt position, slashing liquidation risk and UX friction.               |
 | **GREEN Stablecoin & Multi‑Layer Peg Defense** | Dynamic interest, Stability Pool absorption, Endaoment redemptions and protocol‑owned liquidity keep GREEN fully‑backed and on‑peg.                           |
 | **Compliance‑Ready RWA Support**               | Whitelists and transfer‑restricted liquidation paths let regulated or permissioned assets participate safely.                                                 |
 | **Counterparty‑Free, Predictable Borrowing**   | Smart contracts mint GREEN directly—no lenders, no funding gaps, transparent terms.                                                                           |
 | **Resilient Liquidations**                     | Cascade of Stability Pool swaps + fungible/NFT auctions minimizes bad debt while rewarding backstops.                                                         |
-| **Dynamic, Onchain Governance**                | Continuous “Dynamic Voting,” elected committees and **Juice Score** incentives align risk, rewards and protocol evolution with token‑holder skin‑in‑the‑game. |
+| **Dynamic, Onchain Governance**                | Continuous "Dynamic Voting," elected committees and **Juice Score** incentives align risk, rewards and protocol evolution with token‑holder skin‑in‑the‑game. |
 
 ### Protocol Components
 
 The protocol consists of several interconnected systems:
 
-- **Core Lending**: Lending engine, user interface, liquidations, and stability pool
-- **Treasury & Rewards**: Treasury management, bonding, rewards distribution, and contributor compensation
-- **Governance & Control**: Access control, configuration management, and time-locked operations
+- **Core**: Lending engine, user interface, liquidations, and stability pool
+- **Treasury**: Treasury management, bonding, rewards distribution, and contributor compensation
+- **Governance**: Access control, configuration management, and time-locked operations
 - **Tokens**: GREEN (stablecoin), RIPE (governance), and sGREEN (yield-bearing GREEN)
 - **Vaults**: Asset management strategies from simple storage to yield optimization
 - **Pricing**: Multi-oracle integration for accurate and resilient asset valuations
-- **Registries**: Central coordination points for vaults and addresses
-- **Shared Modules**: Reusable components for address resolution and department operations
+- **Core Modules**: Central coordination points, address resolution, and shared functionality
 
-## Core Lending
+## Core
 
 Essential contracts for lending operations, liquidations, and user interactions.
 
-| Contract                                          | Description                                                                                              |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [CreditEngine.vy](core-lending/CreditEngine.md)   | Lending powerhouse managing collateralized borrowing, interest accrual, and debt repayment               |
-| [Teller.vy](core-lending/Teller.md)               | Primary user interface for deposits, withdrawals, borrowing, and account management                      |
-| [TellerUtils.vy](core-lending/TellerUtils.md)     | Utility library for complex Teller operations including batch processing and delegation                  |
-| [Ledger.vy](core-lending/Ledger.md)               | Comprehensive data storage for user positions, debt, and protocol metrics                                |
-| [AuctionHouse.vy](core-lending/AuctionHouse.md)   | Liquidation engine executing multi-phase strategies to recover value from under-collateralized positions |
-| [StabilityPool.vy](core-lending/StabilityPool.md) | Insurance fund where stablecoin deposits earn discounted liquidated collateral                           |
-| [CreditRedeem.vy](core-lending/CreditRedeem.md)   | Collateral redemption mechanism allowing GREEN holders to redeem against unhealthy positions             |
-| [Deleverage.vy](core-lending/Deleverage.md)       | Automated deleveraging system for reducing user debt through collateral liquidation                      |
+| Contract                                  | Description                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [CreditEngine.vy](core/CreditEngine.md)   | Lending powerhouse managing collateralized borrowing, interest accrual, and debt repayment               |
+| [Teller.vy](core/Teller.md)               | Primary user interface for deposits, withdrawals, borrowing, and account management                      |
+| [TellerUtils.vy](core/TellerUtils.md)     | Utility library for complex Teller operations including batch processing and delegation                  |
+| [Ledger.vy](core/Ledger.md)               | Comprehensive data storage for user positions, debt, and protocol metrics                                |
+| [AuctionHouse.vy](core/AuctionHouse.md)   | Liquidation engine executing multi-phase strategies to recover value from under-collateralized positions |
+| [StabilityPool.vy](core/StabilityPool.md) | Insurance fund where stablecoin deposits earn discounted liquidated collateral                           |
+| [CreditRedeem.vy](core/CreditRedeem.md)   | Collateral redemption mechanism allowing GREEN holders to redeem against unhealthy positions             |
+| [Deleverage.vy](core/Deleverage.md)       | Automated deleveraging system for reducing user debt through collateral liquidation                      |
 
-## Treasury & Rewards
+## Treasury
 
 Treasury management, bonding mechanisms, and reward distribution systems.
 
-| Contract                                                | Description                                                                                          |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [Endaoment.vy](treasury-rewards/Endaoment.md)           | Treasury and liquidity hub deploying funds across DeFi strategies while maintaining GREEN stability  |
-| [EndaomentFunds.vy](treasury-rewards/EndaomentFunds.md) | Fund management module handling yield distribution and treasury accounting for Endaoment             |
-| [EndaomentPSM.vy](treasury-rewards/EndaomentPSM.md)     | Peg Stability Module enabling 1:1 stablecoin swaps to maintain GREEN peg                             |
-| [BondRoom.vy](treasury-rewards/BondRoom.md)             | Decentralized bond marketplace for GREEN/RIPE exchanges with dynamic pricing based on treasury needs |
-| [Lootbox.vy](treasury-rewards/Lootbox.md)               | Rewards distribution engine calculating time-weighted points for RIPE token allocation               |
-| [HumanResources.vy](treasury-rewards/HumanResources.md) | On-chain payroll system managing contributor vesting schedules and token compensation                |
-| [Contributor.vy](treasury-rewards/Contributor.md)       | Individual vesting contracts for contributor token compensation                                      |
-| [BondBooster.vy](treasury-rewards/BondBooster.md)       | Dynamic discount mechanism for GREEN-to-RIPE bond conversions                                        |
+| Contract                                        | Description                                                                                          |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [Endaoment.vy](treasury/Endaoment.md)           | Treasury and liquidity hub deploying funds across DeFi strategies while maintaining GREEN stability  |
+| [EndaomentFunds.vy](treasury/EndaomentFunds.md) | Fund management module handling yield distribution and treasury accounting for Endaoment             |
+| [EndaomentPSM.vy](treasury/EndaomentPSM.md)     | Peg Stability Module enabling 1:1 stablecoin swaps to maintain GREEN peg                             |
+| [BondRoom.vy](treasury/BondRoom.md)             | Decentralized bond marketplace for GREEN/RIPE exchanges with dynamic pricing based on treasury needs |
+| [Lootbox.vy](treasury/Lootbox.md)               | Rewards distribution engine calculating time-weighted points for RIPE token allocation               |
+| [HumanResources.vy](treasury/HumanResources.md) | On-chain payroll system managing contributor vesting schedules and token compensation                |
+| [Contributor.vy](treasury/Contributor.md)       | Individual vesting contracts for contributor token compensation                                      |
+| [BondBooster.vy](treasury/BondBooster.md)       | Dynamic discount mechanism for GREEN-to-RIPE bond conversions                                        |
 
-## Governance & Control
+## Governance
 
 Access control, configuration management, and protocol governance systems.
 
-| Contract                                                  | Description                                                              |
-| --------------------------------------------------------- | ------------------------------------------------------------------------ |
-| [RipeHq.vy](governance-control/RipeHq.md)                 | Master registry and governance hub controlling token minting permissions |
-| [Switchboard.vy](governance-control/Switchboard.md)       | Authorization gateway for all protocol configuration changes             |
-| [MissionControl.vy](governance-control/MissionControl.md) | Central configuration hub storing all operational parameters             |
-| [LocalGov.vy](governance-control/LocalGov.md)             | Two-tier governance system for contract-specific operations              |
-| [TimeLock.vy](governance-control/TimeLock.md)             | Time-delay mechanism for critical configuration changes                  |
+| Contract                                          | Description                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------------ |
+| [RipeHq.vy](governance/RipeHq.md)                 | Master registry and governance hub controlling token minting permissions |
+| [Switchboard.vy](governance/Switchboard.md)       | Authorization gateway for all protocol configuration changes             |
+| [MissionControl.vy](governance/MissionControl.md) | Central configuration hub storing all operational parameters             |
+| [LocalGov.vy](governance/LocalGov.md)             | Two-tier governance system for contract-specific operations              |
+| [TimeLock.vy](governance/TimeLock.md)             | Time-delay mechanism for critical configuration changes                  |
 
 ### Configuration Contracts
 
-| Contract                                                                        | Description                                                           |
-| ------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| [SwitchboardAlpha.vy](governance-control/configuration/SwitchboardAlpha.md)     | Asset and vault configuration including collateral parameters         |
-| [SwitchboardBravo.vy](governance-control/configuration/SwitchboardBravo.md)     | Reward distribution and points system configuration                   |
-| [SwitchboardCharlie.vy](governance-control/configuration/SwitchboardCharlie.md) | Protocol operations including deposits, withdrawals, and liquidations |
-| [SwitchboardDelta.vy](governance-control/configuration/SwitchboardDelta.md)     | HR, contributor management, and auxiliary feature configuration       |
-| [SwitchboardEcho.vy](governance-control/configuration/SwitchboardEcho.md)       | Endaoment and PSM operations with time-locked treasury management     |
-| [TrainingWheels.vy](governance-control/TrainingWheels.md)                       | User allowlist for restricted protocol access during early deployment |
+| Contract                                                                    | Description                                                           |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| [SwitchboardAlpha.vy](governance/configuration/SwitchboardAlpha.md)     | Asset and vault configuration including collateral parameters         |
+| [SwitchboardBravo.vy](governance/configuration/SwitchboardBravo.md)     | Reward distribution and points system configuration                   |
+| [SwitchboardCharlie.vy](governance/configuration/SwitchboardCharlie.md) | Protocol operations including deposits, withdrawals, and liquidations |
+| [SwitchboardDelta.vy](governance/configuration/SwitchboardDelta.md)     | HR, contributor management, and auxiliary feature configuration       |
+| [SwitchboardEcho.vy](governance/configuration/SwitchboardEcho.md)       | Endaoment and PSM operations with time-locked treasury management     |
+| [TrainingWheels.vy](governance/TrainingWheels.md)                       | User allowlist for restricted protocol access during early deployment |
 
 ## Tokens
 
@@ -149,30 +148,23 @@ Oracle integrations and price aggregation for reliable asset valuations.
 | -------------------------------------------------------- | ------------------------------------------------------------- |
 | [PriceSourceData.vy](pricing/modules/PriceSourceData.md) | Base module defining standard interface for all price sources |
 
-## Registries
+## Core Modules
 
-Central coordination points for protocol components.
+Central coordination points and reusable components providing common functionality across the protocol.
 
-| Contract                                            | Description                                                                         |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [VaultBook.vy](registries/VaultBook.md)             | Central registry of approved vaults with safety checks and RIPE reward distribution |
-| [AddressRegistry.vy](registries/AddressRegistry.md) | Flexible registry for managing protocol addresses with time-locks                   |
-
-## Shared Modules
-
-Reusable components providing common functionality across the protocol.
-
-| Module                                        | Description                                                           |
-| --------------------------------------------- | --------------------------------------------------------------------- |
-| [Addys.vy](shared-modules/Addys.md)           | Centralized address resolution providing validated protocol addresses |
-| [DeptBasics.vy](shared-modules/DeptBasics.md) | Base functionality for protocol departments including pause controls  |
+| Module                                            | Description                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [VaultBook.vy](core-modules/VaultBook.md)         | Central registry of approved vaults with safety checks and RIPE reward distribution |
+| [AddressRegistry.vy](core-modules/AddressRegistry.md) | Flexible registry for managing protocol addresses with time-locks               |
+| [Addys.vy](core-modules/Addys.md)                 | Centralized address resolution providing validated protocol addresses               |
+| [DeptBasics.vy](core-modules/DeptBasics.md)       | Base functionality for protocol departments including pause controls                |
 
 ---
 
 ## Getting Started
 
-1. **New Users**: Start with [Teller.vy](core-lending/Teller.md) to understand user interactions
-2. **Developers**: Review [RipeHq.vy](governance-control/RipeHq.md) for protocol architecture
+1. **New Users**: Start with [Teller.vy](core/Teller.md) to understand user interactions
+2. **Developers**: Review [RipeHq.vy](governance/RipeHq.md) for protocol architecture
 3. **Governance**: Explore [RipeToken.vy](tokens/RipeToken.md) and [RipeGov.vy](vaults/RipeGov.md)
 4. **Integrators**: Check [PriceDesk.vy](pricing/PriceDesk.md) and vault interfaces
 

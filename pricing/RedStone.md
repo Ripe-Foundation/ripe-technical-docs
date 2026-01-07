@@ -18,14 +18,14 @@ RedStone is a price oracle integration for Ripe Protocol that fetches asset pric
 
 - **Location**: `contracts/modules/LocalGov.vy`
 - **Purpose**: Provides 2-tier governance for configuration changes
-- **Documentation**: See [LocalGov Technical Documentation](../governance-control/LocalGov.md)
+- **Documentation**: See [LocalGov Technical Documentation](../governance/LocalGov.md)
 - **Exported Interface**: Governance utilities via `gov.__interface__`
 
 ### Addys Module
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Exported Interface**: Address utilities via `addys.__interface__`
 
 ### PriceSourceData Module
@@ -39,7 +39,7 @@ RedStone is a price oracle integration for Ripe Protocol that fetches asset pric
 
 - **Location**: `contracts/modules/TimeLock.vy`
 - **Purpose**: Time-delayed action execution for security
-- **Documentation**: See [TimeLock Technical Documentation](../governance-control/TimeLock.md)
+- **Documentation**: See [TimeLock Technical Documentation](../governance/TimeLock.md)
 - **Exported Interface**: Time lock utilities via `timeLock.__interface__`
 
 ## System Architecture Diagram

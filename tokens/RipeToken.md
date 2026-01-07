@@ -12,7 +12,7 @@ RipeToken (RIPE) is the governance token powering the Ripe DAO, granting holders
 - **Contract Upgrades**: Approve new modules and protocol improvements through governance
 - **Reward Distribution**: Control emission rates and allocation across protocol activities
 
-RIPE implements controlled minting through [RipeHq](../governance-control/RipeHq.md) authorization, ensuring transparent distribution according to DAO-approved rules. The token features EIP-2612 permits, emergency controls, and time-locked transitions for secure decentralized governance. RIPE is distributed via [Lootbox](../treasury-rewards/Lootbox.md) rewards, [BondRoom](../treasury-rewards/BondRoom.md) purchases, and can be locked in [RipeGov](../vaults/RipeGov.md) for enhanced governance power.
+RIPE implements controlled minting through [RipeHq](../governance/RipeHq.md) authorization, ensuring transparent distribution according to DAO-approved rules. The token features EIP-2612 permits, emergency controls, and time-locked transitions for secure decentralized governance. RIPE is distributed via [Lootbox](../treasury/Lootbox.md) rewards, [BondRoom](../treasury/BondRoom.md) purchases, and can be locked in [RipeGov](../vaults/RipeGov.md) for enhanced governance power.
 
 ## Architecture & Modules
 
@@ -549,7 +549,7 @@ def mint(_recipient: address, _amount: uint256) -> bool:
 
 #### Access
 
-Only callable by addresses authorized through [RipeHq](../governance-control/RipeHq.md)'s `canMintRipe` validation
+Only callable by addresses authorized through [RipeHq](../governance/RipeHq.md)'s `canMintRipe` validation
 
 #### Events Emitted
 
@@ -760,7 +760,7 @@ def setBlacklist(_addr: address, _shouldBlacklist: bool) -> bool:
 
 #### Access
 
-Only callable by addresses authorized through [RipeHq](../governance-control/RipeHq.md)'s `canSetTokenBlacklist`
+Only callable by addresses authorized through [RipeHq](../governance/RipeHq.md)'s `canSetTokenBlacklist`
 
 #### Events Emitted
 
@@ -801,7 +801,7 @@ def burnBlacklistTokens(_addr: address, _amount: uint256 = max_value(uint256)) -
 
 #### Access
 
-Only callable by [RipeHq](../governance-control/RipeHq.md) governance
+Only callable by [RipeHq](../governance/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -870,7 +870,7 @@ _Function does not return any values_
 
 #### Access
 
-Only callable by [RipeHq](../governance-control/RipeHq.md) governance
+Only callable by [RipeHq](../governance/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -903,7 +903,7 @@ def confirmHqChange() -> bool:
 
 #### Access
 
-Only callable by [RipeHq](../governance-control/RipeHq.md) governance
+Only callable by [RipeHq](../governance/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -930,7 +930,7 @@ def cancelHqChange():
 
 #### Access
 
-Only callable by [RipeHq](../governance-control/RipeHq.md) governance
+Only callable by [RipeHq](../governance/RipeHq.md) governance
 
 #### Events Emitted
 
@@ -1007,7 +1007,7 @@ def setHqChangeTimeLock(_newTimeLock: uint256) -> bool:
 
 #### Access
 
-Only callable by [RipeHq](../governance-control/RipeHq.md) governance (when no pending governance changes)
+Only callable by [RipeHq](../governance/RipeHq.md) governance (when no pending governance changes)
 
 #### Events Emitted
 
@@ -1118,7 +1118,7 @@ def pause(_shouldPause: bool):
 
 #### Access
 
-Only callable by [RipeHq](../governance-control/RipeHq.md) governance
+Only callable by [RipeHq](../governance/RipeHq.md) governance
 
 #### Events Emitted
 

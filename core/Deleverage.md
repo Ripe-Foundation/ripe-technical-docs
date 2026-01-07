@@ -13,7 +13,7 @@ Deleverage is the debt reduction engine of Ripe Protocol, enabling users to redu
 - **Underscore Integration**: Special deleverage support for underscore leverage vaults
 - **Volatile Asset Handling**: Dedicated path for volatile collateral that bypasses stability pool logic
 
-Deleverage implements efficient gas optimization through transient storage for caching vault addresses and asset configurations. It works closely with [CreditEngine](./CreditEngine.md) for debt repayment, [AuctionHouse](./AuctionHouse.md) for collateral withdrawal, [Teller](./Teller.md) as the user entry point, and [EndaomentFunds](../treasury-rewards/EndaomentFunds.md) as the recipient for transferred assets.
+Deleverage implements efficient gas optimization through transient storage for caching vault addresses and asset configurations. It works closely with [CreditEngine](./CreditEngine.md) for debt repayment, [AuctionHouse](./AuctionHouse.md) for collateral withdrawal, [Teller](./Teller.md) as the user entry point, and [EndaomentFunds](../treasury/EndaomentFunds.md) as the recipient for transferred assets.
 
 ## Architecture & Modules
 
@@ -23,7 +23,7 @@ Deleverage is built using a modular architecture with the following components:
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -34,7 +34,7 @@ Deleverage is built using a modular architecture with the following components:
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - No Green minting capability
@@ -286,7 +286,7 @@ event DeleverageUserWithVolatileAssets:
 
 ### Inherited State Variables
 
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 

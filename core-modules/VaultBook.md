@@ -21,7 +21,7 @@ VaultBook is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/modules/LocalGov.vy`
 - **Purpose**: Provides governance functionality with time-locked changes
-- **Documentation**: See [LocalGov Technical Documentation](../governance-control/LocalGov.md)
+- **Documentation**: See [LocalGov Technical Documentation](../governance/LocalGov.md)
 - **Key Features**:
   - Governance address management
   - Time-locked transitions
@@ -32,7 +32,7 @@ VaultBook is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/registries/modules/AddressRegistry.vy`
 - **Purpose**: Manages the registry of vault addresses
-- **Documentation**: See [AddressRegistry Technical Documentation](../registries/AddressRegistry.md)
+- **Documentation**: See [AddressRegistry Technical Documentation](../core-modules/AddressRegistry.md)
 - **Key Features**:
   - Sequential registry ID assignment for vaults
   - Time-locked address additions, updates, and disabling
@@ -43,7 +43,7 @@ VaultBook is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides RipeHq integration for address lookups
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to RipeHq address
   - Protocol address validation
@@ -53,7 +53,7 @@ VaultBook is built using a modular architecture that inherits functionality from
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism
   - Department interface compliance
@@ -145,12 +145,12 @@ initializes: deptBasics[addys := addys]
 
 ### Inherited State Variables
 
-From [LocalGov](../governance-control/LocalGov.md):
+From [LocalGov](../governance/LocalGov.md):
 
 - `governance: address` - Current governance address
 - `govChangeTimeLock: uint256` - Timelock for governance changes
 
-From [AddressRegistry](../registries/AddressRegistry.md):
+From [AddressRegistry](../core-modules/AddressRegistry.md):
 
 - `registryChangeTimeLock: uint256` - Timelock for registry changes
 - Registry mappings for vault management
@@ -159,7 +159,7 @@ From Addys:
 
 - RipeHq address reference
 
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 - `canMintRipe: bool` - Set to `True` for VaultBook
@@ -278,11 +278,11 @@ def startAddNewAddressToRegistry(_addr: address, _description: String[64]) -> bo
 
 #### Access
 
-Only callable by governance AND only when the contract is not paused (see [LocalGov](../governance-control/LocalGov.md) for governance details)
+Only callable by governance AND only when the contract is not paused (see [LocalGov](../governance/LocalGov.md) for governance details)
 
 #### Events Emitted
 
-- `NewAddressPending` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains address, description, and confirmation block
+- `NewAddressPending` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains address, description, and confirmation block
 
 #### Example Usage
 
@@ -324,7 +324,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `NewAddressConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md)) - Contains registry ID, address, description
+- `NewAddressConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, address, description
 
 #### Example Usage
 
@@ -365,7 +365,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `NewAddressCancelled` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `NewAddressCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 #### Example Usage
 
@@ -404,7 +404,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressUpdatePending` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `AddressUpdatePending` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 #### Example Usage
 
@@ -445,7 +445,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressUpdateConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `AddressUpdateConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 #### Example Usage
 
@@ -485,7 +485,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressUpdateCancelled` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `AddressUpdateCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 ### `startAddressDisableInRegistry`
 
@@ -514,7 +514,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressDisablePending` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `AddressDisablePending` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 #### Example Usage
 
@@ -554,7 +554,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressDisableConfirmed` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `AddressDisableConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 ### `cancelAddressDisableInRegistry`
 
@@ -583,7 +583,7 @@ Only callable by governance AND only when the contract is not paused
 
 #### Events Emitted
 
-- `AddressDisableCancelled` (from [AddressRegistry](../registries/AddressRegistry.md))
+- `AddressDisableCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md))
 
 ## Stability Pool Reward Functions
 

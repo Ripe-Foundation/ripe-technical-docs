@@ -23,7 +23,7 @@ Lootbox is built using a modular architecture with the following components:
 ### Addys Module
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -33,7 +33,7 @@ Lootbox is built using a modular architecture with the following components:
 ### DeptBasics Module
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Ripe token minting capability (for rewards)
@@ -207,7 +207,7 @@ struct ClaimLootConfig:
 - `undyYieldBonusAmount: uint256` - RIPE amount for underscore yield bonus per distribution
 
 ### Inherited State Variables
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 - `isPaused: bool` - Department pause state
 - `canMintRipe: bool` - Set to `True` for reward distribution
 

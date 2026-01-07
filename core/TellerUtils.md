@@ -18,14 +18,14 @@ TellerUtils is a utility contract that provides validation logic for deposits an
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Exported Interface**: Address utilities via `addys.__interface__`
 
 ### DeptBasics Module
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Exported Interface**: Department basics via `deptBasics.__interface__`
 
 ## System Architecture Diagram

@@ -11,7 +11,7 @@ EndaomentFunds is a secure custodial vault for protocol-owned funds in Ripe Prot
 - **Controlled Withdrawals**: Only the Endaoment contract can withdraw funds
 - **Balance Checking**: Simple view function to check holdings
 
-The contract is intentionally minimal to reduce attack surface. It receives assets from [Deleverage](../core-lending/Deleverage.md) operations and [CreditRedeem](../core-lending/CreditRedeem.md) flows, acting as an intermediary before funds are processed by [Endaoment](./Endaoment.md).
+The contract is intentionally minimal to reduce attack surface. It receives assets from [Deleverage](../core/Deleverage.md) operations and [CreditRedeem](../core/CreditRedeem.md) flows, acting as an intermediary before funds are processed by [Endaoment](./Endaoment.md).
 
 ## Architecture & Modules
 
@@ -21,7 +21,7 @@ EndaomentFunds uses a streamlined architecture:
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to Endaoment contract address
   - Validation of caller permissions

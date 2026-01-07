@@ -12,7 +12,7 @@ availability, dynamic pricing curves, and automated treasury management.
 - **Dynamic Pricing**: Linear pricing curves within epochs (high to low) with lock-up bonuses up to 10x and boost mechanics integration
 - **Automated Treasury**: Allocates bond proceeds between treasury growth and bad debt repayment based on protocol health
 
-The contract uses atomic execution for all bond purchases, maintains strict accounting through the [Ledger](../core-lending/Ledger.md), supports whitelist restrictions, and provides configurable parameters for sustainable token distribution. Bond proceeds are transferred to [Endaoment](Endaoment.md) and coordinated with [MissionControl](../governance-control/MissionControl.md) for dynamic pricing.
+The contract uses atomic execution for all bond purchases, maintains strict accounting through the [Ledger](../core/Ledger.md), supports whitelist restrictions, and provides configurable parameters for sustainable token distribution. Bond proceeds are transferred to [Endaoment](Endaoment.md) and coordinated with [MissionControl](../governance/MissionControl.md) for dynamic pricing.
 
 ## Architecture & Modules
 
@@ -21,7 +21,7 @@ BondRoom is built using a modular architecture with the following components:
 ### Addys Module
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -31,7 +31,7 @@ BondRoom is built using a modular architecture with the following components:
 ### DeptBasics Module
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Ripe token minting capability (for bond payouts)
@@ -158,7 +158,7 @@ struct RipeBondData:
 - `RIPE_GOV_VAULT_ID: uint256 = 2` - Governance vault for locked Ripe
 
 ### Inherited State Variables
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 - `isPaused: bool` - Department pause state
 - `canMintRipe: bool` - Set to `True` for bond payouts
 

@@ -14,7 +14,7 @@ interfaces and robust permission management.
 - **Rewards & Governance**: Loot claiming, Ripe bond purchases, and governance vault management
 - **Delegation System**: Comprehensive permissions allowing authorized proxy operations with Underscore wallet integration
 
-The contract abstracts protocol complexity through automatic vault selection, batch processing for gas efficiency, flexible payment handling, sophisticated permission hierarchies, and comprehensive event logging while maintaining security through thoughtful validation layers. It interfaces with [CreditEngine](CreditEngine.md) for borrowing operations, [VaultBook](../registries/VaultBook.md) for vault validation, and [Lootbox](../treasury-rewards/Lootbox.md) for rewards coordination.
+The contract abstracts protocol complexity through automatic vault selection, batch processing for gas efficiency, flexible payment handling, sophisticated permission hierarchies, and comprehensive event logging while maintaining security through thoughtful validation layers. It interfaces with [CreditEngine](CreditEngine.md) for borrowing operations, [VaultBook](../core-modules/VaultBook.md) for vault validation, and [Lootbox](../treasury/Lootbox.md) for rewards coordination.
 
 ## Architecture & Modules
 
@@ -23,7 +23,7 @@ Teller is built using a modular architecture with the following components:
 ### Addys Module
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -33,7 +33,7 @@ Teller is built using a modular architecture with the following components:
 ### DeptBasics Module
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - No minting capabilities (Teller is interface only)
@@ -173,7 +173,7 @@ struct WithdrawalAction:
 - `CURVE_PRICES_ID: uint256 = 2` - Curve prices registry ID
 
 ### Inherited State Variables
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 - `isPaused: bool` - Department pause state
 
 ## Constructor

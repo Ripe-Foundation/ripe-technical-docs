@@ -24,7 +24,7 @@ EndaomentPSM is built using a modular architecture with the following components
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -35,7 +35,7 @@ EndaomentPSM is built using a modular architecture with the following components
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - GREEN minting capability enabled
@@ -267,7 +267,7 @@ event ShouldAutoDepositUpdated:
 
 ### Inherited State Variables
 
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 - `canMintGreen: bool` - Set to `True` for GREEN minting

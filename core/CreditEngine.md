@@ -12,7 +12,7 @@ CreditEngine is the lending and borrowing powerhouse of Ripe Protocol, managing 
 - **Collateral Redemption**: Allow GREEN holders to redeem unhealthy positions directly
 - **Risk Controls**: Enforce debt ceilings, interval-based limits, and automatic liquidation triggers
 
-CreditEngine implements advanced DeFi mechanics including position-weighted risk parameters, transient storage for gas optimization, atomic debt updates with compounding, and integration with boost systems. It ensures capital efficiency while maintaining robust protections against flash attacks and bad debt, working closely with [AuctionHouse](AuctionHouse.md) for liquidations, [Ledger](./Ledger.md) for debt tracking, and [Lootbox](../treasury-rewards/Lootbox.md) for points updates.
+CreditEngine implements advanced DeFi mechanics including position-weighted risk parameters, transient storage for gas optimization, atomic debt updates with compounding, and integration with boost systems. It ensures capital efficiency while maintaining robust protections against flash attacks and bad debt, working closely with [AuctionHouse](AuctionHouse.md) for liquidations, [Ledger](./Ledger.md) for debt tracking, and [Lootbox](../treasury/Lootbox.md) for points updates.
 
 ## Architecture & Modules
 
@@ -22,7 +22,7 @@ CreditEngine is built using a modular architecture with the following components
 
 - **Location**: `contracts/modules/Addys.vy`
 - **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../shared-modules/Addys.md)
+- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
 - **Key Features**:
   - Access to all protocol contract addresses
   - Validation of caller permissions
@@ -33,7 +33,7 @@ CreditEngine is built using a modular architecture with the following components
 
 - **Location**: `contracts/modules/DeptBasics.vy`
 - **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../shared-modules/DeptBasics.md)
+- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
 - **Key Features**:
   - Pause mechanism for emergency stops
   - Green token minting capability (for borrowing)
@@ -246,7 +246,7 @@ event BuybackRatioSet:
 
 ### Inherited State Variables
 
-From [DeptBasics](../shared-modules/DeptBasics.md):
+From [DeptBasics](../core-modules/DeptBasics.md):
 
 - `isPaused: bool` - Department pause state
 - `canMintGreen: bool` - Set to `True` for borrowing
