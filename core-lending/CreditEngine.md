@@ -676,6 +676,38 @@ def getUserDebtAmount(_user: address) -> uint256:
 
 Public view function
 
+### `getBorrowRate`
+
+Gets the current borrow rate for a user based on their collateral composition and debt terms.
+
+```vyper
+@view
+@external
+def getBorrowRate(_user: address) -> uint256:
+```
+
+#### Parameters
+
+| Name    | Type      | Description   |
+| ------- | --------- | ------------- |
+| `_user` | `address` | User to check |
+
+#### Returns
+
+| Type      | Description                                        |
+| --------- | -------------------------------------------------- |
+| `uint256` | Current weighted borrow rate for the user (in WAD) |
+
+#### Access
+
+Public view function
+
+#### Notes
+
+- Returns the weighted average borrow rate across all the user's collateral positions
+- Takes into account Underscore vault discounts if applicable
+- The rate is calculated based on the user's `UserBorrowTerms.debtTerms.borrowRate`
+
 ### `getLatestUserDebtAndTerms`
 
 Gets comprehensive debt state including user debt, borrow terms, and new interest.

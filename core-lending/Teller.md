@@ -582,11 +582,15 @@ Public function with permission checks
 
 ### `liquidateUser`
 
-Liquidates a single unhealthy position.
+Liquidates a single unhealthy position. The caller (msg.sender) acts as the keeper and receives the liquidation rewards.
 
 ```vyper
+@nonreentrant
 @external
-def liquidateUser(_liqUser: address, _keeper: address, _wantsSavingsGreen: bool) -> uint256:
+def liquidateUser(
+    _liqUser: address,
+    _wantsSavingsGreen: bool = True,
+) -> uint256:
 ```
 
 #### Parameters
@@ -594,8 +598,7 @@ def liquidateUser(_liqUser: address, _keeper: address, _wantsSavingsGreen: bool)
 | Name | Type | Description |
 |------|------|-------------|
 | `_liqUser` | `address` | User to liquidate |
-| `_keeper` | `address` | Keeper receiving rewards |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen |
+| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen (default: True) |
 
 #### Returns
 
@@ -609,24 +612,26 @@ Public function
 
 #### Example Usage
 ```python
-# Liquidate unhealthy position
+# Liquidate unhealthy position (caller is keeper)
 keeper_rewards = teller.liquidateUser(
     underwater_user.address,
-    keeper.address,
     True  # Want sGreen rewards
 )
+
+# Liquidate with default sGreen rewards
+keeper_rewards = teller.liquidateUser(underwater_user.address)
 ```
 
 ### `liquidateManyUsers`
 
-Batch liquidates multiple positions.
+Batch liquidates multiple positions. The caller (msg.sender) acts as the keeper and receives the liquidation rewards.
 
 ```vyper
+@nonreentrant
 @external
 def liquidateManyUsers(
-    _liqUsers: DynArray[address, MAX_LIQ_USERS], 
-    _keeper: address, 
-    _wantsSavingsGreen: bool
+    _liqUsers: DynArray[address, MAX_LIQ_USERS],
+    _wantsSavingsGreen: bool = True,
 ) -> uint256:
 ```
 
@@ -635,8 +640,7 @@ def liquidateManyUsers(
 | Name | Type | Description |
 |------|------|-------------|
 | `_liqUsers` | `DynArray[address, 50]` | Users to liquidate |
-| `_keeper` | `address` | Keeper receiving rewards |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen |
+| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen (default: True) |
 
 #### Returns
 
@@ -655,16 +659,17 @@ Public function
 Purchases collateral from liquidation auction.
 
 ```vyper
+@nonreentrant
 @external
 def buyFungibleAuction(
     _liqUser: address,
     _vaultId: uint256,
     _asset: address,
-    _greenAmount: uint256,
+    _paymentAmount: uint256 = max_value(uint256),
     _isPaymentSavingsGreen: bool = False,
-    _recipient: address = msg.sender,
     _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
+    _recipient: address = msg.sender,
 ) -> uint256:
 ```
 
@@ -675,11 +680,11 @@ def buyFungibleAuction(
 | `_liqUser` | `address` | User being liquidated |
 | `_vaultId` | `uint256` | Vault containing asset |
 | `_asset` | `address` | Asset to purchase |
-| `_greenAmount` | `uint256` | Max Green to spend |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_recipient` | `address` | Collateral recipient |
-| `_shouldTransferBalance` | `bool` | Transfer vs withdraw |
-| `_shouldRefundSavingsGreen` | `bool` | Refund as sGreen |
+| `_paymentAmount` | `uint256` | Max Green/sGreen to spend (default: max available) |
+| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
+| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
+| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
 
 #### Returns
 
@@ -696,14 +701,15 @@ Public function
 Batch purchases from multiple auctions.
 
 ```vyper
+@nonreentrant
 @external
 def buyManyFungibleAuctions(
     _purchases: DynArray[FungAuctionPurchase, MAX_AUCTION_PURCHASES],
-    _greenAmount: uint256,
+    _paymentAmount: uint256 = max_value(uint256),
     _isPaymentSavingsGreen: bool = False,
-    _recipient: address = msg.sender,
     _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
+    _recipient: address = msg.sender,
 ) -> uint256:
 ```
 
@@ -712,11 +718,11 @@ def buyManyFungibleAuctions(
 | Name | Type | Description |
 |------|------|-------------|
 | `_purchases` | `DynArray[FungAuctionPurchase, 20]` | Auction purchase specs |
-| `_greenAmount` | `uint256` | Total Green budget |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_recipient` | `address` | Collateral recipient |
-| `_shouldTransferBalance` | `bool` | Transfer vs withdraw |
-| `_shouldRefundSavingsGreen` | `bool` | Refund as sGreen |
+| `_paymentAmount` | `uint256` | Total Green/sGreen budget (default: max available) |
+| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
+| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
+| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
 
 #### Returns
 
@@ -973,14 +979,14 @@ Redeems collateral from unhealthy positions using Green tokens.
 @nonreentrant
 @external
 def redeemCollateral(
-    _userToRedeemFrom: address,
+    _user: address,
     _vaultId: uint256,
     _asset: address,
-    _greenAmount: uint256,
-    _recipient: address = msg.sender,
+    _paymentAmount: uint256 = max_value(uint256),
     _isPaymentSavingsGreen: bool = False,
     _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
+    _recipient: address = msg.sender,
 ) -> uint256:
 ```
 
@@ -988,14 +994,14 @@ def redeemCollateral(
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_userToRedeemFrom` | `address` | User with unhealthy position |
+| `_user` | `address` | User with unhealthy position to redeem from |
 | `_vaultId` | `uint256` | Vault containing collateral |
 | `_asset` | `address` | Collateral asset to redeem |
-| `_greenAmount` | `uint256` | Green to spend on redemption |
-| `_recipient` | `address` | Collateral recipient |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_shouldTransferBalance` | `bool` | Transfer vs withdraw |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen |
+| `_paymentAmount` | `uint256` | Max Green/sGreen to spend (default: max available) |
+| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
+| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
+| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
 
 #### Returns
 
@@ -1015,10 +1021,10 @@ green_spent = teller.redeemCollateral(
     1,  # Vault ID
     weth.address,
     500_000000000000000000,  # 500 Green budget
-    redeemer.address,
     False,  # Paying with Green
     False,  # Withdraw collateral
-    True    # Refund excess as sGreen
+    True,   # Refund excess as sGreen
+    redeemer.address
 )
 ```
 
@@ -1031,11 +1037,11 @@ Batch redeems collateral from multiple unhealthy positions.
 @external
 def redeemCollateralFromMany(
     _redemptions: DynArray[CollateralRedemption, MAX_COLLATERAL_REDEMPTIONS],
-    _greenAmount: uint256,
-    _recipient: address = msg.sender,
+    _paymentAmount: uint256 = max_value(uint256),
     _isPaymentSavingsGreen: bool = False,
     _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = False,
+    _shouldRefundSavingsGreen: bool = True,
+    _recipient: address = msg.sender,
 ) -> uint256:
 ```
 
@@ -1044,11 +1050,11 @@ def redeemCollateralFromMany(
 | Name | Type | Description |
 |------|------|-------------|
 | `_redemptions` | `DynArray[CollateralRedemption, 20]` | Redemption specifications |
-| `_greenAmount` | `uint256` | Total Green budget |
-| `_recipient` | `address` | Collateral recipient |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_shouldTransferBalance` | `bool` | Transfer vs withdraw |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen |
+| `_paymentAmount` | `uint256` | Total Green/sGreen budget (default: max available) |
+| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
+| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
+| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
+| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
 
 #### Returns
 
@@ -1070,10 +1076,10 @@ redemptions = [
 total_spent = teller.redeemCollateralFromMany(
     redemptions,
     1000_000000000000000000,  # 1000 Green budget
-    redeemer.address,
     True,   # Paying with sGreen
     False,  # Withdraw
-    False   # Refund as Green
+    True,   # Refund as sGreen
+    redeemer.address
 )
 ```
 
@@ -1237,6 +1243,44 @@ Only callable by user or authorized delegates
 - `UserDelegationSet` - Delegation configuration details
 
 ## Utility Functions
+
+### `performHousekeeping`
+
+Performs protocol housekeeping tasks for a user. This includes checking/updating the user's last touch timestamp, updating the Curve price snapshot, and optionally updating the user's debt position.
+
+```vyper
+@external
+def performHousekeeping(
+    _isHigherRisk: bool,
+    _user: address,
+    _shouldUpdateDebt: bool,
+    _a: addys.Addys = empty(addys.Addys),
+):
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `_isHigherRisk` | `bool` | Whether the operation is higher risk (affects last touch and debt health checks) |
+| `_user` | `address` | User to perform housekeeping for |
+| `_shouldUpdateDebt` | `bool` | Whether to update the user's debt position |
+| `_a` | `addys.Addys` | Cached addresses (optional) |
+
+#### Returns
+
+*No return value*
+
+#### Access
+
+Only callable by valid Ripe protocol addresses (trusted contracts)
+
+#### Notes
+
+- Higher risk operations enforce stricter validation (one-action-per-block for non-Underscore wallets)
+- Updates the GREEN reference pool snapshot via CurvePrices
+- When `_shouldUpdateDebt` is True and `_isHigherRisk` is True, asserts that debt health is maintained
+- This function is called internally by most Teller operations but is also exposed for other protocol contracts
 
 ### `isUnderscoreWalletOwner`
 
@@ -1527,44 +1571,41 @@ ripe_received = teller.purchaseRipeBond(
 
 ### `setUndyLegoAccess`
 
-Utility function for Underscore smart wallet users to grant permissions.
+Utility function for Underscore smart wallets to grant full protocol access to a Lego strategy contract. This function sets both user config (allowing anyone to deposit, repay debt, and bond) and delegation permissions (withdraw, borrow, claim from stability pool, claim loot) for the specified Lego address.
 
 ```vyper
 @external
-def setUndyLegoAccess(
-    _user: address,
-    _undyLegoId: uint256,
-    _hasAccess: bool,
-):
+def setUndyLegoAccess(_legoAddr: address) -> bool:
 ```
 
 #### Parameters
 
 | Name | Type | Description |
 |------|------|-------------|
-| `_user` | `address` | Smart wallet address |
-| `_undyLegoId` | `uint256` | Lego strategy ID |
-| `_hasAccess` | `bool` | Grant or revoke access |
+| `_legoAddr` | `address` | Lego strategy contract address to grant access |
+
+#### Returns
+
+| Type | Description |
+|------|-------------|
+| `bool` | True if access was granted successfully, False if validation failed |
 
 #### Access
 
-Only callable by smart wallet owner
+Only callable by Underscore smart wallets (msg.sender must be a valid Underscore wallet or vault)
+
+#### Notes
+
+- This function fails gracefully (returns False) rather than reverting to avoid bricking Underscore wallets
+- Returns False if MissionControl address is empty, if `_legoAddr` is empty, or if caller is not an Underscore wallet/vault
+- Automatically sets user config to allow anyone to deposit, repay debt, and bond for the caller
+- Automatically grants full delegation to the Lego address (withdraw, borrow, claim from stability pool, claim loot)
 
 #### Example Usage
 ```python
-# Grant Lego access to smart wallet
-teller.setUndyLegoAccess(
-    smart_wallet.address,
-    5,     # Lego ID
-    True   # Grant access
-)
-
-# Revoke Lego access
-teller.setUndyLegoAccess(
-    smart_wallet.address,
-    5,      # Lego ID
-    False   # Revoke access
-)
+# Called from within an Underscore smart wallet to grant Lego access
+# The wallet grants permissions for itself to the specified Lego contract
+success = teller.setUndyLegoAccess(lego_contract.address)
 ```
 
 ## Key Validation Logic
