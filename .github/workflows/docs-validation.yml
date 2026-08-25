@@ -50,6 +50,15 @@ jobs:
           remote_ref="refs/remotes/origin/$protocol_branch"
           git -C "$protocol_repo" fetch --no-tags --filter=blob:none origin "+$trusted_ref:$remote_ref"
           git -C "$protocol_repo" merge-base --is-ancestor "$protocol_commit" "$remote_ref"
+          commits_behind="$(git -C "$protocol_repo" rev-list --count "$protocol_commit..$remote_ref")"
+          if [ "$commits_behind" -gt 0 ]; then
+            echo "::warning title=Protocol documentation pin is behind::$protocol_commit is $commits_behind commit(s) behind $protocol_branch"
+            {
+              echo "### Protocol documentation pin"
+              echo
+              echo "Warning: \`$protocol_commit\` is $commits_behind commit(s) behind \`$protocol_branch\`. The exact pin remains reproducible, but its documentation currentness should be reviewed."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           git -C "$protocol_repo" checkout --detach "$protocol_commit"
           actual_commit="$(git -C "$protocol_repo" rev-parse 'HEAD^{commit}')"
           actual_tree="$(git -C "$protocol_repo" rev-parse 'HEAD^{tree}')"

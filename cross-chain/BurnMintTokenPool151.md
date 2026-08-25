@@ -26,6 +26,56 @@ manages router, remote-chain, remote-pool, allowlist, and rate-limit-admin state
 the rate-limit admin or owner may update limiter configurations. Ownership uses
 a two-step propose/accept transition.
 
+### Remote-chain and pool changes
+
+One remote chain can accept messages from multiple remote pools. When upgrading
+a pool, add the replacement alongside the old pool, leave both accepted while
+messages from the old lane drain, and remove the old pool only after no messages
+from it remain in flight. Removing a pool immediately causes outstanding
+messages that name it as `sourcePoolAddress` to be rejected. Removing a chain
+through `applyChainUpdates` deletes the entire chain configuration, including
+its remote-pool set and both rate-limit buckets, so every lane for that chain
+must be drained before removal to avoid a loss-of-funds condition.
+
+### Allowlist mode
+
+Allowlist mode is selected immutably by the constructor. An empty initial list
+creates a permissionless pool, and every later `applyAllowListUpdates` call
+reverts with `AllowListNotEnabled`; the owner cannot enable the mode later. A
+nonempty initial list permanently enables allowlisting. Removing every member
+then leaves an enabled but empty list and blocks every outbound sender. The
+outbound check applies to `lockOrBurnIn.originalSender`, not the on-ramp caller,
+and zero-address additions are skipped. The mode itself cannot be enabled or
+disabled after deployment.
+
+### Decimal conversion and amount domains
+
+Construction compares `localTokenDecimals` with `token.decimals()` when that
+optional call succeeds. If the method is missing or reverts, validation is
+skipped and the supplied value is trusted. Each outbound message encodes the
+local decimals in 32 bytes. On inbound execution, empty `sourcePoolData` assumes
+the local decimals for backward compatibility; nonempty data must be exactly 32
+bytes, decode as a `uint256`, and fit in `uint8`.
+
+Inbound conversion scales the remote amount into local base units. Reducing
+precision divides and rounds down after the source-side amount has already been
+burned, so an unrepresentable remainder is destroyed as dust. Increasing
+precision multiplies and reverts if the decimal difference or result would
+overflow. `releaseOrMint` returns `destinationAmount` and emits `Minted.amount`
+using the scaled local amount. Outbound limiting consumes the source/local
+`lockOrBurnIn.amount`; inbound limiting consumes the unconverted remote
+`releaseOrMintIn.amount` before local decimal conversion.
+
+### Rate limiting
+
+An enabled token-bucket configuration requires `0 < rate < capacity`. A disabled
+configuration requires both rate and capacity to be zero. New remote-chain
+buckets start full at their configured capacities. Reconfiguration first refills
+the existing bucket using its old capacity and rate through the current
+timestamp, then clamps its remaining tokens to the new capacity; it does not
+refill the bucket to the new capacity. Governance and rate-limit automation must
+therefore preserve and account for existing bucket depletion.
+
 The concrete Ripe contracts add only their `canMintGreen` and `canMintRipe`
 views and constructor choice. Those deltas are documented on their component
 pages.
@@ -35,7 +85,7 @@ pages.
 `constructor(address token, uint8 localTokenDecimals, address[] allowlist,
 address rmnProxy, address router)` binds the local token, decimals, optional
 sender allowlist, RMN proxy, and router. The configurable Ripe variant appends
-two capability Booleans; the token-specific variants compile those capability
+two capability booleans; the token-specific variants compile those capability
 answers into separate classes.
 
 <!-- BEGIN GENERATED API REFERENCE: BurnMintTokenPool151 -->

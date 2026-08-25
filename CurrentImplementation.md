@@ -7,24 +7,52 @@ source-declared revert reasons where those artifacts expose them.
 
 ## System map
 
-1. Users enter through `Teller`, which resolves departments and vaults through
-   protocol registries and applies access, delegation, pause, and account-state
-   checks.
-2. Vaults custody or account for assets. `VaultBook` registers vaults, while
+1. Most account and vault actions enter through `Teller`, which resolves
+   departments and vaults through protocol registries and applies access,
+   delegation, pause, and account-state checks.
+2. `RipeReserveEngine` is a direct user surface for payment-backed RIPE
+   allocations and vested claims. It records block-based positions in
+   `RipeReserveVesting`; claims mint RIPE directly or deposit it through Teller
+   into the current core RipeGov vault.
+3. Vaults custody or account for assets. `VaultBook` registers vaults, while
    `MissionControl` preserves historical Stability and RipeGov vault-role
    classifications used by positions, rewards, and migration.
-3. `CreditEngine` derives account credit, debt terms, and liquidation state.
+4. `CreditEngine` derives account credit, debt terms, and liquidation state.
    `Ledger` stores user-to-vault participation, debt data, reward accounting,
    and action-block identities; each vault remains authoritative for its
    asset membership and balances.
-4. `PriceDesk` selects qualified sources, scales tokens through cached decimal
+5. `PriceDesk` selects qualified sources, scales tokens through cached decimal
    data, and isolates external source calls. Specialized sources implement
    oracle, Curve, yield-token, or monitoring behavior.
-5. `StabilityPool`, `AuctionHouse`, `CreditRedeem`, and `Deleverage` implement
+6. `StabilityPool`, `AuctionHouse`, `CreditRedeem`, and `Deleverage` implement
    distinct paths for unhealthy positions and protocol debt.
-6. `RipeHq`, `MissionControl`, `Switchboard`, and the specialized switchboards
+7. `RipeHq`, `MissionControl`, `Switchboard`, and the specialized switchboards
    establish authority and configuration. Treasury, token, and vault contracts
    use the same registry and pause model.
+
+## Reserve acquisition and vested claims
+
+`RipeReserveEngine` and `RipeReserveVesting` resolve through RipeHq IDs 26 and
+27. A caller interacts with the engine directly: `previewAcquireRipe` quotes an
+allocation, `acquireRipe` transfers the caller's payment and creates a vesting
+position for that same caller, and `claimVestedRipe` or
+`claimVestedRipeMany` settles that caller's newly vested RIPE. Teller is used
+only when a claim requests automatic deposit into the current core RipeGov
+vault.
+
+Construction leaves the engine paused, stopped, and acquisition-disabled, and
+leaves the vesting contract paused with a zero allocation budget. These are
+independent contract defaults. Acquisition requires the engine to be unpaused,
+running and past genesis, acquisition-enabled, funded with allocation budget,
+and connected to mint-ready RIPE, vesting, and EndaomentFunds dependencies.
+Unpausing alone does not activate it.
+
+Vested claims do not depend on engine pause, running state, genesis, acquisition
+enablement, or EndaomentFunds. They do require the engine still to occupy ID 26,
+the current ID-27 vesting contract to be compatible and unpaused, RIPE minting
+to be ready, and the beneficiary not to be blacklisted. A claim batch contains
+at most 20 positions and reverts atomically if any row is invalid or has no
+newly vested RIPE.
 
 ## Account safety and liquidation
 

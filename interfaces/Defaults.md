@@ -49,6 +49,10 @@ arbitrary bulk history import.
 
 ## Implementations and roles
 
+The Base and Robinhood names identify chain-targeted source-profile families
+with different chain clocks, dependency sets, and asset universes. They do not
+describe current deployment status or live parameter values.
+
 | Page | Intended role |
 | --- | --- |
 | [`DefaultsBase`](../governance/configuration/DefaultsBase.md) | Seed profile for newly constructed consumers; no constructor arguments |
@@ -64,7 +68,7 @@ profiles are not interchangeable.
 <!-- BEGIN GENERATED API REFERENCE: Defaults -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `interfaces/Defaults.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `interfaces/Defaults.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### External functions declared by this source
 
@@ -88,11 +92,11 @@ profiles are not interchangeable.
 | `def trainingWheels() -> address` | `0` | `view` | `address` |
 | `def underscoreRegistry() -> address` | `0` | `view` | `address` |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `assetConfigs()` | `view` | `DynArray[cs.AssetConfigEntry, 50]` |
 | `genConfig()` | `view` | `cs.GenConfig` |

@@ -11,10 +11,18 @@ hold or mint RIPE.
 Construction binds RipeHq, starts the department paused with neither GREEN nor
 RIPE mint capability, and initializes position IDs at one. Only the contract
 currently registered at RipeHq ID 26 may create positions or record claims.
-Registered Switchboards may replace the remaining allocation budget.
+Registered Switchboards may replace the remaining allocation budget, which
+starts at its zero-value default. The engine resolves its vesting store through
+RipeHq ID 27; the vesting contract does not independently assert that it
+currently occupies that slot.
 
 Because engine authority is resolved from RipeHq on every write, replacing ID 26
-immediately removes the old engine's ability to mutate vesting state.
+immediately removes the old engine's ability to mutate vesting state and grants
+the new current engine claim-recording authority over every existing position.
+`sourceEngine` is creation-event metadata, not stored position authorization. A
+replacement engine must preserve outstanding-position settlement semantics: an
+incompatible implementation can strand claims, while a malicious current engine
+can advance claim accounting without completing RIPE settlement.
 
 ## Position lifecycle
 
@@ -27,7 +35,9 @@ claim-start, and maturity blocks, decrements the current budget, and increments
 Positions have monotonic nonzero IDs, while the per-user storage index is a
 compact one-based array. When a position is fully claimed, the final position is
 moved into the removed slot. Integrators should resolve an ID through
-`indexOfPosition`; numeric storage indexes are not stable identifiers.
+`indexOfPosition`; numeric storage indexes are not stable identifiers. Both an
+unknown ID and a fully removed ID return zero from `getVestedRipe` and
+`getClaimableRipe`, so `indexOfPosition` is also the absence discriminator.
 
 ## Vesting and claims
 
@@ -42,7 +52,8 @@ accrued since creation, not only since the claim-start block.
 position and global claimed total, and removes a fully claimed position. It
 returns the amount claimed, cumulative claimed amount for that position, and
 the original allocation so the engine can emit and settle the complete claim
-record.
+record. `recordClaim` also requires this vesting contract to be unpaused, so
+pausing vesting freezes claims even after positions have matured.
 
 ## Budget and retirement
 
@@ -51,6 +62,11 @@ replace it with any amount, including zero; it is not a lifetime ceiling and is
 not a cross-chain RIPE supply cap. `totalOutstandingRipe` is allocated minus
 claimed RIPE for this vesting program. `canRetire` is true only while the
 contract is paused and that outstanding liability is zero.
+
+Replacing RipeHq ID 27 changes the vesting store used by the current engine and
+does not migrate positions from the prior store. `canRetire` is an advisory
+readiness view; neither this contract nor the generic RipeHq registry-update path
+automatically requires it before replacement.
 
 <!-- BEGIN GENERATED API REFERENCE: RipeReserveVesting -->
 ## Exact API reference

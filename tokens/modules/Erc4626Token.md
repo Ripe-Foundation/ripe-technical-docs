@@ -96,7 +96,7 @@ Savings GREEN additionally requires zero initial share supply at construction.
 <!-- BEGIN GENERATED API REFERENCE: Erc4626Token -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `contracts/tokens/modules/Erc4626Token.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `contracts/tokens/modules/Erc4626Token.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### Deployment/module initializer declared by this source
 
@@ -127,11 +127,11 @@ A `@deploy` initializer is constructor context when this source is deployed or m
 | `def totalAssets() -> uint256` | `0` | `view` | `uint256` |
 | `def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256` | `1–3` | `nonpayable` | `uint256` |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `asset()` | `view` | `address` |
 | `convertToAssets(uint256 _shares)` | `view` | `uint256` |

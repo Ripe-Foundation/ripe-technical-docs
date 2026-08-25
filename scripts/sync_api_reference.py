@@ -537,7 +537,7 @@ def required_argument_count(function: dict[str, Any]) -> int:
     )
 
 
-def source_selector_signature(function: dict[str, Any], arity: int) -> str:
+def source_call_form(function: dict[str, Any], arity: int) -> str:
     arguments = ", ".join(
         f"{argument['type']} {argument['name']}"
         for argument in function["arguments"][:arity]
@@ -958,8 +958,10 @@ def render_api_block(
         provenance = (
             f"> Generated from declarations in `{source_path}`. "
             "This source has no tracked ABI under `scripts/abis`; the inventory therefore covers "
-            "the functions, events, and structs declared by this source rather than claiming a "
-            "composed host ABI."
+            "deployment/module initializers, external functions and their default-argument call "
+            "forms, compiler-generated public getters inferred from declarations, events, flags, "
+            "constants, structs, and source-declared revert reasons found in this source. It does "
+            "not claim a composed host ABI or canonical runtime selector surface."
         )
     lines = [
         begin,
@@ -1102,12 +1104,14 @@ def render_api_block(
         if external_functions:
             lines.extend(
                 [
-                    "### Source-declared selector arities",
+                    "### Source-declared call forms",
                     "",
-                    "Each row is one callable selector prefix created by the source declaration's "
-                    "trailing defaults.",
+                    "Each row is one source-level call form permitted by the declaration's trailing "
+                    "defaults. These signatures use Vyper source notation; they are not canonical "
+                    "ABI signatures or selector-hash preimages. Without a tracked compiled ABI, "
+                    "this table does not claim the exact runtime selector surface.",
                     "",
-                    "| Selector declaration | Mutability | Returns |",
+                    "| Source call form | Mutability | Returns |",
                     "| --- | --- | --- |",
                 ]
             )
@@ -1117,7 +1121,7 @@ def render_api_block(
                     required_argument_count(function), len(function["arguments"]) + 1
                 ):
                     lines.append(
-                        f"| `{source_selector_signature(function, arity)}` | "
+                        f"| `{source_call_form(function, arity)}` | "
                         f"`{function['mutability']}` | {returns} |"
                     )
             lines.append("")
@@ -2158,7 +2162,41 @@ def validate_pinned_protocol_links(
 
 def abi_paths(repo: Path, commit: str) -> dict[str, str]:
     paths = run_git(repo, "ls-tree", "-r", "--name-only", commit, "scripts/abis").splitlines()
-    return {Path(path).stem: path for path in paths if path.endswith(".json")}
+    json_paths = [path for path in paths if path.endswith(".json")]
+    prefix = "scripts/abis/"
+    nested_paths: list[str] = []
+    paths_by_stem: dict[str, list[str]] = defaultdict(list)
+
+    for path in json_paths:
+        if not path.startswith(prefix):
+            raise RuntimeError(
+                f"tracked ABI JSON path is outside {prefix.rstrip('/')}: {path}"
+            )
+        relative_path = path[len(prefix) :]
+        if not relative_path or "/" in relative_path:
+            nested_paths.append(path)
+        paths_by_stem[Path(relative_path).stem].append(path)
+
+    duplicate_stems = {
+        stem: candidates
+        for stem, candidates in paths_by_stem.items()
+        if len(candidates) > 1
+    }
+    layout_errors: list[str] = []
+    if nested_paths:
+        layout_errors.append(
+            "nested ABI JSON paths are not allowed; expected direct scripts/abis/*.json "
+            f"children: {sorted(nested_paths)}"
+        )
+    if duplicate_stems:
+        layout_errors.append(f"duplicate ABI stems: {duplicate_stems}")
+    if layout_errors:
+        raise RuntimeError("; ".join(layout_errors))
+
+    return {
+        stem: candidates[0]
+        for stem, candidates in paths_by_stem.items()
+    }
 
 
 def main() -> int:

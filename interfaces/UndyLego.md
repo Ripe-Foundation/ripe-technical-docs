@@ -49,7 +49,7 @@ An address satisfying this interface is not by itself approved or current.
 <!-- BEGIN GENERATED API REFERENCE: UndyLego -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `interfaces/UndyLego.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `interfaces/UndyLego.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### External functions declared by this source
 
@@ -69,11 +69,11 @@ An address satisfying this interface is not by itself approved or current.
 | `def swapTokens(_amountIn: uint256, _minAmountOut: uint256, _tokenPath: DynArray[address, MAX_TOKEN_PATH], _poolPath: DynArray[address, MAX_TOKEN_PATH - 1], _recipient: address, _miniAddys: MiniAddys = empty(MiniAddys)) -> (uint256, uint256, uint256)` | `5–6` | `nonpayable` | `(uint256, uint256, uint256)` |
 | `def withdrawFromYield(_vaultToken: address, _amount: uint256, _extraData: bytes32, _recipient: address, _miniAddys: MiniAddys = empty(MiniAddys)) -> (uint256, address, uint256, uint256)` | `4–5` | `nonpayable` | `(uint256, address, uint256, uint256)` |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `addLiquidity(address _pool, address _tokenA, address _tokenB, uint256 _amountA, uint256 _amountB, uint256 _minAmountA, uint256 _minAmountB, uint256 _minLpAmount, bytes32 _extraData, address _recipient)` | `nonpayable` | `(address, uint256, uint256, uint256, uint256)` |
 | `addLiquidity(address _pool, address _tokenA, address _tokenB, uint256 _amountA, uint256 _amountB, uint256 _minAmountA, uint256 _minAmountB, uint256 _minLpAmount, bytes32 _extraData, address _recipient, MiniAddys _miniAddys)` | `nonpayable` | `(address, uint256, uint256, uint256, uint256)` |

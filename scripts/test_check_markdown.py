@@ -63,6 +63,27 @@ class MarkdownValidationTests(unittest.TestCase):
         )
         self.assertEqual([], markdown.undefined_reference_labels(content))
 
+    def test_reference_definition_accepts_indented_destination_on_next_line(self) -> None:
+        content = """
+[reference][docs]
+[with-title][guide]
+
+[docs]:
+  reference/page.md
+[guide]:
+   <guide page.md> "Guide"
+"""
+        self.assertEqual(
+            ["reference/page.md", "guide page.md"],
+            markdown.link_targets(content),
+        )
+        self.assertEqual([], markdown.undefined_reference_labels(content))
+
+    def test_reference_definition_rejects_code_indented_destination(self) -> None:
+        content = "[reference][docs]\n\n[docs]:\n    missing.md\n"
+        self.assertEqual([], markdown.link_targets(content))
+        self.assertEqual(["docs"], markdown.undefined_reference_labels(content))
+
     def test_undefined_explicit_references_are_reported_but_shortcut_text_is_not(self) -> None:
         content = (
             "[missing][docs]\n[also-missing][]\n"
@@ -114,6 +135,27 @@ and [hidden-inline](hidden.md)``
                 markdown.check_fences(path, errors)
             self.assertEqual([], errors)
         self.assertEqual(["page.md"], markdown.link_targets(content))
+
+    def test_indented_code_lines_mask_links_without_becoming_fences(self) -> None:
+        content = (
+            "    [hidden-space](missing-space.md)\n"
+            "\t[hidden-tab](missing-tab.md)\n"
+            " \t[hidden-mixed](missing-mixed.md)\n"
+            "[visible](page.md)\n"
+        )
+        self.assertEqual(["page.md"], markdown.link_targets(content))
+
+    def test_html_comments_mask_links_and_backticks_in_lexical_order(self) -> None:
+        content = (
+            "<!-- [hidden](missing.md) `comment tick -->\n"
+            "[visible](page.md) `<!-- not-comment -->`\n"
+            "<!-- multiline\n"
+            "[also-hidden][docs]\n"
+            "-->\n"
+            "[docs]: reference.md\n"
+        )
+        self.assertEqual(["page.md"], markdown.link_targets(content))
+        self.assertEqual([], markdown.undefined_reference_labels(content))
 
     def test_fence_closer_rejects_trailing_content(self) -> None:
         content = "```text\ncontent\n``` not-a-closer\n"
@@ -190,6 +232,73 @@ and [hidden-inline](hidden.md)``
                 (root / "SUMMARY.md").write_text(
                     "# Contents\n\n- [Home](README.md)\n- [Missing](missing.md)\n"
                 )
+                with redirect_stderr(output), redirect_stdout(output):
+                    self.assertEqual(0, markdown.main())
+
+    def test_published_page_cannot_link_to_configured_unpublished_page(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "reference").mkdir()
+            (root / "SUMMARY.md").write_text(
+                "# Contents\n\n- [Home](README.md)\n"
+            )
+            (root / "README.md").write_text(
+                "# Home\n\n[Maintenance](reference/Maintenance.md)\n"
+            )
+            (root / "reference" / "Maintenance.md").write_text(
+                "# Maintenance\n\n[Home](../README.md)\n"
+            )
+            (root / ".markdownignore").write_text("reference/*.md\n")
+
+            with mock.patch.object(markdown, "ROOT", root), mock.patch.object(
+                markdown, "IGNORE_PATH", root / ".markdownignore"
+            ):
+                output = io.StringIO()
+                with redirect_stderr(output), redirect_stdout(output):
+                    self.assertEqual(1, markdown.main())
+                self.assertIn(
+                    "README.md: link targets unpublished path excluded by "
+                    ".markdownignore: reference/Maintenance.md",
+                    output.getvalue(),
+                )
+                self.assertNotIn(
+                    "reference/Maintenance.md: link targets unpublished path",
+                    output.getvalue(),
+                )
+
+                (root / "README.md").write_text(
+                    "# Home\n\n"
+                    "[Maintenance](https://example.com/reference/Maintenance.md)\n"
+                )
+                output = io.StringIO()
+                with redirect_stderr(output), redirect_stdout(output):
+                    self.assertEqual(0, markdown.main())
+
+    def test_summary_rejects_duplicate_markdown_page_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "SUMMARY.md").write_text(
+                "# Contents\n\n"
+                "- [Home](README.md)\n"
+                "- [Home again](./README.md)\n"
+            )
+            (root / "README.md").write_text("# Home\n")
+
+            with mock.patch.object(markdown, "ROOT", root), mock.patch.object(
+                markdown, "IGNORE_PATH", root / ".markdownignore"
+            ):
+                output = io.StringIO()
+                with redirect_stderr(output), redirect_stdout(output):
+                    self.assertEqual(1, markdown.main())
+                self.assertIn(
+                    "SUMMARY.md: duplicate page target: README.md",
+                    output.getvalue(),
+                )
+
+                (root / "SUMMARY.md").write_text(
+                    "# Contents\n\n- [Home](README.md)\n"
+                )
+                output = io.StringIO()
                 with redirect_stderr(output), redirect_stdout(output):
                     self.assertEqual(0, markdown.main())
 

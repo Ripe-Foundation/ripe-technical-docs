@@ -8,15 +8,26 @@ respectively, and refuses zero or non-contract targets.
 
 ## Construction and authority
 
-Construction binds RipeHq and a temporary local governor. It initializes local
-governance with zero governance-change delay and initializes the action timelock
-with the supplied minimum and maximum, an initial delay of zero, and expiration
-equal to the maximum. The inherited setup routes install durable governance and
-timelock values.
+Construction binds RipeHq and accepts a temporary local-governor address. Zero
+is allowed, in which case only the current RipeHq governor is initially active.
+It initializes local governance by inheriting RipeHq's immutable minimum and
+maximum governance-delay bounds; because the supplied local initial delay is
+zero, `LocalGov` clamps the installed `govChangeTimeLock` to that inherited
+minimum. The separate Foxtrot action timelock uses the supplied minimum and
+maximum, starts with an action delay of zero, and sets expiration to the
+maximum.
+
+The inherited ABI exposes `finishRipeHqSetup`, but that route is permanently
+inapplicable to Foxtrot because its `LocalGov` module is initialized with a
+nonzero parent RipeHq; the route is usable only on a top-level `LocalGov` host
+(`RIPE_HQ_FOR_GOV == 0`). Local-governor replacement uses the ordinary
+`startGovernanceChange`/`confirmGovernanceChange` flow and the installed
+governance-change delay.
 
 Every Foxtrot action requires `canGovern`, so either its current local governor
 or the current RipeHq governor may act under the inherited authority rules. The
-engine separately requires the caller to remain a registered Switchboard.
+engine and vesting contract separately require Foxtrot to remain a registered
+Switchboard for their respective writes.
 
 ## Timelocked changes
 

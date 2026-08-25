@@ -52,7 +52,7 @@ interface inventory rather than reconstructing tuples from examples.
 <!-- BEGIN GENERATED API REFERENCE: ConfigStructs -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `interfaces/ConfigStructs.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `interfaces/ConfigStructs.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### External functions declared by this source
 

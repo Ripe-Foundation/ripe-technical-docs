@@ -8,7 +8,7 @@ RIPE is the protocol's 18-decimal governance and incentive token. It
 specializes `Erc20Token` with name `Ripe DAO Governance Token`, symbol `RIPE`,
 and a RipeHq-authorized mint route.
 
-[Protocol tokenomics](https://docs.ripe.finance/governance-and-economics/08-ripe-tokenomics)
+[Protocol tokenomics](https://docs.ripe.finance/governance-and-economics/01-ripe-tokenomics)
 define a total allocation of one billion RIPE across all chains under normal
 operation. The documented bad-debt bond mechanism permits emergency RIPE
 minting beyond the normal allocation. The contracts do not maintain or enforce

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate local Markdown links, fences, and published navigation coverage."""
+"""Validate local Markdown links, fences, and published navigation structure."""
 
 from __future__ import annotations
 
@@ -113,11 +113,41 @@ def _at_indented_line_start(value: str, index: int) -> bool:
     return prefix.startswith("\t") or (len(prefix) >= 4 and not prefix.strip(" "))
 
 
+def _leading_indentation(line: str) -> tuple[int, int]:
+    """Return leading Markdown indentation columns and the first content index."""
+    columns = 0
+    index = 0
+    body = _line_without_ending(line)
+    while index < len(body):
+        char = body[index]
+        if char == " ":
+            columns += 1
+        elif char == "\t":
+            columns += 4 - (columns % 4)
+        else:
+            break
+        index += 1
+    return columns, index
+
+
+def _is_indented_code_line(line: str) -> bool:
+    """Return whether a root-level line has at least four columns of indentation."""
+    return _leading_indentation(line)[0] >= 4
+
+
 def _mask_inline_code_spans(content: str) -> str:
-    """Mask closed backtick spans, including multiline and nested shorter runs."""
+    """Mask HTML comments and closed backtick spans in their lexical order."""
     output = list(content)
     index = 0
     while index < len(content):
+        if content.startswith("<!--", index) and not _is_escaped(content, index):
+            closer = content.find("-->", index + 4)
+            closer_end = len(content) if closer < 0 else closer + 3
+            for position in range(index, closer_end):
+                if output[position] not in "\r\n":
+                    output[position] = " "
+            index = closer_end
+            continue
         if (
             content[index] != "`"
             or _is_escaped(content, index)
@@ -153,11 +183,14 @@ def _mask_inline_code_spans(content: str) -> str:
 
 
 def markdown_prose(content: str) -> str:
-    """Mask fenced and inline code before interpreting Markdown links."""
+    """Mask fenced, indented, and inline code plus HTML comments."""
     output: list[str] = []
     open_fence: tuple[str, int] | None = None
     for line in content.splitlines(keepends=True):
         if open_fence is None:
+            if _is_indented_code_line(line):
+                output.append(_mask_non_newlines(line))
+                continue
             opening = _opening_fence(line)
             if opening is not None:
                 open_fence = opening
@@ -336,7 +369,7 @@ def _parse_inline_destination(content: str, start: int) -> tuple[str, int] | Non
     return target, closing + 1
 
 
-def _parse_reference_definition(line: str) -> tuple[str, str] | None:
+def _parse_reference_label(line: str) -> tuple[str, int] | None:
     line = _line_without_ending(line)
     indentation = len(line) - len(line.lstrip(" "))
     if indentation > 3 or indentation == len(line) or line[indentation] != "[":
@@ -348,7 +381,12 @@ def _parse_reference_definition(line: str) -> tuple[str, str] | None:
     label = _normalize_reference_label(raw_label)
     if not label or len(raw_label) > 999 or index >= len(line) or line[index] != ":":
         return None
-    index = index + 1
+    return label, index + 1
+
+
+def _parse_reference_destination(line: str, start: int) -> str | None:
+    line = _line_without_ending(line)
+    index = start
     index = _skip_link_whitespace(line, index)
     if index >= len(line):
         return None
@@ -361,16 +399,25 @@ def _parse_reference_definition(line: str) -> tuple[str, str] | None:
         return None
     target, index = parsed_target
     if index == len(line):
-        return label, target
+        return target
     whitespace_end = _skip_link_whitespace(line, index)
     if whitespace_end == index:
         return None
     if whitespace_end == len(line):
-        return label, target
+        return target
     title_end = _parse_title(line, whitespace_end)
     if title_end is None or _skip_link_whitespace(line, title_end) != len(line):
         return None
-    return label, target
+    return target
+
+
+def _parse_reference_definition(line: str) -> tuple[str, str] | None:
+    parsed_label = _parse_reference_label(line)
+    if parsed_label is None:
+        return None
+    label, destination_start = parsed_label
+    target = _parse_reference_destination(line, destination_start)
+    return None if target is None else (label, target)
 
 
 def _reference_definitions(
@@ -378,14 +425,41 @@ def _reference_definitions(
 ) -> tuple[dict[str, str], list[tuple[int, int]]]:
     definitions: dict[str, str] = {}
     ranges: list[tuple[int, int]] = []
+    lines = content.splitlines(keepends=True)
     offset = 0
-    for line in content.splitlines(keepends=True):
+    index = 0
+    while index < len(lines):
+        line = lines[index]
         definition = _parse_reference_definition(line)
+        consumed = 1
+        if definition is None:
+            parsed_label = _parse_reference_label(line)
+            line_body = _line_without_ending(line)
+            if (
+                parsed_label is not None
+                and not line_body[parsed_label[1] :].strip(" \t")
+                and index + 1 < len(lines)
+            ):
+                continuation = _line_without_ending(lines[index + 1])
+                indentation, destination_start = _leading_indentation(continuation)
+                if 1 <= indentation <= 3:
+                    target = _parse_reference_destination(
+                        continuation, destination_start
+                    )
+                    if target is not None:
+                        definition = (parsed_label[0], target)
+                        consumed = 2
         if definition is not None:
             label, target = definition
             definitions.setdefault(label, target)
-            ranges.append((offset, offset + len(line)))
-        offset += len(line)
+            consumed_length = sum(
+                len(value) for value in lines[index : index + consumed]
+            )
+            ranges.append((offset, offset + consumed_length))
+        else:
+            consumed_length = len(line)
+        offset += consumed_length
+        index += consumed
     return definitions, ranges
 
 
@@ -497,9 +571,13 @@ def heading_anchors(path: Path) -> set[str]:
 
 
 def check_links(
-    path: Path, errors: list[str], anchor_cache: dict[Path, set[str]]
+    path: Path,
+    errors: list[str],
+    anchor_cache: dict[Path, set[str]],
+    patterns: tuple[str, ...] = (),
 ) -> None:
     content = path.read_text()
+    source_is_published = not is_unpublished(path, patterns)
     for label in undefined_reference_labels(content):
         errors.append(
             f"{path.relative_to(ROOT)}: undefined reference-style link: [{label}]"
@@ -513,9 +591,15 @@ def check_links(
         else:
             target = path.resolve()
         try:
-            target.relative_to(ROOT)
+            relative_target = target.relative_to(ROOT)
         except ValueError:
             errors.append(f"{path.relative_to(ROOT)}: link escapes repository: {raw_target}")
+            continue
+        if raw_path and source_is_published and is_unpublished(target, patterns):
+            errors.append(
+                f"{path.relative_to(ROOT)}: link targets unpublished path "
+                f"excluded by .markdownignore: {relative_target}"
+            )
             continue
         if not target.exists():
             errors.append(f"{path.relative_to(ROOT)}: missing link target: {raw_target}")
@@ -548,13 +632,25 @@ def check_fences(path: Path, errors: list[str]) -> None:
         )
 
 
-def summary_targets() -> set[Path]:
+def summary_targets(errors: list[str] | None = None) -> set[Path]:
     summary = ROOT / "SUMMARY.md"
     targets: set[Path] = set()
+    duplicates: set[Path] = set()
     for raw_target in link_targets(summary.read_text()):
         target = local_target(summary, raw_target)
-        if target is not None and target.suffix == ".md":
-            targets.add(target)
+        if target is None or target.suffix != ".md":
+            continue
+        try:
+            relative_target = target.relative_to(ROOT)
+        except ValueError:
+            continue
+        if target in targets and target not in duplicates:
+            duplicates.add(target)
+            if errors is not None:
+                errors.append(
+                    f"SUMMARY.md: duplicate page target: {relative_target}"
+                )
+        targets.add(target)
     return targets
 
 
@@ -564,13 +660,13 @@ def main() -> int:
     files = markdown_files()
     patterns = unpublished_patterns()
     for path in files:
-        check_links(path, errors, anchor_cache)
+        check_links(path, errors, anchor_cache, patterns)
         check_fences(path, errors)
         content = path.read_text()
         if content and not content.endswith("\n"):
             errors.append(f"{path.relative_to(ROOT)}: missing trailing newline")
 
-    summarized = summary_targets()
+    summarized = summary_targets(errors)
     for path in files:
         if path.name == "SUMMARY.md" or is_unpublished(path, patterns):
             continue

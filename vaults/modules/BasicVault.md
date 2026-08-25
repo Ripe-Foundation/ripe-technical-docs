@@ -65,7 +65,7 @@ still returns zero usable/reward amount but does not quarantine account debt.
 <!-- BEGIN GENERATED API REFERENCE: BasicVault -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `contracts/vaults/modules/BasicVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `contracts/vaults/modules/BasicVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### Deployment/module initializer declared by this source
 

@@ -35,7 +35,6 @@
 - [LocalGov](governance/LocalGov.md)
 - [TimeLock](governance/TimeLock.md)
 - [TrainingWheels](governance/TrainingWheels.md)
-
 - Configuration switchboards
   - [SwitchboardAlpha](governance/configuration/SwitchboardAlpha.md)
   - [SwitchboardBravo](governance/configuration/SwitchboardBravo.md)

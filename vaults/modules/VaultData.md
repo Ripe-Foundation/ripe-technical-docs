@@ -51,7 +51,7 @@ Specialized vaults may deliberately override or disable this inherited surface. 
 <!-- BEGIN GENERATED API REFERENCE: VaultData -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `contracts/vaults/modules/VaultData.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `contracts/vaults/modules/VaultData.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### Deployment/module initializer declared by this source
 
@@ -75,11 +75,11 @@ A `@deploy` initializer is constructor context when this source is deployed or m
 | `def recoverFunds(_recipient: address, _asset: address)` | `2` | `nonpayable` | — |
 | `def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS])` | `2` | `nonpayable` | — |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` |
 | `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |

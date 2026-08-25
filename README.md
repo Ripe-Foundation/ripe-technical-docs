@@ -25,16 +25,20 @@ Start with:
 - [Protocol architecture and behavior](CurrentImplementation.md) for the
   cross-contract system map and important state machines;
 - [Integration guide](guides/IntegratorOnRamp.md) for common reads and
-  transaction flows;
-- [documentation maintenance](reference/ImplementationBaseline.md) for the
-  exact protocol pin, source coverage, and validation workflow; and
+  transaction flows; and
 - the [table of contents](SUMMARY.md) for every contract and interface page.
+
+Maintainers can use the
+[contributor-only baseline guide](https://github.com/Ripe-Foundation/ripe-technical-docs/blob/master/reference/ImplementationBaseline.md)
+to reproduce and advance the exact protocol-source pin. It is intentionally
+kept outside the published GitBook navigation.
 
 ## Architecture
 
-Users interact through `Teller`, which routes deposits, withdrawals, borrowing,
-repayment, claims, bonds, liquidations, and other account actions. Vaults hold
-or account for assets, `VaultBook` records registered vaults, and
+Most account and vault actions enter through `Teller`, which routes deposits,
+withdrawals, borrowing, repayment, Stability claims, bonds, liquidations, and
+other account actions. Vaults hold or account for assets, `VaultBook` records
+registered vaults, and
 `MissionControl` preserves historical Stability and RipeGov vault-role
 classifications. `CreditEngine` evaluates account-wide collateral, debt, and
 liquidation eligibility; `Ledger` stores shared position, debt, and action state.
@@ -44,6 +48,12 @@ debt resolution are split across `StabilityPool`, `AuctionHouse`,
 `CreditRedeem`, and `Deleverage`, each with distinct eligibility and settlement
 rules. `VaultMigrator` provides controlled position migration between compatible
 vaults.
+
+[`RipeReserveEngine`](core/RipeReserveEngine.md) is a separate direct user
+surface: it accepts a configured payment asset and creates block-based RIPE
+allocations in [`RipeReserveVesting`](core/RipeReserveVesting.md). Vested claims
+either mint RIPE directly to the beneficiary or route it through Teller into
+MissionControl's current core RipeGov vault.
 
 `RipeHq`, `MissionControl`, `Switchboard`, and the specialized switchboards
 provide address resolution, authority, and configuration. Treasury contracts
@@ -55,7 +65,7 @@ primitives used by the composed contracts.
 
 | Group | Responsibility |
 | --- | --- |
-| [Core](core/CreditEngine.md) | Credit, debt, user entry points, liquidation, redemption, deleveraging, migration, and stability |
+| [Core](core/CreditEngine.md) | Credit, debt, user entry points, liquidation, redemption, deleveraging, migration, stability, reserve acquisition, and reserve vesting |
 | [Core modules](core-modules/Addys.md) | Address resolution, department behavior, vault registration, and shared state routing |
 | [Governance](governance/RipeHq.md) | Authority, timelocks, protocol configuration, defaults, and role rotation |
 | [Treasury](treasury/Endaoment.md) | Endaoment operations, bonds, rewards, contributor compensation, and the PSM |
@@ -66,9 +76,9 @@ primitives used by the composed contracts.
 | [Cross-chain](cross-chain/RipeCcipBurnMintTokenPools.md) | First-party Solidity CCIP burn/mint pool implementations |
 
 `AuctionHouseNFT` and `Boardroom` are documented because first-party contract
-sources exist. `AuctionHouseNFT` supplies only inherited department
-behavior, and `Boardroom` implements only the governance-power-change callback
-described on its component page.
+sources exist. `AuctionHouseNFT` supplies only inherited department behavior,
+and `Boardroom` implements only the governance-power-change callback described
+on its component page.
 
 ## Validate this documentation
 

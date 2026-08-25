@@ -76,11 +76,14 @@ Ripe contracts do not override that state machine.
 The complete inherited selector, event, and custom-error surface is documented
 in the [composed BurnMintTokenPool 1.5.1 reference](BurnMintTokenPool151.md).
 
-For a completed transfer, the source pool burns the transferred amount and the
-destination pool mints the corresponding amount. This moves supply between
-chain-local token representations. Neither pool maintains a cross-chain supply
-total. Rate limits constrain per-lane transfer volume; they do not impose an
-aggregate token-supply cap.
+For a completed transfer, the source pool burns the source-side amount and the
+destination pool mints the locally scaled amount. Equal-decimal representations
+preserve the numeric base-unit amount. When decimals differ, conversion can
+round down while reducing precision or revert on an unsafe increase; see the
+[composed inherited reference](BurnMintTokenPool151.md#decimal-conversion-and-amount-domains).
+This moves supply between chain-local token representations, but neither pool
+maintains a cross-chain supply total. Rate limits constrain per-lane transfer
+volume; they do not impose an aggregate token-supply cap.
 
 ## Token administration
 

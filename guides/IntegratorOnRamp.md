@@ -17,6 +17,8 @@ addresses.
 | PriceDesk | `RipeHq.getAddr(7)` | Canonical protocol price routing and token-scale handling |
 | VaultBook | `RipeHq.getAddr(8)` | Vault-ID resolution, registration, and vault metadata |
 | Teller | `RipeHq.getAddr(17)` | Normal user transaction gateway |
+| RipeReserveEngine | `RipeHq.getAddr(26)` | Preview and acquire reserve RIPE allocations, then settle vested claims |
+| RipeReserveVesting | `RipeHq.getAddr(27)` | Read positions, claimable amounts, allocation budget, and retirement readiness |
 
 MissionControl's vault-role pointers are mutable:
 
@@ -54,6 +56,8 @@ the linked API inventory.
 | Adjust or release a RipeGov lock | [`adjustLock` / `releaseLock`](../core/Teller.md#exact-api-reference) | Pass the explicit vault-ID overload for a historical position. A zero or omitted ID resolves the core RipeGov vault. |
 | Buy a RIPE bond | [`purchaseRipeBond`](../core/Teller.md#exact-api-reference) | Pass the payment amount and, where needed, recipient, lock duration, and `minRipePayout`. Omitted lock duration and minimum payout are zero; an omitted recipient is the caller. |
 | Claim RIPE rewards | [`claimLoot` / `claimLootForManyUsers`](../core/Teller.md#exact-api-reference) | Account for reward funding, point state, target authority, stake choice, and the core RipeGov route; staking defaults to `true`. A multi-user call performs final Teller housekeeping for the caller rather than a universal Ledger lock check for every target. |
+| Acquire reserve RIPE | [`RipeReserveEngine.previewAcquireRipe` / `acquireRipe`](../core/RipeReserveEngine.md#acquisition-and-quoting) | Call the engine directly and approve it to spend the configured payment token. The caller is the payer, position owner, and beneficiary; there is no alternate-recipient route. A preview is not a reservation. Bind its epoch and resolved vesting length, set `_minRipeOut` and `_deadlineBlock`, and account for payment capacity, the minimum payment, and the vesting allocation budget. A new engine is paused, stopped, and acquisition-disabled; unpause, start, and enablement are independent gates. |
+| Claim vested reserve RIPE | [`RipeReserveEngine.claimVestedRipe` / `claimVestedRipeMany`](../core/RipeReserveEngine.md#claims) | Call the engine directly. The caller can claim only its own positions; a batch accepts 1–20 IDs and is atomic. Direct mint ignores `_lockDuration`. Auto-deposit instead routes through Teller to the current core RipeGov vault, where the requested duration is clamped to current lock bounds and share-weighted with an existing position. Engine pause, running, and acquisition state do not block claims, but current mint readiness, unpaused vesting, RIPE token state, blacklist status, and the optional vault/Teller route do. |
 
 ## User permissions and delegated calls
 
@@ -117,6 +121,9 @@ the two may differ on Arbitrum.
   bound by the Ledger constructor.
 - Treat quotes and eligibility views as observations, not execution
   reservations. Apply explicit output bounds where the ABI supports them.
+- For reserve acquisition, use `previewAcquireRipe` to bind the expected epoch
+  and resolved vesting length, but still supply a deadline and minimum RIPE
+  output because the preview does not reserve capacity, budget, or terms.
 
 ## Vault migration
 

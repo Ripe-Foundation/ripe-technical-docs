@@ -54,7 +54,7 @@ specialized vault IDs.
 <!-- BEGIN GENERATED API REFERENCE: Vault -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `interfaces/Vault.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `interfaces/Vault.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### External functions declared by this source
 
@@ -84,11 +84,11 @@ specialized vault IDs.
 | `def userAssets(_user: address, _index: uint256) -> address` | `2` | `view` | `address` |
 | `def withdrawTokensFromVault(_user: address, _asset: address, _amount: uint256, _recipient: address, _a: addys.Addys = empty(addys.Addys)) -> (uint256, bool)` | `4–5` | `nonpayable` | `(uint256, bool)` |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` |
 | `depositTokensInVault(address _user, address _asset, uint256 _amount, addys.Addys _a)` | `nonpayable` | `uint256` |

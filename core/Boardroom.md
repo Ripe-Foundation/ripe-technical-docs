@@ -12,7 +12,8 @@ Its only contract-specific method is:
 - `govPowerDidChangeForUser(user, userGovPoints, totalGovPoints)`
 
 The callback accepts governance-point updates but does not store, aggregate,
-vote with, or otherwise act on those values.
+vote with, or otherwise act on those values. It does not read Boardroom's pause
+flag, so pausing the department does not disable this callback.
 
 ## Caller validation
 

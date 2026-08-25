@@ -77,7 +77,9 @@ ancestor, checks out the exact commit, and verifies its exact tree. It then
 recompiles production Vyper ABIs and the composed Solidity ABI, compares them
 with the tracked artifacts, and runs the tooling tests and both documentation
 gates. Branch advancement therefore does not invalidate an otherwise
-reproducible pin.
+reproducible pin. CI emits a non-failing warning when the trusted branch has
+advanced beyond the pin so maintainers can distinguish reproducibility from
+currentness.
 
 The Solidity lane pins the same Foundry action revision and Foundry 1.3.5
 release used by the protocol CI; `foundry.toml` pins Solidity 0.8.26 and its
@@ -90,3 +92,10 @@ rerun all checks. When a composed Solidity input changes, also build the exact
 protocol checkout, extract the `BurnMintTokenPool` ABI from the compiler
 artifact, and update its SHA-256, compiler identity/config blob, entry source,
 compiled-artifact path, and complete source-blob manifest before regeneration.
+
+## Published filename stability
+
+Existing top-level filenames such as `CurrentImplementation.md` and
+`Deployments.md` are retained to preserve established GitBook URLs even when
+their visible titles and navigation labels evolve. Renaming them requires an
+explicit URL migration and redirect plan.

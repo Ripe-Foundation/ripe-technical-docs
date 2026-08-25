@@ -334,7 +334,7 @@ LOOKUP: public(HashMap[address, Bytes[64]])
         self.assertIn("`_user = msg.sender`", rendered)
         self.assertIn("`_amount = max_value(uint256)`", rendered)
 
-    def test_source_only_block_expands_selector_arities(self) -> None:
+    def test_source_only_block_expands_default_argument_call_forms(self) -> None:
         declarations = api.source_declarations(SOURCE)
         catalog = {
             item["name"]: [item]
@@ -345,6 +345,75 @@ LOOKUP: public(HashMap[address, Bytes[64]])
         self.assertIn("`read()`", rendered)
         self.assertIn("`read(address _user)`", rendered)
         self.assertIn("`read(address _user, uint256 _amount)`", rendered)
+        self.assertIn("### Source-declared call forms", rendered)
+        self.assertIn(
+            "not canonical ABI signatures or selector-hash preimages", rendered
+        )
+        self.assertNotIn("### Source-declared selector arities", rendered)
+
+    def test_source_only_provenance_lists_every_rendered_declaration_class(self) -> None:
+        declarations = api.source_declarations(SOURCE)
+        catalog = {
+            item["name"]: [item]
+            for item in declarations["functions"]
+            if item["external"]
+        }
+        rendered = api.render_api_block(
+            "Fixture", "contracts/Fixture.vy", SOURCE, None, catalog
+        )
+        for expected in (
+            "deployment/module initializers",
+            "default-argument call forms",
+            "compiler-generated public getters",
+            "events, flags, constants, structs",
+            "source-declared revert reasons",
+        ):
+            self.assertIn(expected, rendered)
+
+    def test_abi_paths_accepts_only_direct_json_children(self) -> None:
+        listing = (
+            "scripts/abis/Alpha.json\n"
+            "scripts/abis/Beta.json\n"
+            "scripts/abis/README.md\n"
+        )
+        with mock.patch.object(api, "run_git", return_value=listing) as runner:
+            self.assertEqual(
+                {
+                    "Alpha": "scripts/abis/Alpha.json",
+                    "Beta": "scripts/abis/Beta.json",
+                },
+                api.abi_paths(Path("/protocol"), "a" * 40),
+            )
+        runner.assert_called_once_with(
+            Path("/protocol"),
+            "ls-tree",
+            "-r",
+            "--name-only",
+            "a" * 40,
+            "scripts/abis",
+        )
+
+    def test_abi_paths_rejects_nested_json(self) -> None:
+        listing = "scripts/abis/Alpha.json\nscripts/abis/archive/Beta.json\n"
+        with (
+            mock.patch.object(api, "run_git", return_value=listing),
+            self.assertRaisesRegex(
+                RuntimeError,
+                r"nested ABI JSON paths.*scripts/abis/archive/Beta\.json",
+            ),
+        ):
+            api.abi_paths(Path("/protocol"), "a" * 40)
+
+    def test_abi_paths_rejects_duplicate_stems(self) -> None:
+        listing = (
+            "scripts/abis/archive/Alpha.json\n"
+            "scripts/abis/legacy/Alpha.json\n"
+        )
+        with (
+            mock.patch.object(api, "run_git", return_value=listing),
+            self.assertRaisesRegex(RuntimeError, r"duplicate ABI stems.*Alpha"),
+        ):
+            api.abi_paths(Path("/protocol"), "a" * 40)
 
     def test_named_tuple_outputs_preserve_components(self) -> None:
         rendered = api.output_items(

@@ -16,6 +16,11 @@ engine configuration, acquisition enablement, start/stop, payment-token changes,
 and one-shot rate overrides. The intended governance surface is
 [`SwitchboardFoxtrot`](../governance/configuration/SwitchboardFoxtrot.md).
 
+`isRunning` and `canAcquireRipe` retain their zero-value defaults, so both start
+`false`. Unpausing the department, starting the epoch engine, and enabling
+acquisitions are three independent Switchboard operations; none implies either
+of the others.
+
 Mint readiness is version-bound. The engine must still occupy RipeHq ID 26; the
 vesting contract at ID 27 must be a contract, unpaused, and bound to the same
 RipeHq; RipeHq must authorize this engine to mint RIPE; and the current RIPE
@@ -25,11 +30,19 @@ requires a valid EndaomentFunds contract.
 ## Acquisition and quoting
 
 `previewAcquireRipe` derives the candidate epoch and payout without committing
-state. Its `available` flag also checks the current pause, acquisition, budget,
-and mint-readiness gates, but a preview is not a reservation. Callers pass the
-expected epoch and resolved vesting length, minimum RIPE output, and a deadline
-back to `acquireRipe`; movement of any protected value causes the transaction to
-revert.
+state. When the engine is stopped or before genesis, it returns a wholly empty
+quote. Once running and at or after genesis, ordinary amount, capacity, pause,
+acquisition-enable, budget, and mint-readiness failures generally return the
+derived quote with `available = false`. A nonzero dependency with an incompatible
+ABI may instead revert during a typed read; the preview is not a universal
+fail-soft dependency probe.
+
+A preview is not a reservation. Callers pass its expected epoch and resolved
+vesting length, a minimum RIPE output, and a deadline back to `acquireRipe`;
+movement of any protected value causes the transaction to revert. The caller is
+always the payment source, position owner, and beneficiary, and must approve the
+engine for the payment amount. There is no delegated payer or alternate
+recipient parameter.
 
 An acquisition must fit the epoch's remaining payment capacity and minimum
 payment, and its total allocation must fit the vesting contract's current
@@ -46,11 +59,14 @@ snapshot.
 
 ## Epoch controller and overrides
 
-The controller uses the previous committed epoch's utilization. Strong demand
-reduces RIPE paid per payment-token unit; weak demand increases it. Empty skipped
-epochs apply bounded decay toward the configured all-in payout ceiling. Timing
-affects the strong-demand adjustment only when the prior epoch has meaningful
-timing data.
+Before the first acquisition commits an epoch, the controller continues to use
+the configured seed rate even if many epochs have elapsed. After a committed
+epoch exists, its utilization supplies the controller signal: strong demand
+reduces RIPE paid per payment-token unit, while weak demand increases it. Later
+skipped epochs apply at most `maxDecayEpochs` decay steps toward the configured
+implied base-rate ceiling. Floor or ceiling saturation can leave the rate
+unchanged. Timing affects the strong-demand adjustment only when the prior
+committed epoch has meaningful timing data.
 
 A rate override targets one uncommitted epoch. A target of zero resolves to the
 earliest epoch that has not already accepted an acquisition. The override
@@ -61,26 +77,71 @@ explicit cancellation invalidate or clear it.
 
 ## Claims
 
-Claims may contain one position or up to `MAX_BATCH_CLAIMS` positions. Each row
-is recorded by the current vesting contract; any invalid or zero-claimable row
-reverts the whole batch. Settlement then either mints RIPE directly to the
-beneficiary or mints to the engine and deposits the exact amount through Teller
-into MissionControl's current core RipeGov vault with the requested lock.
+`claimVestedRipe` claims one position, while `claimVestedRipeMany` accepts 1–20
+position IDs (`MAX_BATCH_CLAIMS = 20`). Both use `msg.sender` as the beneficiary;
+there is no delegated claim or alternate-recipient route. Each row is recorded
+by the current vesting contract, and any invalid or zero-claimable row reverts
+the whole batch.
 
-Engine pause and `canAcquireRipe` gate new acquisitions, not vested claims.
-Claims instead depend on the mint-readiness checks above and beneficiary
-blacklist status. Position updates and RIPE settlement are atomic.
+Settlement either mints RIPE directly to the beneficiary or mints to the engine
+and deposits the exact amount through Teller into MissionControl's current core
+RipeGov vault. `_lockDuration` has no effect on direct minting. For automatic
+deposit, the engine forwards the request; RipeGov clamps it to the current lock
+bounds and share-weights it with an existing position. The
+`VestedRipeClaimed.requestedLockDuration` event field remains the requested
+value, not the resulting effective lock.
 
-## Configuration and lifecycle
+Engine pause, `isRunning`, `genesisBlock`, `canAcquireRipe`, and the
+EndaomentFunds dependency gate acquisitions, not vested claims. Claims instead
+require the engine still to occupy ID 26, the current ID-27 vesting contract to
+be compatible, unpaused, and bound to the same RipeHq, RipeHq to authorize RIPE
+minting, the current RIPE token to be compatible and unpaused, and the
+beneficiary not to be blacklisted. Automatic deposit additionally requires a
+nonzero current core RipeGov vault and successful Teller settlement. Position
+updates and RIPE settlement are atomic.
 
-The configuration validator enforces nonzero and ordered utilization bands,
-bounded controller steps and decay, payment and overflow safety, a valid epoch
-clock, positive bounded vesting durations, and an all-in payout ceiling. While
-an epoch length is installed, `setConfig` cannot change it; `start` is the path
-that installs a new valid epoch length. A zero genesis argument starts at the
-current native `block.number`. `stop` clears running/genesis state and resets the
-committed epoch and any override. The payment token can change only while
-stopped and cannot be RIPE.
+## Configuration units and validation
+
+The 16-field `ReserveEngineConfig` uses these units and source-enforced
+relationships. These are contract invariants, not a catalog of selected runtime
+values.
+
+| Field | Units and role | Required relationships |
+| --- | --- | --- |
+| `paymentCapPerEpoch` | Payment-token base units accepted per epoch | At least one whole payment token (`paymentScale`), at most `max_value(uint256) / 10_000`, and safe when multiplied by the payout ceiling; validation also accounts for a larger already-committed epoch cap |
+| `minPaymentAmount` | Payment-token base units | Nonzero, no greater than the epoch cap, and large enough that `minPaymentAmount * 10_000 >= paymentScale` |
+| `maxAllInPayoutRate` | RIPE base units per one whole payment token, including the maximum vesting bonus | Nonzero, at most `max_value(uint256) / 10_000`, multiplication-safe against the effective payment cap, and large enough to imply a legal base-rate ceiling |
+| `seedBasePayoutRate` | RIPE base units per one whole payment token | Between `10_000` and the implied base-rate ceiling, inclusive |
+| `uHighBps` | High-utilization threshold, denominator 10,000 | `0 < uLowBps < uHighBps < 10_000` |
+| `uLowBps` | Low-utilization threshold, denominator 10,000 | `0 < uLowBps < uHighBps` |
+| `minUpBps` | Minimum strong-demand price-up step, denominator 10,000 | Nonzero, no greater than `maxUpBps`, and strictly greater than `maxDownBps` |
+| `maxUpBps` | Maximum strong-demand price-up step, denominator 10,000 | At least `minUpBps` and no greater than 10,000 |
+| `minDownBps` | Minimum weak-demand payout-up step, denominator 10,000 | Nonzero and no greater than `maxDownBps` |
+| `maxDownBps` | Maximum weak-demand payout-up step, denominator 10,000 | No greater than `decayBps` and strictly less than `minUpBps` |
+| `decayBps` | Per-skipped-epoch payout-up decay, denominator 10,000 | Strictly between zero and 10,000; `(10_000 + minUpBps) * (10_000 - decayBps) >= 10_000 * 10_000` prevents a one-step upward ratchet |
+| `maxDecayEpochs` | Maximum skipped-epoch decay steps | From 1 through the hard cap of 32 |
+| `maxVestingBonus` | Maximum vesting bonus, denominator 10,000 | At most `1000_00` (1,000%); it participates in the implied base ceiling and full-cap overflow checks |
+| `minVestingLength` | Native EVM blocks from creation to first claim eligibility | Nonzero and no greater than `maxVestingLength` |
+| `maxVestingLength` | Native EVM blocks from creation to maturity | At least the minimum and at most 7,884,000 blocks; when the bounds differ, `maxVestingBonus * minVestingLength < 10_000 * (maxVestingLength - minVestingLength)` |
+| `epochLength` | Native EVM blocks per epoch | Nonzero and at most `max_value(uint256) / 10_000 + 1` |
+
+The implied base-rate ceiling is
+`maxAllInPayoutRate * 10_000 / (10_000 + maxVestingBonus)` and must be at least
+`10_000`. The validator also proves that a full-cap base payout and its bonus
+cannot overflow.
+
+While an epoch length is installed, `setConfig` cannot change it; `start` is the
+path that installs a new valid epoch length. A zero genesis argument starts at
+the current native `block.number`. `stop` clears running/genesis state and resets
+the committed epoch and any override.
+
+The payment token can change only while stopped. It must be a nonzero contract,
+must not be the current RIPE token, must successfully return `decimals()`, and
+must report no more than 73 decimals. The typed decimals read can revert for an
+ABI-incompatible token. Replacement immediately recalculates `paymentScale` but
+does not rewrite the existing configuration. A replacement can therefore leave
+`start` reverting until the cap, minimum, and related overflow constraints are
+recalibrated for the new scale.
 
 ## Supply-accounting boundary
 

@@ -18,8 +18,13 @@ Construction starts VaultBook unpaused, with a zero registry delay,
 registry proposals confirm in the same block until governance calls
 `setRegistryTimeLockAfterSetup`. The inherited ABI also exposes
 `finishRipeHqSetup`, but that function is permanently inapplicable here:
-VaultBook is constructed with a nonzero RipeHq, while the function accepts only
-the top-level RipeHq governance instance.
+VaultBook is constructed with a nonzero RipeHq, while the function is usable
+only by a `LocalGov` instance initialized as top-level (`RIPE_HQ_FOR_GOV == 0`).
+
+Each proposal snapshots its own `confirmBlock`. Closing setup changes the delay
+only for future proposals; it does not add delay to an add, update, or disable
+record created while the delay was zero. Operators must inventory and cancel any
+unwanted setup-era pending records before treating the setup window as closed.
 
 `isVaultBookAddr(addr)` tests current registry membership. It does not recognize
 an implementation that has been replaced or disabled.
@@ -86,13 +91,14 @@ VaultBook's own pause flag, and zero is an accepted amount; both downstream
 calls still execute for a zero amount.
 
 Those downstream calls enforce additional current-state gates. RIPE minting
-requires VaultBook to remain the current RipeHq registry implementation with
-RIPE-mint permission, global minting enabled, and its immutable RIPE capability;
-the RIPE token must also be unpaused and the recipient StabilityPool must not be
-blacklisted. Ledger then requires the caller to remain the current VaultBook
-and Ledger itself to be unpaused. A failure in either call reverts the entire
-transaction, so a successful mint cannot persist without the matching Ledger
-accounting update.
+asks RipeHq to authorize the calling VaultBook address as a current registry
+member with RIPE-mint permission and the matching immutable capability while
+global minting is enabled; that check is not intrinsically tied to registry ID
+8. The RIPE token must also be unpaused and the recipient StabilityPool must not
+be blacklisted. Ledger independently requires its caller to equal the canonical
+VaultBook resolved at ID 8 and requires Ledger itself to be unpaused. A failure
+in either call reverts the entire transaction, so a successful mint cannot
+persist without the matching Ledger accounting update.
 
 ## Operational cautions
 

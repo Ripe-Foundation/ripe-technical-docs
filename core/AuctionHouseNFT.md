@@ -14,7 +14,7 @@ NFT auction, liquidation, bidding, settlement, or custody operation.
 An AuctionHouseNFT registry slot does not add NFT-liquidation behavior. The
 contract exposes no NFT collateral operation.
 
-## Security and lifecycle note
+## Security note
 
 Only the standard inherited department administration and introspection
 surface exists. There is no user action or auction state in this contract.

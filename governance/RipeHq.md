@@ -31,6 +31,12 @@ The convenience views `greenToken()`, `savingsGreen()`, and `ripeToken()` read
 the current addresses at IDs 1, 2, and 3; they are not constructor-address
 constants after registry updates.
 
+RipeHq's constructor creates only token IDs 1–3. Shared Addys routing assigns
+later semantic roles, including RipeReserveEngine at ID 26 and
+RipeReserveVesting at ID 27. Those remain dynamically replaceable registry
+entries; the generic registry path does not migrate reserve positions or enforce
+reserve-specific retirement checks.
+
 ## Department permissions
 
 Each non-token registry ID can have an `HqConfig` containing its description and
@@ -49,9 +55,9 @@ IDs 1–3 cannot receive Department configuration. These authorization checks do
 not track cumulative issuance or enforce a token supply ceiling.
 
 `canSetTokenBlacklist(addr)` requires current registry membership and the
-corresponding `HqConfig` bit, but is independent of the minting circuit breaker.
+corresponding `HqConfig` bit, but is independent of `mintEnabled`.
 
-## Circuit breaker and recovery
+## Mint-authorization toggle and recovery
 
 The root governor can toggle `mintEnabled`; no-op toggles revert. Setting it to
 `false` disables both GREEN and RIPE mint authorization checks without

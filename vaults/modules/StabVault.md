@@ -273,7 +273,7 @@ those positions and liabilities cannot be transferred through this module.
 <!-- BEGIN GENERATED API REFERENCE: StabVault -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `contracts/vaults/modules/StabVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `contracts/vaults/modules/StabVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### Deployment/module initializer declared by this source
 
@@ -304,11 +304,11 @@ A `@deploy` initializer is constructor context when this source is deployed or m
 | `def swapWithClaimableGreen(_stabAsset: address, _greenAmount: uint256, _liqAsset: address, _liqAmountSent: uint256, _greenToken: address) -> uint256` | `5` | `nonpayable` | `uint256` |
 | `def valueToShares(_asset: address, _usdValue: uint256, _shouldRoundUp: bool) -> uint256` | `3` | `view` | `uint256` |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `activateClaimAssets(address _stabAsset, DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE] _claimAssets)` | `nonpayable` | — |
 | `canAcceptLiquidationAsset(address _stabAsset, address _claimAsset)` | `view` | `bool` |

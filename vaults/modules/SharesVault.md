@@ -68,7 +68,7 @@ An internal user-to-user transfer moves shares, not custody. For a partial asset
 <!-- BEGIN GENERATED API REFERENCE: SharesVault -->
 ## Exact source-declared API reference
 
-> Generated from declarations in `contracts/vaults/modules/SharesVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
+> Generated from declarations in `contracts/vaults/modules/SharesVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
 ### Deployment/module initializer declared by this source
 
@@ -83,11 +83,11 @@ A `@deploy` initializer is constructor context when this source is deployed or m
 | `def amountToShares(_asset: address, _amount: uint256, _shouldRoundUp: bool) -> uint256` | `3` | `view` | `uint256` |
 | `def sharesToAmount(_asset: address, _shares: uint256, _shouldRoundUp: bool) -> uint256` | `3` | `view` | `uint256` |
 
-### Source-declared selector arities
+### Source-declared call forms
 
-Each row is one callable selector prefix created by the source declaration's trailing defaults.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-| Selector declaration | Mutability | Returns |
+| Source call form | Mutability | Returns |
 | --- | --- | --- |
 | `amountToShares(address _asset, uint256 _amount, bool _shouldRoundUp)` | `view` | `uint256` |
 | `sharesToAmount(address _asset, uint256 _shares, bool _shouldRoundUp)` | `view` | `uint256` |
