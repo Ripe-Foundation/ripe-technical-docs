@@ -6,13 +6,16 @@ on:
   push:
     branches:
       - master
+  schedule:
+    # Use a non-zero minute to reduce schedule delays during Actions peak load.
+    - cron: "17 9 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: docs-validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: docs-validation-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -91,3 +94,27 @@ jobs:
             --protocol-repo "$RIPE_PROTOCOL_REPO" \
             --compiled-artifact-root "$RIPE_PROTOCOL_REPO" \
             --check
+
+  external-links:
+    name: External links (advisory)
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Check out technical documentation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Python 3.12.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.0"
+
+      - name: Check published external links
+        run: python3 scripts/check_external_links.py

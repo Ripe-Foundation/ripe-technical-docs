@@ -43,8 +43,9 @@ vault.
 Construction leaves the engine paused, stopped, and acquisition-disabled, and
 leaves the vesting contract paused with a zero allocation budget. These are
 independent contract defaults. Acquisition requires the engine to be unpaused,
-running and past genesis, acquisition-enabled, funded with allocation budget,
-and connected to mint-ready RIPE, vesting, and EndaomentFunds dependencies.
+running and at or after genesis, and acquisition-enabled. It also requires
+sufficient remaining allocation budget, an ID-26/ID-27/RIPE-token configuration
+that passes the mint-readiness checks, and a valid EndaomentFunds contract.
 Unpausing alone does not activate it.
 
 Vested claims do not depend on engine pause, running state, genesis, acquisition

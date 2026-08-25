@@ -71,6 +71,16 @@ python3 -m unittest discover -s scripts -p 'test_*.py' -v
 python3 scripts/check_markdown.py
 ```
 
+The external-link checker makes live network requests and is advisory:
+
+```sh
+python3 scripts/check_external_links.py
+```
+
+It scans published pages, deduplicates their external targets, and skips the
+exact commit-pinned protocol source links already covered by source/API parity.
+Requests are restricted to the reviewed HTTPS host/path scope in the script.
+
 CI validates the configured repository and branch against a checked-in trust
 policy, fetches that trusted branch, proves the pinned commit remains its
 ancestor, checks out the exact commit, and verifies its exact tree. It then
@@ -79,7 +89,10 @@ with the tracked artifacts, and runs the tooling tests and both documentation
 gates. Branch advancement therefore does not invalidate an otherwise
 reproducible pin. CI emits a non-failing warning when the trusted branch has
 advanced beyond the pin so maintainers can distinguish reproducibility from
-currentness.
+currentness. The full validation also runs weekly. After successful validation
+on a scheduled run, a push to `master`, or a manual dispatch, a separate
+non-blocking job checks the published external links. That network job does not
+run for pull-request or merge-group events.
 
 The Solidity lane pins the same Foundry action revision and Foundry 1.3.5
 release used by the protocol CI; `foundry.toml` pins Solidity 0.8.26 and its

@@ -54,6 +54,13 @@ The following governance operations do not create Foxtrot pending actions:
 - change the payment token while the engine is stopped; and
 - cancel an already pending Foxtrot action.
 
+Pause state is managed outside Foxtrot. Resolve RipeHq ID 26 or 27 and pass
+that target to
+[`SwitchboardCharlie.pause`](SwitchboardCharlie.md#exact-api-reference).
+Charlie governance may pause or unpause, while a MissionControl lite signer may
+only pause. The target's inherited `DeptBasics.pause` in turn requires Charlie
+to be currently registered as a Switchboard.
+
 Foxtrot asks the engine to validate each relevant request before forwarding it.
 A zero genesis block passed to `startReserveEngine` is resolved by the engine to
 the current native block. A zero override epoch resolves inside the engine to

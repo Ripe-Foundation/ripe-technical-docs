@@ -59,6 +59,27 @@ the linked API inventory.
 | Acquire reserve RIPE | [`RipeReserveEngine.previewAcquireRipe` / `acquireRipe`](../core/RipeReserveEngine.md#acquisition-and-quoting) | Call the engine directly and approve it to spend the configured payment token. The caller is the payer, position owner, and beneficiary; there is no alternate-recipient route. A preview is not a reservation. Bind its epoch and resolved vesting length, set `_minRipeOut` and `_deadlineBlock`, and account for payment capacity, the minimum payment, and the vesting allocation budget. A new engine is paused, stopped, and acquisition-disabled; unpause, start, and enablement are independent gates. |
 | Claim vested reserve RIPE | [`RipeReserveEngine.claimVestedRipe` / `claimVestedRipeMany`](../core/RipeReserveEngine.md#claims) | Call the engine directly. The caller can claim only its own positions; a batch accepts 1–20 IDs and is atomic. Direct mint ignores `_lockDuration`. Auto-deposit instead routes through Teller to the current core RipeGov vault, where the requested duration is clamped to current lock bounds and share-weighted with an existing position. Engine pause, running, and acquisition state do not block claims, but current mint readiness, unpaused vesting, RIPE token state, blacklist status, and the optional vault/Teller route do. |
 
+## Reserve operator activation
+
+Reserve activation spans Charlie and Foxtrot. Resolve the current ID-26 engine
+and ID-27 vesting store, then unpause both through
+[`SwitchboardCharlie.pause(target, false)`](../governance/configuration/SwitchboardCharlie.md#exact-api-reference).
+Only Charlie governance can unpause; a MissionControl lite signer may pause but
+cannot unpause.
+
+`setReserveEngineConfig(config)` and
+`setReserveVestingRemainingAllocationBudget(amount)` each create a separate
+Foxtrot pending action; apply its returned action ID with
+`executePendingAction(aid)` once confirmable. The budget setter replaces the
+remaining RIPE-allocation capacity in RIPE base units and transfers or escrows
+no tokens. Foxtrot's `startReserveEngine(genesisBlock, epochLength)` and
+`setCanAcquireRipe(true)` controls are immediate and independent, but
+acquisitions cannot begin before genesis. Pause state, running state,
+acquisition enablement, and allocation budget are independent gates.
+Acquisitions also require the engine's documented mint-readiness checks and a
+valid EndaomentFunds contract. Engine pause does not block claims; vesting pause
+blocks both new positions and claims.
+
 ## User permissions and delegated calls
 
 `setUserConfig` defaults third-party deposit, repayment, and bonding permissions
