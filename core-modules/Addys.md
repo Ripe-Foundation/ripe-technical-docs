@@ -1,10 +1,10 @@
 # Addys
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/modules/Addys.vy)
+
 `Addys` is the shared address-resolution module used by Ripe contracts. It binds
 an implementation to one immutable `RipeHq` and resolves protocol components
 from that registry when they are needed.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/modules/Addys.vy)
 
 ## Registry IDs
 
@@ -37,9 +37,12 @@ The module reserves the following `RipeHq` IDs as protocol routing identifiers.
 | 23 | RIPE CCIP pool |
 | 24 | GREEN CCIP pool |
 | 25 | VaultMigrator |
+| 26 | RipeReserveEngine |
+| 27 | RipeReserveVesting |
 
 IDs 23 and 24 are reserved constants but are not fields in the `Addys` cache
-struct. VaultMigrator has explicit internal ID/address helpers for ID 25.
+struct. VaultMigrator, RipeReserveEngine, and RipeReserveVesting have explicit
+internal ID/address helpers for IDs 25, 26, and 27, respectively.
 
 ## Resolution model
 
@@ -66,6 +69,13 @@ It is a current-membership test, not a historical-membership test.
 Switchboard configuration contract. Modules such as `DeptBasics` use this to
 authorize pause and recovery operations.
 
+These helpers are typed-call checks, not universally fail-closed boolean
+probes. A zero VaultBook or Switchboard registry pointer is skipped (and a zero
+Switchboard pointer makes `_isSwitchboardAddr` return `false`), but a nonzero
+pointer whose target lacks or malforms the expected interface can make the
+typed call revert instead of returning `false`. The same boundary applies to
+the immutable RipeHq target used by address resolution.
+
 ## Integration cautions
 
 - Fixed IDs are part of the protocol's routing convention. Repointing or
@@ -87,13 +97,19 @@ authorize pause and recovery operations.
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getRipeHq()` | `view` | `address` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | `Addys` |
+| `getRipeHq()` | `view` | `address` | `address` |
 
 ### Structs declared by this source
 
 - `Addys(hq: address, greenToken: address, savingsGreen: address, ripeToken: address, ledger: address, missionControl: address, switchboard: address, priceDesk: address, vaultBook: address, auctionHouse: address, auctionHouseNft: address, boardroom: address, bondRoom: address, creditEngine: address, endaoment: address, humanResources: address, lootbox: address, teller: address)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid ripe hq`
 
 <!-- END GENERATED API REFERENCE: Addys -->

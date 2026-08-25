@@ -1,13 +1,13 @@
 # TimeLock
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/modules/TimeLock.vy)
+
 `TimeLock` is the reusable action-delay module inherited by Switchboard
 configuration contracts. It assigns one-based action IDs and stores an
 initiation block, confirmation block, and expiration block for each action.
 
 > The module is implementation source. The host contract owns action payloads,
 > permission checks, execution-time validation, and cancellation events.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/modules/TimeLock.vy)
 
 ## Action window
 
@@ -57,22 +57,57 @@ All delays use EVM `block.number`, not timestamps or Ledger's configurable
 action-block source.
 
 <!-- BEGIN GENERATED API REFERENCE: TimeLock -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `contracts/modules/TimeLock.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
+### Deployment/module initializer declared by this source
+
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
+
+- `def __init__(_minActionTimeLock: uint256, _maxActionTimeLock: uint256, _initialTimeLock: uint256, _expiration: uint256)`
+
 ### External functions declared by this source
 
-- `def canConfirmAction(_actionId: uint256) -> bool`
-- `def getActionConfirmationBlock(_actionId: uint256) -> uint256`
-- `def hasPendingAction(_actionId: uint256) -> bool`
-- `def isExpired(_actionId: uint256) -> bool`
-- `def isValidActionTimeLock(_newTimeLock: uint256) -> bool`
-- `def maxActionTimeLock() -> uint256`
-- `def minActionTimeLock() -> uint256`
-- `def setActionTimeLock(_newTimeLock: uint256) -> bool`
-- `def setActionTimeLockAfterSetup(_newTimeLock: uint256 = 0) -> bool`
-- `def setExpiration(_expiration: uint256) -> bool`
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def canConfirmAction(_actionId: uint256) -> bool` | `1` | `view` | `bool` |
+| `def getActionConfirmationBlock(_actionId: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def hasPendingAction(_actionId: uint256) -> bool` | `1` | `view` | `bool` |
+| `def isExpired(_actionId: uint256) -> bool` | `1` | `view` | `bool` |
+| `def isValidActionTimeLock(_newTimeLock: uint256) -> bool` | `1` | `view` | `bool` |
+| `def maxActionTimeLock() -> uint256` | `0` | `view` | `uint256` |
+| `def minActionTimeLock() -> uint256` | `0` | `view` | `uint256` |
+| `def setActionTimeLock(_newTimeLock: uint256) -> bool` | `1` | `nonpayable` | `bool` |
+| `def setActionTimeLockAfterSetup(_newTimeLock: uint256 = 0) -> bool` | `0–1` | `nonpayable` | `bool` |
+| `def setExpiration(_expiration: uint256) -> bool` | `1` | `nonpayable` | `bool` |
+
+### Source-declared selector arities
+
+Each row is one callable selector prefix created by the source declaration's trailing defaults.
+
+| Selector declaration | Mutability | Returns |
+| --- | --- | --- |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+
+### Compiler-generated public getters
+
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `expiration()` | `view` | `uint256` |
+| `pendingActions(uint256 key1)` | `view` | `PendingAction` |
 
 ### Events declared by this source
 
@@ -82,5 +117,18 @@ action-block source.
 ### Structs declared by this source
 
 - `PendingAction(initiatedBlock: uint256, confirmBlock: uint256, expiration: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `action confirmation overflow`
+- `action expiration overflow`
+- `already set`
+- `failed to set initial time lock`
+- `invalid expiration`
+- `invalid time lock`
+- `invalid time lock boundaries`
+- `no perms`
 
 <!-- END GENERATED API REFERENCE: TimeLock -->

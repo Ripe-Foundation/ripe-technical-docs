@@ -1,6 +1,6 @@
 # PriceDesk
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/registries/PriceDesk.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/registries/PriceDesk.vy)
 
 ## Overview
 
@@ -173,98 +173,98 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `getAssetAmount(address _asset, uint256 _usdValue, bool _shouldRaise)` | `2–3` | `_shouldRaise` |
-| `getEthAmount(uint256 _usdValue, bool _shouldRaise)` | `1–2` | `_shouldRaise` |
-| `getEthUsdValue(uint256 _amount, bool _shouldRaise)` | `1–2` | `_shouldRaise` |
-| `getPrice(address _asset, bool _shouldRaise, uint256 _staleTime)` | `1–3` | `_shouldRaise`, `_staleTime` |
-| `getUsdValue(address _asset, uint256 _amount, bool _shouldRaise)` | `2–3` | `_shouldRaise` |
-| `qualifyCallerPriceSource(address _asset, uint256 _staleTime)` | `1–2` | `_staleTime` |
-| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getAssetAmount(address _asset, uint256 _usdValue, bool _shouldRaise)` | `2–3` | `_shouldRaise = False` |
+| `getEthAmount(uint256 _usdValue, bool _shouldRaise)` | `1–2` | `_shouldRaise = False` |
+| `getEthUsdValue(uint256 _amount, bool _shouldRaise)` | `1–2` | `_shouldRaise = False` |
+| `getPrice(address _asset, bool _shouldRaise, uint256 _staleTime)` | `1–3` | `_shouldRaise = False`, `_staleTime = 0` |
+| `getUsdValue(address _asset, uint256 _amount, bool _shouldRaise)` | `2–3` | `_shouldRaise = False` |
+| `qualifyCallerPriceSource(address _asset, uint256 _staleTime)` | `1–2` | `_staleTime = 0` |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `ETH()` | `view` | `address` |
-| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
-| `addrInfo(uint256 arg0)` | `view` | `(address,uint256,uint256,string)` |
-| `addrToRegId(address arg0)` | `view` | `uint256` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` |
-| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getAddr(uint256 _regId)` | `view` | `address` |
-| `getAddrDescription(uint256 _regId)` | `view` | `string` |
-| `getAddrInfo(uint256 _regId)` | `view` | `(address,uint256,uint256,string)` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getAssetAmount(address _asset, uint256 _usdValue)` | `view` | `uint256` |
-| `getAssetAmount(address _asset, uint256 _usdValue, bool _shouldRaise)` | `view` | `uint256` |
-| `getEthAmount(uint256 _usdValue)` | `view` | `uint256` |
-| `getEthAmount(uint256 _usdValue, bool _shouldRaise)` | `view` | `uint256` |
-| `getEthUsdValue(uint256 _amount)` | `view` | `uint256` |
-| `getEthUsdValue(uint256 _amount, bool _shouldRaise)` | `view` | `uint256` |
-| `getGovernors()` | `view` | `address[]` |
-| `getLastAddr()` | `view` | `address` |
-| `getLastRegId()` | `view` | `uint256` |
-| `getNumAddrs()` | `view` | `uint256` |
-| `getPrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset, bool _shouldRaise)` | `view` | `uint256` |
-| `getPrice(address _asset, bool _shouldRaise, uint256 _staleTime)` | `view` | `uint256` |
-| `getRegId(address _addr)` | `view` | `uint256` |
-| `getRegistryDescription()` | `view` | `string` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `getUsdValue(address _asset, uint256 _amount)` | `view` | `uint256` |
-| `getUsdValue(address _asset, uint256 _amount, bool _shouldRaise)` | `view` | `uint256` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `hasPriceFeed(address _asset)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidAddr(address _addr)` | `view` | `bool` |
-| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` |
-| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewAddress(address _addr)` | `view` | `bool` |
-| `isValidRegId(uint256 _regId)` | `view` | `bool` |
-| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `maxRegistryTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `minRegistryTimeLock()` | `view` | `uint256` |
-| `numAddrs()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256,uint256)` |
-| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingNewAddr(address arg0)` | `view` | `(string,uint256,uint256)` |
-| `qualifyCallerPriceSource(address _asset)` | `view` | `(uint256, uint256)` |
-| `qualifyCallerPriceSource(address _asset, uint256 _staleTime)` | `view` | `(uint256, uint256)` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `registryChangeTimeLock()` | `view` | `uint256` |
-| `relinquishGov()` | `nonpayable` | — |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` |
-| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `syncTokenScale(address _asset)` | `nonpayable` | — |
-| `tokenScale(address arg0)` | `view` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `ETH()` | `view` | `address` | — |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `addrInfo(uint256 arg0)` | `view` | `(address addr, uint256 version, uint256 lastModified, string description)` | — |
+| `addrToRegId(address arg0)` | `view` | `uint256` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` | `bool` |
+| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getAddr(uint256 _regId)` | `view` | `address` | — |
+| `getAddrDescription(uint256 _regId)` | `view` | `string` | — |
+| `getAddrInfo(uint256 _regId)` | `view` | `(address addr, uint256 version, uint256 lastModified, string description)` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getAssetAmount(address _asset, uint256 _usdValue)` | `view` | `uint256` | `uint256` |
+| `getAssetAmount(address _asset, uint256 _usdValue, bool _shouldRaise)` | `view` | `uint256` | `uint256` |
+| `getEthAmount(uint256 _usdValue)` | `view` | `uint256` | `uint256` |
+| `getEthAmount(uint256 _usdValue, bool _shouldRaise)` | `view` | `uint256` | `uint256` |
+| `getEthUsdValue(uint256 _amount)` | `view` | `uint256` | `uint256` |
+| `getEthUsdValue(uint256 _amount, bool _shouldRaise)` | `view` | `uint256` | `uint256` |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getLastAddr()` | `view` | `address` | — |
+| `getLastRegId()` | `view` | `uint256` | — |
+| `getNumAddrs()` | `view` | `uint256` | — |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, bool _shouldRaise)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, bool _shouldRaise, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getRegId(address _addr)` | `view` | `uint256` | — |
+| `getRegistryDescription()` | `view` | `string` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `getUsdValue(address _asset, uint256 _amount)` | `view` | `uint256` | `uint256` |
+| `getUsdValue(address _asset, uint256 _amount, bool _shouldRaise)` | `view` | `uint256` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidAddr(address _addr)` | `view` | `bool` | — |
+| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` | — |
+| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewAddress(address _addr)` | `view` | `bool` | — |
+| `isValidRegId(uint256 _regId)` | `view` | `bool` | — |
+| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `maxRegistryTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minRegistryTimeLock()` | `view` | `uint256` | — |
+| `numAddrs()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address newAddr, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingNewAddr(address arg0)` | `view` | `(string description, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `qualifyCallerPriceSource(address _asset)` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `qualifyCallerPriceSource(address _asset, uint256 _staleTime)` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `registryChangeTimeLock()` | `view` | `uint256` | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` | `bool` |
+| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `syncTokenScale(address _asset)` | `nonpayable` | — | — |
+| `tokenScale(address arg0)` | `view` | `uint256` | — |
 
 ### Events
 
@@ -293,5 +293,19 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 ### Structs declared by this source
 
 - `PriceConfig(staleTime: uint256, priorityPriceSourceIds: DynArray[uint256, MAX_PRIORITY_PRICE_SOURCES])`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `already set`
+- `caller stale time unsupported`
+- `has price config, no price`
+- `invalid asset`
+- `invalid eth addr`
+- `invalid token decimals`
+- `missing token scale`
+- `no perms`
+- `no price feed`
 
 <!-- END GENERATED API REFERENCE: PriceDesk -->

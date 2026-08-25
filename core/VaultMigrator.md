@@ -1,6 +1,6 @@
 # VaultMigrator
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/VaultMigrator.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/VaultMigrator.vy)
 
 ## Purpose and authority
 
@@ -87,21 +87,21 @@ or when the operation must fail rather than skip an unsupported selected asset.
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `migrateLegacyRipeGovPositions(address[] _users)` | `nonpayable` | `uint256` |
-| `migrateRipeGovPositions(address[] _users, uint256 _sourceVaultId)` | `nonpayable` | `uint256` |
-| `migrateRipeGovPositionsForUserByAssets(address _user, address[] _assets, uint256 _sourceVaultId)` | `nonpayable` | `uint256` |
-| `migrateVaultPositions(address[] _users, uint256 _sourceVaultId, uint256 _targetVaultId)` | `nonpayable` | `uint256` |
-| `migrateVaultPositionsForUserByAssets(address _user, address[] _assets, uint256 _sourceVaultId, uint256 _targetVaultId)` | `nonpayable` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `migrateLegacyRipeGovPositions(address[] _users)` | `nonpayable` | `uint256` | `uint256` |
+| `migrateRipeGovPositions(address[] _users, uint256 _sourceVaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `migrateRipeGovPositionsForUserByAssets(address _user, address[] _assets, uint256 _sourceVaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `migrateVaultPositions(address[] _users, uint256 _sourceVaultId, uint256 _targetVaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `migrateVaultPositionsForUserByAssets(address _user, address[] _assets, uint256 _sourceVaultId, uint256 _targetVaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -120,5 +120,66 @@ or when the operation must fail rather than skip an unsupported selected asset.
 - `PrevSourceSnapshot(sourceShares: uint256, sourceAmount: uint256, govPoints: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
 - `LegacyMigrationPosition(asset: address, sourceSnapshot: PrevSourceSnapshot)`
 - `RipeGovMigrationData(amount: uint256, govPoints: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `contract paused`
+- `duplicate asset`
+- `inexact migration deposit`
+- `inexact migration receipt`
+- `invalid asset`
+- `invalid legacy vault`
+- `invalid migration amount`
+- `invalid migration receipt`
+- `invalid migration result`
+- `invalid source vault`
+- `invalid source vault id`
+- `invalid target vault`
+- `invalid target vault id`
+- `invalid user`
+- `invalid vault id`
+- `legacy migration disabled`
+- `legacy user asset capacity exceeded`
+- `migration amount mismatch`
+- `no migrations`
+- `no source position`
+- `only switchboard allowed`
+- `same vault`
+- `source amount remains`
+- `source balance remains`
+- `source is not ripe gov`
+- `source is ripe gov`
+- `source position not depleted`
+- `source shares remain`
+- `source vault balance remains`
+- `source vault not paused`
+- `source vault paused`
+- `stab vault mismatch`
+- `target asset not registered`
+- `target global total mismatch`
+- `target is ripe gov`
+- `target last shares mismatch`
+- `target last update mismatch`
+- `target ledger missing`
+- `target points mismatch`
+- `target position missing`
+- `target shares mismatch`
+- `target terms mismatch`
+- `target unlock mismatch`
+- `target user disable missing`
+- `target user total mismatch`
+- `target vault balance remains`
+- `target vault not paused`
+- `target vault paused`
+- `teller allowance residue`
+- `teller balance remains`
+- `teller balance residue`
+- `teller not paused`
+- `too many migration asset slots`
+- `unsupported target asset`
+- `use explicit asset migration`
+- `use legacy ripe gov migration`
 
 <!-- END GENERATED API REFERENCE: VaultMigrator -->

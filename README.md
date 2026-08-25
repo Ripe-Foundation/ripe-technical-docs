@@ -17,14 +17,17 @@ without changing the contracts and are published separately in
 The component pages pair behavioral explanations with generated API
 inventories. Vyper inventories use tracked ABIs where available and source
 declarations otherwise. Solidity inventories cover declarations written in the
-first-party source file; inherited Chainlink members are described separately.
+first-party source file; inherited Chainlink members are generated separately
+from a compiled, hash-pinned composed ABI.
 
 Start with:
 
 - [Protocol architecture and behavior](CurrentImplementation.md) for the
   cross-contract system map and important state machines;
 - [Integration guide](guides/IntegratorOnRamp.md) for common reads and
-  transaction flows; and
+  transaction flows;
+- [documentation maintenance](reference/ImplementationBaseline.md) for the
+  exact protocol pin, source coverage, and validation workflow; and
 - the [table of contents](SUMMARY.md) for every contract and interface page.
 
 ## Architecture
@@ -71,17 +74,22 @@ described on its component page.
 
 The exact API blocks are generated from a commit-and-tree-pinned protocol
 baseline. From this repository, check API parity against a local protocol clone
-and then validate links, headings, fences, and navigation:
+and then run tooling, link, heading, fence, and navigation checks:
 
 ```sh
+protocol_repo=/path/to/ripe-protocol
+forge build --root "$protocol_repo/solidity" --force --skip test
 python3 scripts/sync_api_reference.py \
-  --protocol-repo /path/to/ripe-protocol \
+  --protocol-repo "$protocol_repo" \
+  --compiled-artifact-root "$protocol_repo" \
   --check
+python3 -m unittest discover -s scripts -p 'test_*.py' -v
 python3 scripts/check_markdown.py
 ```
 
-CI also recompiles the production Vyper ABIs and checks them against the
-tracked artifacts before validating the generated reference blocks.
+CI also recompiles the production Vyper ABIs and the composed Solidity ABI,
+then checks them against the tracked artifacts before validating the generated
+reference blocks.
 
 ## Other resources
 
@@ -89,5 +97,5 @@ tracked artifacts before validating the generated reference blocks.
   and user-facing guidance.
 - [Ripe Protocol source](https://github.com/Ripe-Foundation/ripe-protocol)
   hosts the implementation.
-- [Ripe Params](https://params.ripe.finance/) publishes current addresses and
-  configuration.
+- [Ripe Params](https://params.ripe.finance/?tab=deployments) publishes current
+  addresses and live configuration.

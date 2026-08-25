@@ -1,10 +1,10 @@
 # SwitchboardCharlie
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/config/SwitchboardCharlie.vy)
+
 `SwitchboardCharlie` combines emergency controls, keeper-style maintenance, and
 timelocked operational governance. Charlie is also the authority for
 changing the current core RipeGov and preferred StabilityPool vault pointers.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/SwitchboardCharlie.vy)
 
 ## Directional lite access
 
@@ -19,6 +19,14 @@ perform selected immediate maintenance and risk-reducing actions:
 
 This asymmetry is deliberate: lite authority can contain risk or advance
 accounting, while governance is required to restore permissions.
+
+Charlie's ABI accepts up to 50 users in both `claimLootForManyUsers` and
+`updateManyDepositPoints`. The two routes have different effective limits.
+Deposit-point updates loop over individual Lootbox calls and retain the
+50-user limit. Batch claims forward the whole array to Lootbox, whose matching
+entry point accepts at most 25 users; a 26–50-user claim therefore reverts at
+the downstream call's ABI decoding boundary. The effective batch-claim maximum
+through Charlie is 25.
 
 ## Timelocked actions
 
@@ -88,126 +96,126 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `deregisterAsset(address _asset, address _missionControl)` | `1–2` | `_missionControl` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `setCanBuyInAuctionAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl` |
-| `setCanClaimInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl` |
-| `setCanDepositAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl` |
-| `setCanRedeemCollateralAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl` |
-| `setCanRedeemInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl` |
-| `setCanWithdrawAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl` |
-| `setCoreRipeGovVaultId(uint256 _newVaultId, address _missionControl)` | `1–2` | `_missionControl` |
-| `setPreferredStabVaultId(uint256 _newVaultId, address _missionControl)` | `1–2` | `_missionControl` |
-| `setTrainingWheels(address _trainingWheels, address _missionControl)` | `1–2` | `_missionControl` |
-| `setUserConfig(address _user, tuple _config, address _missionControl)` | `2–3` | `_missionControl` |
-| `setUserDelegation(address _user, address _delegate, tuple _config, address _missionControl)` | `3–4` | `_missionControl` |
+| `deregisterAsset(address _asset, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `setCanBuyInAuctionAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setCanClaimInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setCanDepositAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setCanRedeemCollateralAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setCanRedeemInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setCanWithdrawAsset(address _asset, bool _shouldEnable, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setCoreRipeGovVaultId(uint256 _newVaultId, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setPreferredStabVaultId(uint256 _newVaultId, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setTrainingWheels(address _trainingWheels, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setUserConfig(address _user, tuple _config, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
+| `setUserDelegation(address _user, address _delegate, tuple _config, address _missionControl)` | `3–4` | `_missionControl = empty(address)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `actionType(uint256 arg0)` | `view` | `uint256` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` |
-| `claimDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` |
-| `claimLootForManyUsers(address[] _users, bool _shouldStake)` | `nonpayable` | `uint256` |
-| `claimLootForUser(address _user, bool _shouldStake)` | `nonpayable` | `uint256` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `deregisterAsset(address _asset)` | `nonpayable` | `uint256` |
-| `deregisterAsset(address _asset, address _missionControl)` | `nonpayable` | `uint256` |
-| `deregisterVaultAsset(address _vaultAddr, address _asset)` | `nonpayable` | `uint256` |
-| `distributeUnderscoreRewards()` | `nonpayable` | `bool` |
-| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getGovernors()` | `view` | `address[]` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(address _contractAddr, bool _shouldPause)` | `nonpayable` | `bool` |
-| `pauseAuction(address _liqUser, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` |
-| `pauseManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingCoreRipeGovVaultId(uint256 arg0)` | `view` | `uint256` |
-| `pendingDeregisterAsset(uint256 arg0)` | `view` | `address` |
-| `pendingDeregisterVaultAsset(uint256 arg0)` | `view` | `(address,address)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingMissionControl(uint256 arg0)` | `view` | `address` |
-| `pendingPauseAuctionActions(uint256 arg0)` | `view` | `(address,uint256,address)` |
-| `pendingPauseManyAuctionsActions(uint256 arg0, uint256 arg1)` | `view` | `(address,uint256,address)` |
-| `pendingPreferredStabVaultId(uint256 arg0)` | `view` | `uint256` |
-| `pendingRecoverFundsActions(uint256 arg0)` | `view` | `(address,address,address)` |
-| `pendingRecoverFundsManyActions(uint256 arg0)` | `view` | `(address,address,address[])` |
-| `pendingStartAuctionActions(uint256 arg0)` | `view` | `(address,uint256,address)` |
-| `pendingStartManyAuctionsActions(uint256 arg0, uint256 arg1)` | `view` | `(address,uint256,address)` |
-| `pendingTrainingWheels(uint256 arg0)` | `view` | `address` |
-| `pendingUnderscoreSendInterval(uint256 arg0)` | `view` | `uint256` |
-| `pendingUndyDepositRewardsAmount(uint256 arg0)` | `view` | `uint256` |
-| `pendingUndyYieldBonusAmount(uint256 arg0)` | `view` | `uint256` |
-| `pendingUserConfig(uint256 arg0)` | `view` | `(address,(bool,bool,bool))` |
-| `pendingUserDelegation(uint256 arg0)` | `view` | `(address,address,(bool,bool,bool,bool))` |
-| `recoverFunds(address _contractAddr, address _recipient, address _asset)` | `nonpayable` | `uint256` |
-| `recoverFundsMany(address _contractAddr, address _recipient, address[] _assets)` | `nonpayable` | `uint256` |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setBlacklist(address _tokenAddr, address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` |
-| `setCanBuyInAuctionAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` |
-| `setCanBuyInAuctionAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` |
-| `setCanClaimInStabPoolAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` |
-| `setCanClaimInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` |
-| `setCanDepositAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` |
-| `setCanDepositAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` |
-| `setCanRedeemCollateralAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` |
-| `setCanRedeemCollateralAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` |
-| `setCanRedeemInStabPoolAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` |
-| `setCanRedeemInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` |
-| `setCanWithdrawAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` |
-| `setCanWithdrawAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` |
-| `setCoreRipeGovVaultId(uint256 _newVaultId)` | `nonpayable` | `uint256` |
-| `setCoreRipeGovVaultId(uint256 _newVaultId, address _missionControl)` | `nonpayable` | `uint256` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setHasUnderscoreRewards(bool _hasRewards)` | `nonpayable` | `bool` |
-| `setLockedAccount(address _wallet, bool _shouldLock)` | `nonpayable` | `bool` |
-| `setManyTrainingWheelsAccess(address _addr, (address,bool)[] _trainingWheels)` | `nonpayable` | — |
-| `setPreferredStabVaultId(uint256 _newVaultId)` | `nonpayable` | `uint256` |
-| `setPreferredStabVaultId(uint256 _newVaultId, address _missionControl)` | `nonpayable` | `uint256` |
-| `setTrainingWheels(address _trainingWheels)` | `nonpayable` | `uint256` |
-| `setTrainingWheels(address _trainingWheels, address _missionControl)` | `nonpayable` | `uint256` |
-| `setUnderscoreSendInterval(uint256 _interval)` | `nonpayable` | `uint256` |
-| `setUndyDepositRewardsAmount(uint256 _amount)` | `nonpayable` | `uint256` |
-| `setUndyYieldBonusAmount(uint256 _amount)` | `nonpayable` | `uint256` |
-| `setUserConfig(address _user, (bool,bool,bool) _config)` | `nonpayable` | `uint256` |
-| `setUserConfig(address _user, (bool,bool,bool) _config, address _missionControl)` | `nonpayable` | `uint256` |
-| `setUserDelegation(address _user, address _delegate, (bool,bool,bool,bool) _config)` | `nonpayable` | `uint256` |
-| `setUserDelegation(address _user, address _delegate, (bool,bool,bool,bool) _config, address _missionControl)` | `nonpayable` | `uint256` |
-| `startAuction(address _liqUser, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `startManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` |
-| `updateDebtForManyUsers(address[] _users)` | `nonpayable` | `bool` |
-| `updateDebtForUser(address _user)` | `nonpayable` | `bool` |
-| `updateDepositPoints(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `bool` |
-| `updateManyDepositPoints(address[] _users, uint256 _vaultId, address _asset)` | `nonpayable` | `bool` |
-| `updateRipeRewards()` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `actionType(uint256 arg0)` | `view` | `uint256` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `claimDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForManyUsers(address[] _users, bool _shouldStake)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForUser(address _user, bool _shouldStake)` | `nonpayable` | `uint256` | `uint256` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `deregisterAsset(address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `deregisterAsset(address _asset, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `deregisterVaultAsset(address _vaultAddr, address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `distributeUnderscoreRewards()` | `nonpayable` | `bool` | `bool` |
+| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(address _contractAddr, bool _shouldPause)` | `nonpayable` | `bool` | `bool` |
+| `pauseAuction(address _liqUser, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `pauseManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` | `uint256` |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingCoreRipeGovVaultId(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingDeregisterAsset(uint256 arg0)` | `view` | `address` | — |
+| `pendingDeregisterVaultAsset(uint256 arg0)` | `view` | `(address vaultAddr, address asset)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingMissionControl(uint256 arg0)` | `view` | `address` | — |
+| `pendingPauseAuctionActions(uint256 arg0)` | `view` | `(address liqUser, uint256 vaultId, address asset)` | — |
+| `pendingPauseManyAuctionsActions(uint256 arg0, uint256 arg1)` | `view` | `(address liqUser, uint256 vaultId, address asset)` | — |
+| `pendingPreferredStabVaultId(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingRecoverFundsActions(uint256 arg0)` | `view` | `(address contractAddr, address recipient, address asset)` | — |
+| `pendingRecoverFundsManyActions(uint256 arg0)` | `view` | `(address contractAddr, address recipient, address[] assets)` | — |
+| `pendingStartAuctionActions(uint256 arg0)` | `view` | `(address liqUser, uint256 vaultId, address asset)` | — |
+| `pendingStartManyAuctionsActions(uint256 arg0, uint256 arg1)` | `view` | `(address liqUser, uint256 vaultId, address asset)` | — |
+| `pendingTrainingWheels(uint256 arg0)` | `view` | `address` | — |
+| `pendingUnderscoreSendInterval(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingUndyDepositRewardsAmount(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingUndyYieldBonusAmount(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingUserConfig(uint256 arg0)` | `view` | `(address user, (bool canAnyoneDeposit, bool canAnyoneRepayDebt, bool canAnyoneBondForUser) config)` | — |
+| `pendingUserDelegation(uint256 arg0)` | `view` | `(address user, address delegate, (bool canWithdraw, bool canBorrow, bool canClaimFromStabPool, bool canClaimLoot) config)` | — |
+| `recoverFunds(address _contractAddr, address _recipient, address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `recoverFundsMany(address _contractAddr, address _recipient, address[] _assets)` | `nonpayable` | `uint256` | `uint256` |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setBlacklist(address _tokenAddr, address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` | `bool` |
+| `setCanBuyInAuctionAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` | `bool` |
+| `setCanBuyInAuctionAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setCanClaimInStabPoolAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` | `bool` |
+| `setCanClaimInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setCanDepositAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` | `bool` |
+| `setCanDepositAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setCanRedeemCollateralAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` | `bool` |
+| `setCanRedeemCollateralAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setCanRedeemInStabPoolAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` | `bool` |
+| `setCanRedeemInStabPoolAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setCanWithdrawAsset(address _asset, bool _shouldEnable)` | `nonpayable` | `bool` | `bool` |
+| `setCanWithdrawAsset(address _asset, bool _shouldEnable, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setCoreRipeGovVaultId(uint256 _newVaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `setCoreRipeGovVaultId(uint256 _newVaultId, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setHasUnderscoreRewards(bool _hasRewards)` | `nonpayable` | `bool` | `bool` |
+| `setLockedAccount(address _wallet, bool _shouldLock)` | `nonpayable` | `bool` | `bool` |
+| `setManyTrainingWheelsAccess(address _addr, (address,bool)[] _trainingWheels)` | `nonpayable` | — | — |
+| `setPreferredStabVaultId(uint256 _newVaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `setPreferredStabVaultId(uint256 _newVaultId, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setTrainingWheels(address _trainingWheels)` | `nonpayable` | `uint256` | `uint256` |
+| `setTrainingWheels(address _trainingWheels, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setUnderscoreSendInterval(uint256 _interval)` | `nonpayable` | `uint256` | `uint256` |
+| `setUndyDepositRewardsAmount(uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `setUndyYieldBonusAmount(uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `setUserConfig(address _user, (bool,bool,bool) _config)` | `nonpayable` | `uint256` | `uint256` |
+| `setUserConfig(address _user, (bool,bool,bool) _config, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setUserDelegation(address _user, address _delegate, (bool,bool,bool,bool) _config)` | `nonpayable` | `uint256` | `uint256` |
+| `setUserDelegation(address _user, address _delegate, (bool,bool,bool,bool) _config, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `startAuction(address _liqUser, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `startManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` | `uint256` |
+| `updateDebtForManyUsers(address[] _users)` | `nonpayable` | `bool` | `bool` |
+| `updateDebtForUser(address _user)` | `nonpayable` | `bool` | `bool` |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `bool` | `bool` |
+| `updateManyDepositPoints(address[] _users, uint256 _vaultId, address _asset)` | `nonpayable` | `bool` | `bool` |
+| `updateRipeRewards()` | `nonpayable` | `bool` | `bool` |
 
 ### Events
 
@@ -283,5 +291,31 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `DeregisterVaultAssetAction(vaultAddr: address, asset: address)`
 - `UserConfigAction(user: address, config: cs.UserConfig)`
 - `UserDelegationAction(user: address, delegate: address, config: cs.ActionDelegation)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `already set`
+- `asset reserved for claims`
+- `cannot cancel action`
+- `cannot start auction`
+- `invalid address`
+- `invalid asset`
+- `invalid parameters`
+- `invalid redeem collateral config`
+- `invalid user`
+- `invalid vault`
+- `invalid vault asset`
+- `invalid vault id`
+- `invalid wallet`
+- `no assets provided`
+- `no auctions provided`
+- `no perms`
+- `no training wheels provided`
+- `no users provided`
+- `unsupported asset`
+- `use empty for current mission control`
+- `vault paused`
 
 <!-- END GENERATED API REFERENCE: SwitchboardCharlie -->

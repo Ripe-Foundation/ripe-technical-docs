@@ -1,7 +1,7 @@
 # Table of contents
 
 - [Technical documentation](README.md)
-- [Protocol architecture and behavior](CurrentImplementation.md)
+- [Protocol architecture and contract behavior](CurrentImplementation.md)
 - [Integration guide](guides/IntegratorOnRamp.md)
 
 ## Core
@@ -17,6 +17,8 @@
 - [CreditRedeem](core/CreditRedeem.md)
 - [Deleverage](core/Deleverage.md)
 - [VaultMigrator](core/VaultMigrator.md)
+- [RipeReserveEngine](core/RipeReserveEngine.md)
+- [RipeReserveVesting](core/RipeReserveVesting.md)
 
 ## Core modules
 
@@ -34,18 +36,19 @@
 - [TimeLock](governance/TimeLock.md)
 - [TrainingWheels](governance/TrainingWheels.md)
 
-### Configuration and defaults
-
-- [SwitchboardAlpha](governance/configuration/SwitchboardAlpha.md)
-- [SwitchboardBravo](governance/configuration/SwitchboardBravo.md)
-- [SwitchboardCharlie](governance/configuration/SwitchboardCharlie.md)
-- [SwitchboardDelta](governance/configuration/SwitchboardDelta.md)
-- [SwitchboardEcho](governance/configuration/SwitchboardEcho.md)
-- [DefaultsBase](governance/configuration/DefaultsBase.md)
-- [DefaultsBaseLive](governance/configuration/DefaultsBaseLive.md)
-- [DefaultsRobinhood](governance/configuration/DefaultsRobinhood.md)
-- [DefaultsRobinhoodLive](governance/configuration/DefaultsRobinhoodLive.md)
-- [DefaultsLocal](governance/configuration/DefaultsLocal.md)
+- Configuration switchboards
+  - [SwitchboardAlpha](governance/configuration/SwitchboardAlpha.md)
+  - [SwitchboardBravo](governance/configuration/SwitchboardBravo.md)
+  - [SwitchboardCharlie](governance/configuration/SwitchboardCharlie.md)
+  - [SwitchboardDelta](governance/configuration/SwitchboardDelta.md)
+  - [SwitchboardEcho](governance/configuration/SwitchboardEcho.md)
+  - [SwitchboardFoxtrot](governance/configuration/SwitchboardFoxtrot.md)
+- Defaults seed profiles
+  - [DefaultsBase](governance/configuration/DefaultsBase.md)
+  - [DefaultsBaseLive](governance/configuration/DefaultsBaseLive.md)
+  - [DefaultsRobinhood](governance/configuration/DefaultsRobinhood.md)
+  - [DefaultsRobinhoodLive](governance/configuration/DefaultsRobinhoodLive.md)
+  - [DefaultsLocal](governance/configuration/DefaultsLocal.md)
 
 ## Treasury
 
@@ -106,10 +109,12 @@
 ## Cross-chain
 
 - [RIPE and GREEN CCIP burn/mint pools](cross-chain/RipeCcipBurnMintTokenPools.md)
-- [Configurable burn/mint token pool](cross-chain/RipeTokenPool.md)
+- [Configurable-capability CCIP pool](cross-chain/RipeTokenPool.md)
+- [BurnMintTokenPool 1.5.1 inherited API](cross-chain/BurnMintTokenPool151.md)
 
-## Ripe Params
+## External resources
 
 - [Ripe Params](Deployments.md)
+- [Current deployment addresses](https://params.ripe.finance/?tab=deployments)
 - [Ripe Protocol source](https://github.com/Ripe-Foundation/ripe-protocol)
 - [Ripe user documentation](https://docs.ripe.finance/)

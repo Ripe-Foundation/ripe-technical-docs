@@ -19,42 +19,74 @@ The contract sweep covers:
 - all first-party Vyper interfaces under `interfaces`; and
 - the top-level first-party Solidity contracts configured in the baseline.
 
-Mocks, test contracts, and vendored Chainlink or OpenZeppelin Solidity are not
-separate component pages. The baseline maps every covered production source to
-one documentation path. Validation fails on an unmapped source, stale mapping,
-duplicate target, missing source object, or invalid source link.
+Vyper sources with any `mock` or `testing` path segment and vendored Chainlink
+or OpenZeppelin Solidity are not separate component pages. The baseline maps
+every covered production source to one documentation path. Validation fails on
+an unmapped source, stale mapping, duplicate target, missing source object, or
+invalid source link.
 
 ## Exact API inventories
 
 Each Vyper component page ends with a generated API block. Where the protocol
 tracks an ABI, the block includes the full selector-facing function and event
-surface, including inherited and exported module members. Sources without a
-tracked ABI receive a source-declared external-function, event, and struct
-inventory.
+surface, including inherited and exported module members. Optional-selector
+families are paired with source declarations so their exact default expressions
+are retained, and source-named return types supplement tuple-heavy ABI output.
+Sources without a tracked ABI receive a source-declared initializer, external
+function, public getter, event, struct, flag, constant, mutability, accepted
+arity, and explicit-revert-reason inventory.
 
-First-party Solidity pages receive generated inventories for constructors and
-functions declared directly in the configured source. Inherited dependency APIs
-are outside that source-declared inventory.
+At this baseline the protocol tracks 58 ABI artifacts. Fifty-seven are
+source-compiled production ABIs checked by `scripts/export_abis.py`; the
+`DefaultsBaseSepolia` artifact is a separately hash-pinned legacy artifact and
+has no production component page.
+
+First-party Solidity pages receive generated Ripe-specific source deltas. The
+inherited Chainlink `BurnMintTokenPool 1.5.1` page receives a generated exact
+ABI inventory from a separately compiled Solidity artifact. The baseline pins
+that artifact's SHA-256 digest, full compiler version, compiler-configuration
+blob, entry source, and every protocol source blob in its recursive import
+closure. Validation independently derives that closure and rejects missing or
+extra manifest entries. CI then rebuilds the source, verifies the compiler
+metadata, settings, target, source set, and byte-exact source-content hashes,
+and compares the compiled ABI with the reviewed artifact before checking the
+generated page.
 
 Verify the blocks against a local protocol clone:
 
 ```sh
+protocol_repo=/path/to/ripe-protocol
+forge build --root "$protocol_repo/solidity" --force --skip test
 python3 scripts/sync_api_reference.py \
-  --protocol-repo /path/to/ripe-protocol \
+  --protocol-repo "$protocol_repo" \
+  --compiled-artifact-root "$protocol_repo" \
   --check
 ```
 
 Run the Markdown link, heading, fence, and published-navigation checks
-separately:
+and the tooling regression suite separately:
 
 ```sh
+python3 -m unittest discover -s scripts -p 'test_*.py' -v
 python3 scripts/check_markdown.py
 ```
 
-CI resolves the configured branch, requires its commit and tree to match the
-baseline, recompiles production Vyper ABIs, compares them byte-for-byte with
-the tracked artifacts, and then runs both documentation gates.
+CI validates the configured repository and branch against a checked-in trust
+policy, fetches that trusted branch, proves the pinned commit remains its
+ancestor, checks out the exact commit, and verifies its exact tree. It then
+recompiles production Vyper ABIs and the composed Solidity ABI, compares them
+with the tracked artifacts, and runs the tooling tests and both documentation
+gates. Branch advancement therefore does not invalidate an otherwise
+reproducible pin.
+
+The Solidity lane pins the same Foundry action revision and Foundry 1.3.5
+release used by the protocol CI; `foundry.toml` pins Solidity 0.8.26 and its
+compiler settings. A clean GitHub runner downloads those tools, so this is a
+reproducible online CI check rather than an air-gapped, repository-only build.
 
 To move the baseline deliberately, update `implementation-baseline.json`, run
 the API generator with `--write`, review every affected behavior section, and
-rerun all checks.
+rerun all checks. When a composed Solidity input changes, also build the exact
+protocol checkout, extract the `BurnMintTokenPool` ABI from the compiler
+artifact, and update its SHA-256, compiler identity/config blob, entry source,
+compiled-artifact path, and complete source-blob manifest before regeneration.

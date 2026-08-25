@@ -1,6 +1,6 @@
 # GreenToken
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/tokens/GreenToken.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/tokens/GreenToken.vy)
 
 ## Overview
 
@@ -77,54 +77,54 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `burnBlacklistTokens(address _addr, uint256 _amount)` | `1–2` | `_amount` |
-| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `burnBlacklistTokens(address _addr, uint256 _amount)` | `1–2` | `_amount = max_value(uint256)` |
+| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `DOMAIN_SEPARATOR()` | `view` | `bytes32` |
-| `TOKEN_DECIMALS()` | `view` | `uint8` |
-| `TOKEN_NAME()` | `view` | `string` |
-| `TOKEN_SYMBOL()` | `view` | `string` |
-| `VERSION()` | `view` | `string` |
-| `allowance(address arg0, address arg1)` | `view` | `uint256` |
-| `approve(address _spender, uint256 _amount)` | `nonpayable` | `bool` |
-| `balanceOf(address arg0)` | `view` | `uint256` |
-| `blacklisted(address arg0)` | `view` | `bool` |
-| `burn(uint256 _amount)` | `nonpayable` | `bool` |
-| `burnBlacklistTokens(address _addr)` | `nonpayable` | `bool` |
-| `burnBlacklistTokens(address _addr, uint256 _amount)` | `nonpayable` | `bool` |
-| `cancelHqChange()` | `nonpayable` | — |
-| `confirmHqChange()` | `nonpayable` | `bool` |
-| `decimals()` | `view` | `uint8` |
-| `decreaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` |
-| `finishTokenSetup(address _newHq)` | `nonpayable` | `bool` |
-| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getCCIPAdmin()` | `view` | `address` |
-| `hasPendingHqChange()` | `view` | `bool` |
-| `hqChangeTimeLock()` | `view` | `uint256` |
-| `increaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` |
-| `initiateHqChange(address _newHq)` | `nonpayable` | — |
-| `isPaused()` | `view` | `bool` |
-| `isValidHqChangeTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewRipeHq(address _newHq)` | `view` | `bool` |
-| `maxHqTimeLock()` | `view` | `uint256` |
-| `minHqTimeLock()` | `view` | `uint256` |
-| `mint(address _recipient, uint256 _amount)` | `nonpayable` | `bool` |
-| `name()` | `view` | `string` |
-| `nonces(address arg0)` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingHq()` | `view` | `(address,uint256,uint256)` |
-| `permit(address _owner, address _spender, uint256 _value, uint256 _deadline, bytes _signature)` | `nonpayable` | `bool` |
-| `ripeHq()` | `view` | `address` |
-| `setBlacklist(address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` |
-| `setHqChangeTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `symbol()` | `view` | `string` |
-| `totalSupply()` | `view` | `uint256` |
-| `transfer(address _recipient, uint256 _amount)` | `nonpayable` | `bool` |
-| `transferFrom(address _sender, address _recipient, uint256 _amount)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `DOMAIN_SEPARATOR()` | `view` | `bytes32` | — |
+| `TOKEN_DECIMALS()` | `view` | `uint8` | — |
+| `TOKEN_NAME()` | `view` | `string` | — |
+| `TOKEN_SYMBOL()` | `view` | `string` | — |
+| `VERSION()` | `view` | `string` | — |
+| `allowance(address arg0, address arg1)` | `view` | `uint256` | — |
+| `approve(address _spender, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `balanceOf(address arg0)` | `view` | `uint256` | — |
+| `blacklisted(address arg0)` | `view` | `bool` | — |
+| `burn(uint256 _amount)` | `nonpayable` | `bool` | — |
+| `burnBlacklistTokens(address _addr)` | `nonpayable` | `bool` | — |
+| `burnBlacklistTokens(address _addr, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `cancelHqChange()` | `nonpayable` | — | — |
+| `confirmHqChange()` | `nonpayable` | `bool` | — |
+| `decimals()` | `view` | `uint8` | — |
+| `decreaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `finishTokenSetup(address _newHq)` | `nonpayable` | `bool` | — |
+| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getCCIPAdmin()` | `view` | `address` | — |
+| `hasPendingHqChange()` | `view` | `bool` | — |
+| `hqChangeTimeLock()` | `view` | `uint256` | — |
+| `increaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `initiateHqChange(address _newHq)` | `nonpayable` | — | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidHqChangeTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewRipeHq(address _newHq)` | `view` | `bool` | — |
+| `maxHqTimeLock()` | `view` | `uint256` | — |
+| `minHqTimeLock()` | `view` | `uint256` | — |
+| `mint(address _recipient, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `name()` | `view` | `string` | — |
+| `nonces(address arg0)` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingHq()` | `view` | `(address newHq, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `permit(address _owner, address _spender, uint256 _value, uint256 _deadline, bytes _signature)` | `nonpayable` | `bool` | — |
+| `ripeHq()` | `view` | `address` | — |
+| `setBlacklist(address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` | — |
+| `setHqChangeTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `symbol()` | `view` | `string` | — |
+| `totalSupply()` | `view` | `uint256` | — |
+| `transfer(address _recipient, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `transferFrom(address _sender, address _recipient, uint256 _amount)` | `nonpayable` | `bool` | — |
 
 ### Events
 
@@ -139,5 +139,11 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 | `InitialRipeHqSet` | `address hq indexed, uint256 timeLock` |
 | `TokenPauseModified` | `bool isPaused` |
 | `Transfer` | `address sender indexed, address recipient indexed, uint256 amount` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot mint`
 
 <!-- END GENERATED API REFERENCE: GreenToken -->

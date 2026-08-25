@@ -1,6 +1,6 @@
 # ChainlinkPrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/ChainlinkPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/ChainlinkPrices.vy)
 
 ## Overview
 
@@ -24,7 +24,7 @@ The source supports at most one conversion leg. Setting both conversion flags is
 
 ## Price reads
 
-`getPrice(asset, staleTime = 0, priceDesk = zero)` returns zero when no feed is configured or any validation fails. `getPriceAndHasFeed` distinguishes “no configured feed” from “configured but currently unusable” by returning the feed Boolean separately.
+`getPrice(asset, staleTime = 0, priceDesk = zero)` returns zero when no feed is configured or an explicit semantic validation fails. `getPriceAndHasFeed` distinguishes “no configured feed” from “configured but currently unusable” by returning the feed Boolean separately.
 
 Chainlink data is usable only when:
 
@@ -35,6 +35,12 @@ Chainlink data is usable only when:
 - `answeredInRound >= roundId`.
 
 The positive answer is scaled to 18 decimals. Values are not silently accepted when the feed reports more than 18 decimals.
+
+The direct source methods are not universally fail-soft. A reverting or
+ABI-incompatible feed, RipeHq, MissionControl, or PriceDesk dependency can
+propagate a revert, as can checked normalization arithmetic. PriceDesk isolates
+source execution with a bounded non-raising call and can continue to a later
+source after a revert or malformed response.
 
 ### Conversion routes
 
@@ -64,11 +70,15 @@ The contract does not compute `min(global, local)`. A zero or unavailable inheri
 
 Governance may initiate add, update, stale-time update, or disable actions while the source is unpaused. Each action occupies the single pending slot for that asset and uses the configured timelock.
 
-Feed admission validates a currently executable nonzero price. Confirmation
-revalidates the candidate, including the feed's current `decimals()` value
-matching the snapshotted value. If a pending add/update/disable is no longer
-valid, confirmation follows the source's cancel-or-false path rather than
-installing stale assumptions.
+Feed admission validates a nonzero price through a direct typed read. It does
+not qualify the candidate through PriceDesk's bounded production source-call
+path. Confirmation revalidates the candidate, including the feed's current
+`decimals()` value matching the snapshotted value.
+
+A failed add confirmation cancels its pending action. For updates, a feed
+replacement or decimal drift cancels. An unchanged-feed, stale-time-only
+candidate that is transiently stale or unavailable instead returns false and
+remains pending for retry or explicit cancellation.
 
 `updatePriceFeed` preserves the current local stale-time policy when its optional stale-time argument is zero. `updateStaleTime` is the explicit way to set a new value, including zero to return to global inheritance.
 
@@ -80,6 +90,8 @@ Feed operations emit the `NewChainlinkFeed*`, `ChainlinkFeedUpdate*`, and `*Chai
 
 - Treat a zero price as unavailable, not a valid zero-dollar value.
 - Use PriceDesk for protocol reads so fallback, isolation, and global policy are applied.
+- Qualify and test a configured feed through PriceDesk; direct admission alone
+  does not prove that it executes within PriceDesk's source-call gas stipend.
 - Configure conversion anchors as direct USD feeds before depending on converted assets.
 
 <!-- BEGIN GENERATED API REFERENCE: ChainlinkPrices -->
@@ -97,97 +109,97 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `2–5` | `_staleTime`, `_needsEthToUsd`, `_needsBtcToUsd` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `getChainlinkData(address _feed, uint256 _decimals, uint256 _staleTime)` | `2–3` | `_staleTime` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `2–5` | `_staleTime`, `_needsEthToUsd`, `_needsBtcToUsd` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `2–5` | `_staleTime = 0`, `_needsEthToUsd = False`, `_needsBtcToUsd = False` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getChainlinkData(address _feed, uint256 _decimals, uint256 _staleTime)` | `2–3` | `_staleTime = 0` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `2–5` | `_staleTime = 0`, `_needsEthToUsd = False`, `_needsBtcToUsd = False` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `BTC()` | `view` | `address` |
-| `ETH()` | `view` | `address` |
-| `WETH()` | `view` | `address` |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `addNewPriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `nonpayable` | `bool` |
-| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
-| `assets(uint256 arg0)` | `view` | `address` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `feedConfig(address arg0)` | `view` | `(address,uint256,bool,bool,uint256)` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getChainlinkData(address _feed, uint256 _decimals)` | `view` | `uint256` |
-| `getChainlinkData(address _feed, uint256 _decimals, uint256 _staleTime)` | `view` | `uint256` |
-| `getGovernors()` | `view` | `address[]` |
-| `getPrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
-| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
-| `getPricedAssets()` | `view` | `address[]` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
-| `hasPriceFeed(address _asset)` | `view` | `bool` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, bool _needsBtcToUsd, uint256 _staleTime)` | `view` | `bool` |
-| `isValidStaleTimeUpdate(address _asset, uint256 _staleTime)` | `view` | `bool` |
-| `isValidUpdateFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, bool _needsBtcToUsd, uint256 _staleTime)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numAssets()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingUpdates(address arg0)` | `view` | `(uint256,(address,uint256,bool,bool,uint256))` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `updatePriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `nonpayable` | `bool` |
-| `updateStaleTime(address _asset, uint256 _staleTime)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `BTC()` | `view` | `address` | — |
+| `ETH()` | `view` | `address` | — |
+| `WETH()` | `view` | `address` | — |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `addNewPriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `nonpayable` | `bool` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `feedConfig(address arg0)` | `view` | `(address feed, uint256 decimals, bool needsEthToUsd, bool needsBtcToUsd, uint256 staleTime)` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getChainlinkData(address _feed, uint256 _decimals)` | `view` | `uint256` | `uint256` |
+| `getChainlinkData(address _feed, uint256 _decimals, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, bool _needsBtcToUsd, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `isValidStaleTimeUpdate(address _asset, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `isValidUpdateFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, bool _needsBtcToUsd, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingUpdates(address arg0)` | `view` | `(uint256 actionId, (address feed, uint256 decimals, bool needsEthToUsd, bool needsBtcToUsd, uint256 staleTime) config)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `updatePriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd, bool _needsBtcToUsd)` | `nonpayable` | `bool` | `bool` |
+| `updateStaleTime(address _asset, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
 
 ### Events
 
@@ -218,5 +230,21 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `ChainlinkRound(roundId: uint80, answer: int256, startedAt: uint256, updatedAt: uint256, answeredInRound: uint80)`
 - `ChainlinkConfig(feed: address, decimals: uint256, needsEthToUsd: bool, needsBtcToUsd: bool, staleTime: uint256)`
 - `PendingChainlinkConfig(actionId: uint256, config: ChainlinkConfig)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `invalid asset`
+- `invalid asset addrs`
+- `invalid feed`
+- `no pending disable feed`
+- `no pending new feed`
+- `no pending update feed`
+- `no perms`
+- `pending feed action`
+- `time lock not reached`
 
 <!-- END GENERATED API REFERENCE: ChainlinkPrices -->

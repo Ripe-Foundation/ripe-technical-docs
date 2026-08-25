@@ -1,6 +1,6 @@
 # BondBooster
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/BondBooster.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/config/BondBooster.vy)
 
 ## Purpose
 
@@ -9,6 +9,10 @@
 ## Boost availability
 
 `getBoostRatio(user, units)` returns zero when the grant is missing or expired, or when the requested units plus already used units would exceed the user's allowance. Otherwise it returns the configured ratio. BondRoom independently caps the ratio defensively when calculating a payout.
+
+That excess-capacity path is not universally fail-soft: checked overflow in
+`unitsUsed + units` reverts before the allowance comparison. `addNewUnitsUsed`
+has the corresponding checked-addition boundary.
 
 `addNewUnitsUsed` is BondRoom-only and increments recorded consumption. It does not repeat the active-grant or allowance check itself; the current BondRoom flow first obtains a nonzero `getBoostRatio` result and consumes units only when that boost is applied. Integrations must treat that sequence, rather than the increment method alone, as the capacity guard.
 
@@ -46,30 +50,30 @@ Setters emit `BondBoostModified` for each grant, plus `BondBoostRemoved`,
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `addNewUnitsUsed(address _user, uint256 _newUnits)` | `nonpayable` | — |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `config(address arg0)` | `view` | `(address,uint256,uint256,uint256)` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getBoostRatio(address _user, uint256 _units)` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `isValidBooster((address,uint256,uint256,uint256) _config)` | `view` | `bool` |
-| `maxBoostRatio()` | `view` | `uint256` |
-| `maxUnits()` | `view` | `uint256` |
-| `minLockDuration()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `removeBondBooster(address _user)` | `nonpayable` | — |
-| `removeManyBondBoosters(address[] _users)` | `nonpayable` | — |
-| `setBondBooster((address,uint256,uint256,uint256) _config)` | `nonpayable` | — |
-| `setManyBondBoosters((address,uint256,uint256,uint256)[] _boosters)` | `nonpayable` | — |
-| `setMaxBoostAndMaxUnits(uint256 _maxBoostRatio, uint256 _maxUnitsAvail)` | `nonpayable` | — |
-| `setMinLockDuration(uint256 _minLockDuration)` | `nonpayable` | — |
-| `unitsUsed(address arg0)` | `view` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `addNewUnitsUsed(address _user, uint256 _newUnits)` | `nonpayable` | — | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `config(address arg0)` | `view` | `(address user, uint256 boostRatio, uint256 maxUnitsAllowed, uint256 expireBlock)` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getBoostRatio(address _user, uint256 _units)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidBooster((address,uint256,uint256,uint256) _config)` | `view` | `bool` | `bool` |
+| `maxBoostRatio()` | `view` | `uint256` | — |
+| `maxUnits()` | `view` | `uint256` | — |
+| `minLockDuration()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `removeBondBooster(address _user)` | `nonpayable` | — | — |
+| `removeManyBondBoosters(address[] _users)` | `nonpayable` | — | — |
+| `setBondBooster((address,uint256,uint256,uint256) _config)` | `nonpayable` | — | — |
+| `setManyBondBoosters((address,uint256,uint256,uint256)[] _boosters)` | `nonpayable` | — | — |
+| `setMaxBoostAndMaxUnits(uint256 _maxBoostRatio, uint256 _maxUnitsAvail)` | `nonpayable` | — | — |
+| `setMinLockDuration(uint256 _minLockDuration)` | `nonpayable` | — | — |
+| `unitsUsed(address arg0)` | `view` | `uint256` | — |
 
 ### Events
 
@@ -86,5 +90,15 @@ Setters emit `BondBoostModified` for each grant, plus `BondBoostRemoved`,
 ### Structs declared by this source
 
 - `BoosterConfig(user: address, boostRatio: uint256, maxUnitsAllowed: uint256, expireBlock: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid booster`
+- `invalid max values`
+- `invalid user`
+- `no boosters`
+- `no perms`
 
 <!-- END GENERATED API REFERENCE: BondBooster -->

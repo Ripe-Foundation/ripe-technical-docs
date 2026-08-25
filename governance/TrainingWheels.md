@@ -1,11 +1,11 @@
 # TrainingWheels
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/config/TrainingWheels.vy)
+
 `TrainingWheels` is a small protocol whitelist. MissionControl can reference it
 as an asset whitelist. At the contract boundary, any currently registered
 Switchboard may manage its members; SwitchboardCharlie supplies the normal
 governed batch-management route.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/TrainingWheels.vy)
 
 ## Initialization
 
@@ -50,19 +50,19 @@ protocol's generic per-asset whitelist interface.
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `allowed(address arg0)` | `view` | `bool` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `isUserAllowed(address _user, address _asset)` | `view` | `bool` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `setAllowed(address _user, bool _shouldAllow)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `allowed(address arg0)` | `view` | `bool` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isUserAllowed(address _user, address _asset)` | `view` | `bool` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `setAllowed(address _user, bool _shouldAllow)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -71,5 +71,12 @@ protocol's generic per-asset whitelist interface.
 | `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
 | `DepartmentPauseModified` | `bool isPaused` |
 | `TrainingWheelsModified` | `address user indexed, bool shouldAllow` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid user`
+- `no perms`
 
 <!-- END GENERATED API REFERENCE: TrainingWheels -->

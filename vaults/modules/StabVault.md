@@ -1,6 +1,6 @@
 # StabVault module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/modules/StabVault.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/modules/StabVault.vy)
 
 ## Overview
 
@@ -11,7 +11,7 @@ selected part of this module and is the host-ABI authority.
 
 ## Constructor-bound addresses
 
-At initialization the module resolves GREEN and Savings GREEN from RipeHQ and stores both as immutables. PriceDesk and the other protocol addresses are resolved through Addys when used.
+At initialization the module resolves GREEN and Savings GREEN from RipeHq and stores both as immutables. PriceDesk and the other protocol addresses are resolved through Addys when used.
 
 Changing a GREEN or Savings GREEN registry pointer does not rewrite these
 immutables in an existing StabilityPool.
@@ -98,7 +98,7 @@ shares = usdValue * (totalShares + 1e8) / (totalUsdValue + 1)
 value  = shares   * (totalUsdValue + 1) / (totalShares + 1e8)
 ```
 
-The caller-selected rounding direction is used internally. Deposits round share issuance down; partial withdrawal and claim calculations may round required shares up. Full-precision multiplication is used, and a deposit that would mint zero shares reverts.
+The caller-selected rounding direction is used internally. Deposits round share issuance down; partial withdrawal and claim calculations may round required shares up. Conversion uses checked `uint256` multiplication followed by division, not a 512-bit full-precision `mulDiv`; an overflowing intermediate product reverts even when the mathematical quotient would fit. A deposit that would mint zero shares also reverts.
 
 Raw `userBalances` and `totalBalances` are shares, not token amounts. The module
 declares the rounding-aware conversion views
@@ -201,7 +201,11 @@ For each filled cohort:
 - a Savings GREEN cohort converts the corresponding GREEN into new Savings GREEN principal; and
 - any other cohort receives the GREEN as a new claim liability for its shareholders.
 
-The GREEN charge rounds up for each cohort and is capped by the row and remaining payment. If no row fills, the transaction reverts. Unspent GREEN goes back to the original caller, optionally wrapped as Savings GREEN when the amount is above the contract's dust guard.
+The GREEN charge rounds up for each cohort and is capped by the row and
+remaining payment. If no row fills, the transaction reverts. Unspent GREEN goes
+back to the original caller. A Savings GREEN refund request wraps only when the
+amount is strictly greater than `10**9` GREEN base units; smaller refunds remain
+GREEN.
 
 If GREEN is registered as a legacy stabilization asset, redemption is allowed only when it is the sole registered pool asset. New principal deposits and liquidation settlements still reject GREEN.
 
@@ -267,30 +271,77 @@ those positions and liabilities cannot be transferred through this module.
 - Do not attempt to recover reserved tokens through the disabled recovery ABI.
 
 <!-- BEGIN GENERATED API REFERENCE: StabVault -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `contracts/vaults/modules/StabVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
+### Deployment/module initializer declared by this source
+
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
+
+- `def __init__()`
+
 ### External functions declared by this source
 
-- `def activateClaimAssets(_stabAsset: address, _claimAssets: DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE])`
-- `def canAcceptLiquidationAsset(_stabAsset: address, _claimAsset: address) -> bool`
-- `def canActivateClaimAsset(_stabAsset: address, _claimAsset: address) -> (bool, uint256, uint256)`
-- `def claimFromStabilityPool( _claimer: address, _stabAsset: address, _claimAsset: address, _maxUsdValue: uint256, _caller: address, _shouldAutoDeposit: bool, _a: addys.Addys = empty(addys.Addys), ) -> uint256`
-- `def claimManyFromStabilityPool( _claimer: address, _claims: DynArray[StabPoolClaim, MAX_STAB_CLAIMS], _caller: address, _shouldAutoDeposit: bool, _a: addys.Addys = empty(addys.Addys), ) -> uint256`
-- `def deregisterVaultAsset(_asset: address) -> bool`
-- `def doesVaultHaveAnyFunds() -> bool`
-- `def getClaimAssetState(_stabAsset: address, _claimAsset: address) -> uint256`
-- `def getNumActiveClaimAssets(_stabAsset: address) -> uint256`
-- `def getTotalUserValue(_user: address, _asset: address) -> uint256`
-- `def getTotalValue(_asset: address) -> uint256`
-- `def pruneClaimableAssets(_stabAsset: address, _claimAssets: DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE])`
-- `def redeemFromStabilityPool( _asset: address, _greenAmount: uint256, _recipient: address, _caller: address, _shouldAutoDeposit: bool, _shouldRefundSavingsGreen: bool, _a: addys.Addys = empty(addys.Addys), ) -> uint256`
-- `def redeemManyFromStabilityPool( _redemptions: DynArray[StabPoolRedemption, MAX_STAB_REDEMPTIONS], _greenAmount: uint256, _recipient: address, _caller: address, _shouldAutoDeposit: bool, _shouldRefundSavingsGreen: bool, _a: addys.Addys = empty(addys.Addys), ) -> uint256`
-- `def sharesToValue(_asset: address, _shares: uint256, _shouldRoundUp: bool) -> uint256`
-- `def swapForLiquidatedCollateral( _stabAsset: address, _stabAssetAmount: uint256, _liqAsset: address, _liqAmountSent: uint256, _recipient: address, _greenToken: address, _savingsGreenToken: address, ) -> uint256`
-- `def swapWithClaimableGreen( _stabAsset: address, _greenAmount: uint256, _liqAsset: address, _liqAmountSent: uint256, _greenToken: address, ) -> uint256`
-- `def valueToShares(_asset: address, _usdValue: uint256, _shouldRoundUp: bool) -> uint256`
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def activateClaimAssets(_stabAsset: address, _claimAssets: DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE])` | `2` | `nonpayable` | — |
+| `def canAcceptLiquidationAsset(_stabAsset: address, _claimAsset: address) -> bool` | `2` | `view` | `bool` |
+| `def canActivateClaimAsset(_stabAsset: address, _claimAsset: address) -> (bool, uint256, uint256)` | `2` | `view` | `(bool, uint256, uint256)` |
+| `def claimFromStabilityPool(_claimer: address, _stabAsset: address, _claimAsset: address, _maxUsdValue: uint256, _caller: address, _shouldAutoDeposit: bool, _a: addys.Addys = empty(addys.Addys)) -> uint256` | `6–7` | `nonpayable` | `uint256` |
+| `def claimManyFromStabilityPool(_claimer: address, _claims: DynArray[StabPoolClaim, MAX_STAB_CLAIMS], _caller: address, _shouldAutoDeposit: bool, _a: addys.Addys = empty(addys.Addys)) -> uint256` | `4–5` | `nonpayable` | `uint256` |
+| `def deregisterVaultAsset(_asset: address) -> bool` | `1` | `nonpayable` | `bool` |
+| `def doesVaultHaveAnyFunds() -> bool` | `0` | `view` | `bool` |
+| `def getClaimAssetState(_stabAsset: address, _claimAsset: address) -> uint256` | `2` | `view` | `uint256` |
+| `def getNumActiveClaimAssets(_stabAsset: address) -> uint256` | `1` | `view` | `uint256` |
+| `def getTotalUserValue(_user: address, _asset: address) -> uint256` | `2` | `view` | `uint256` |
+| `def getTotalValue(_asset: address) -> uint256` | `1` | `view` | `uint256` |
+| `def pruneClaimableAssets(_stabAsset: address, _claimAssets: DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE])` | `2` | `nonpayable` | — |
+| `def redeemFromStabilityPool(_asset: address, _greenAmount: uint256, _recipient: address, _caller: address, _shouldAutoDeposit: bool, _shouldRefundSavingsGreen: bool, _a: addys.Addys = empty(addys.Addys)) -> uint256` | `6–7` | `nonpayable` | `uint256` |
+| `def redeemManyFromStabilityPool(_redemptions: DynArray[StabPoolRedemption, MAX_STAB_REDEMPTIONS], _greenAmount: uint256, _recipient: address, _caller: address, _shouldAutoDeposit: bool, _shouldRefundSavingsGreen: bool, _a: addys.Addys = empty(addys.Addys)) -> uint256` | `6–7` | `nonpayable` | `uint256` |
+| `def sharesToValue(_asset: address, _shares: uint256, _shouldRoundUp: bool) -> uint256` | `3` | `view` | `uint256` |
+| `def swapForLiquidatedCollateral(_stabAsset: address, _stabAssetAmount: uint256, _liqAsset: address, _liqAmountSent: uint256, _recipient: address, _greenToken: address, _savingsGreenToken: address) -> uint256` | `7` | `nonpayable` | `uint256` |
+| `def swapWithClaimableGreen(_stabAsset: address, _greenAmount: uint256, _liqAsset: address, _liqAmountSent: uint256, _greenToken: address) -> uint256` | `5` | `nonpayable` | `uint256` |
+| `def valueToShares(_asset: address, _usdValue: uint256, _shouldRoundUp: bool) -> uint256` | `3` | `view` | `uint256` |
+
+### Source-declared selector arities
+
+Each row is one callable selector prefix created by the source declaration's trailing defaults.
+
+| Selector declaration | Mutability | Returns |
+| --- | --- | --- |
+| `activateClaimAssets(address _stabAsset, DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE] _claimAssets)` | `nonpayable` | — |
+| `canAcceptLiquidationAsset(address _stabAsset, address _claimAsset)` | `view` | `bool` |
+| `canActivateClaimAsset(address _stabAsset, address _claimAsset)` | `view` | `(bool, uint256, uint256)` |
+| `claimFromStabilityPool(address _claimer, address _stabAsset, address _claimAsset, uint256 _maxUsdValue, address _caller, bool _shouldAutoDeposit)` | `nonpayable` | `uint256` |
+| `claimFromStabilityPool(address _claimer, address _stabAsset, address _claimAsset, uint256 _maxUsdValue, address _caller, bool _shouldAutoDeposit, addys.Addys _a)` | `nonpayable` | `uint256` |
+| `claimManyFromStabilityPool(address _claimer, DynArray[StabPoolClaim, MAX_STAB_CLAIMS] _claims, address _caller, bool _shouldAutoDeposit)` | `nonpayable` | `uint256` |
+| `claimManyFromStabilityPool(address _claimer, DynArray[StabPoolClaim, MAX_STAB_CLAIMS] _claims, address _caller, bool _shouldAutoDeposit, addys.Addys _a)` | `nonpayable` | `uint256` |
+| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |
+| `doesVaultHaveAnyFunds()` | `view` | `bool` |
+| `getClaimAssetState(address _stabAsset, address _claimAsset)` | `view` | `uint256` |
+| `getNumActiveClaimAssets(address _stabAsset)` | `view` | `uint256` |
+| `getTotalUserValue(address _user, address _asset)` | `view` | `uint256` |
+| `getTotalValue(address _asset)` | `view` | `uint256` |
+| `pruneClaimableAssets(address _stabAsset, DynArray[address, MAX_CLAIM_ASSET_MAINTENANCE] _claimAssets)` | `nonpayable` | — |
+| `redeemFromStabilityPool(address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` |
+| `redeemFromStabilityPool(address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen, addys.Addys _a)` | `nonpayable` | `uint256` |
+| `redeemManyFromStabilityPool(DynArray[StabPoolRedemption, MAX_STAB_REDEMPTIONS] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` |
+| `redeemManyFromStabilityPool(DynArray[StabPoolRedemption, MAX_STAB_REDEMPTIONS] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen, addys.Addys _a)` | `nonpayable` | `uint256` |
+| `sharesToValue(address _asset, uint256 _shares, bool _shouldRoundUp)` | `view` | `uint256` |
+| `swapForLiquidatedCollateral(address _stabAsset, uint256 _stabAssetAmount, address _liqAsset, uint256 _liqAmountSent, address _recipient, address _greenToken, address _savingsGreenToken)` | `nonpayable` | `uint256` |
+| `swapWithClaimableGreen(address _stabAsset, uint256 _greenAmount, address _liqAsset, uint256 _liqAmountSent, address _greenToken)` | `nonpayable` | `uint256` |
+| `valueToShares(address _asset, uint256 _usdValue, bool _shouldRoundUp)` | `view` | `uint256` |
+
+### Compiler-generated public getters
+
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `claimableAssets(address key1, uint256 key2)` | `view` | `address` |
+| `claimableBalances(address key1, address key2)` | `view` | `uint256` |
+| `indexOfClaimableAsset(address key1, address key2)` | `view` | `uint256` |
+| `numClaimableAssets(address key1)` | `view` | `uint256` |
+| `totalClaimableBalances(address key1)` | `view` | `uint256` |
 
 ### Events declared by this source
 
@@ -299,6 +350,24 @@ those positions and liabilities cannot be transferred through this module.
 - `ClaimAssetDeactivated(stabAsset: indexed(address), claimAsset: indexed(address), balance: uint256, activeCount: uint256, reason: uint256)`
 - `ClaimAssetLeftDormant(stabAsset: indexed(address), claimAsset: indexed(address), balance: uint256, activeCount: uint256, reason: uint256)`
 
+### Constants declared by this source
+
+- `MAX_STAB_CLAIMS: uint256 = 15`
+- `MAX_STAB_REDEMPTIONS: uint256 = 15`
+- `MAX_ACTIVE_CLAIM_ASSETS: uint256 = 20`
+- `MAX_CLAIM_ASSET_MAINTENANCE: uint256 = 15`
+- `DECIMAL_OFFSET: uint256 = 10 ** 8`
+- `EIGHTEEN_DECIMALS: uint256 = 10 ** 18`
+- `ACTIVATION_USD_THRESHOLD: uint256 = 10 * 10 ** 16`
+- `RETENTION_USD_THRESHOLD: uint256 = 5 * 10 ** 16`
+- `LIVE_RESIDUAL_DIVISOR: uint256 = 10 ** 10`
+- `CLAIM_ASSET_ABSENT: uint256 = 0`
+- `CLAIM_ASSET_DORMANT: uint256 = 1`
+- `CLAIM_ASSET_ACTIVE: uint256 = 2`
+- `DEACTIVATION_ZERO: uint256 = 1`
+- `DEACTIVATION_DUST: uint256 = 2`
+- `DORMANT_BELOW_FLOOR: uint256 = 1`
+
 ### Structs declared by this source
 
 - `StabPoolClaim(stabAsset: address, claimAsset: address, maxUsdValue: uint256)`
@@ -306,5 +375,61 @@ those positions and liabilities cannot be transferred through this module.
 - `StabPoolClaimsConfig(canClaimInStabPoolGeneral: bool, canClaimInStabPoolAsset: bool, canClaimFromStabPoolForUser: bool, isUserAllowed: bool, rewardsLockDuration: uint256, ripePerDollarClaimed: uint256)`
 - `StabPoolRedemptionsConfig(canRedeemInStabPoolGeneral: bool, canRedeemInStabPoolAsset: bool, isUserAllowed: bool, canAnyoneDeposit: bool)`
 - `TellerDepositConfig(canDepositGeneral: bool, canDepositAsset: bool, doesVaultSupportAsset: bool, isUserAllowed: bool, perUserDepositLimit: uint256, globalDepositLimit: uint256, perUserMaxAssetsPerVault: uint256, perUserMaxVaults: uint256, canAnyoneDeposit: bool)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `asset reserved for claims`
+- `burn failed`
+- `cannot claim for user`
+- `cannot mint 0 shares`
+- `claim asset already active`
+- `claim asset is stability asset`
+- `claim custody deficit`
+- `contract not paused`
+- `contract paused`
+- `failed to burn green`
+- `green approval failed`
+- `green cannot be stab asset`
+- `green transfer failed`
+- `invalid claim asset`
+- `invalid deposit amount`
+- `invalid liq asset`
+- `invalid recipient delivery`
+- `invalid stab asset`
+- `invalid user or asset`
+- `invalid user, asset, or recipient`
+- `invalid users or asset`
+- `invalid vault id`
+- `invalid vault outflow`
+- `liq asset cannot be vault asset`
+- `max active claim assets`
+- `max withdraw stab amount is 0`
+- `mint failed`
+- `must be green or savings green`
+- `no claimable balance`
+- `no green`
+- `no green to redeem`
+- `no perms`
+- `no price for claim asset`
+- `no price for stab asset`
+- `no redemptions occurred`
+- `no stab asset to withdraw`
+- `no withdrawal amount`
+- `not allowed to deposit for user`
+- `nothing claimed`
+- `nothing received`
+- `nothing to transfer`
+- `only AuctionHouse allowed`
+- `only Teller allowed`
+- `redemptions not allowed`
+- `ripe approval failed`
+- `savings green redeem failed`
+- `short claim receipt`
+- `stab asset not supported`
+- `token approval failed`
+- `transfer failed`
+- `user has no shares`
 
 <!-- END GENERATED API REFERENCE: StabVault -->

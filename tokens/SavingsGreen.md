@@ -1,6 +1,6 @@
 # SavingsGreen
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/tokens/SavingsGreen.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/tokens/SavingsGreen.vy)
 
 ## Overview
 
@@ -35,6 +35,12 @@ Direct GREEN transfers to sGREEN increase the current share value. There is no
 virtual offset and no strategy accounting in this contract.
 
 `maxDeposit`, `maxMint`, `maxWithdraw`, and `maxRedeem` return zero when the share token or underlying transfer path is blocked, or when shares exist with zero backing. `maxWithdraw(owner)` returns only that owner's current pro-rata GREEN claim.
+
+These views are not complete transaction preflights. Entry maximums do not know
+the eventual caller's GREEN balance, allowance, or blacklist state. Exit
+maximums do not know a third-party caller's share allowance/blacklist state or
+the eventual GREEN recipient's blacklist state. A positive result can therefore
+still describe calldata that reverts.
 
 Deposits/mints transfer GREEN in before minting shares. Withdrawals/redemptions burn shares and transfer GREEN out atomically. Third-party withdrawals consume allowance and reject a blacklisted spender.
 
@@ -80,82 +86,82 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `burnBlacklistTokens(address _addr, uint256 _amount)` | `1–2` | `_amount` |
-| `deposit(uint256 _assets, address _receiver)` | `1–2` | `_receiver` |
-| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `mint(uint256 _shares, address _receiver)` | `1–2` | `_receiver` |
-| `redeem(uint256 _shares, address _receiver, address _owner)` | `1–3` | `_receiver`, `_owner` |
-| `withdraw(uint256 _assets, address _receiver, address _owner)` | `1–3` | `_receiver`, `_owner` |
+| `burnBlacklistTokens(address _addr, uint256 _amount)` | `1–2` | `_amount = max_value(uint256)` |
+| `deposit(uint256 _assets, address _receiver)` | `1–2` | `_receiver = msg.sender` |
+| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `mint(uint256 _shares, address _receiver)` | `1–2` | `_receiver = msg.sender` |
+| `redeem(uint256 _shares, address _receiver, address _owner)` | `1–3` | `_receiver = msg.sender`, `_owner = msg.sender` |
+| `withdraw(uint256 _assets, address _receiver, address _owner)` | `1–3` | `_receiver = msg.sender`, `_owner = msg.sender` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `DOMAIN_SEPARATOR()` | `view` | `bytes32` |
-| `TOKEN_DECIMALS()` | `view` | `uint8` |
-| `TOKEN_NAME()` | `view` | `string` |
-| `TOKEN_SYMBOL()` | `view` | `string` |
-| `VERSION()` | `view` | `string` |
-| `allowance(address arg0, address arg1)` | `view` | `uint256` |
-| `approve(address _spender, uint256 _amount)` | `nonpayable` | `bool` |
-| `asset()` | `view` | `address` |
-| `balanceOf(address arg0)` | `view` | `uint256` |
-| `blacklisted(address arg0)` | `view` | `bool` |
-| `burn(uint256 _amount)` | `nonpayable` | `bool` |
-| `burnBlacklistTokens(address _addr)` | `nonpayable` | `bool` |
-| `burnBlacklistTokens(address _addr, uint256 _amount)` | `nonpayable` | `bool` |
-| `cancelHqChange()` | `nonpayable` | — |
-| `confirmHqChange()` | `nonpayable` | `bool` |
-| `convertToAssets(uint256 _shares)` | `view` | `uint256` |
-| `convertToShares(uint256 _assets)` | `view` | `uint256` |
-| `decimals()` | `view` | `uint8` |
-| `decreaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` |
-| `deposit(uint256 _assets)` | `nonpayable` | `uint256` |
-| `deposit(uint256 _assets, address _receiver)` | `nonpayable` | `uint256` |
-| `finishTokenSetup(address _newHq)` | `nonpayable` | `bool` |
-| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getCCIPAdmin()` | `view` | `address` |
-| `getLastUnderlying(uint256 _shares)` | `view` | `uint256` |
-| `hasPendingHqChange()` | `view` | `bool` |
-| `hqChangeTimeLock()` | `view` | `uint256` |
-| `increaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` |
-| `initiateHqChange(address _newHq)` | `nonpayable` | — |
-| `isPaused()` | `view` | `bool` |
-| `isValidHqChangeTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewRipeHq(address _newHq)` | `view` | `bool` |
-| `lastPricePerShare()` | `view` | `uint256` |
-| `maxDeposit(address _receiver)` | `view` | `uint256` |
-| `maxHqTimeLock()` | `view` | `uint256` |
-| `maxMint(address _receiver)` | `view` | `uint256` |
-| `maxRedeem(address _owner)` | `view` | `uint256` |
-| `maxWithdraw(address _owner)` | `view` | `uint256` |
-| `minHqTimeLock()` | `view` | `uint256` |
-| `mint(uint256 _shares)` | `nonpayable` | `uint256` |
-| `mint(uint256 _shares, address _receiver)` | `nonpayable` | `uint256` |
-| `name()` | `view` | `string` |
-| `nonces(address arg0)` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingHq()` | `view` | `(address,uint256,uint256)` |
-| `permit(address _owner, address _spender, uint256 _value, uint256 _deadline, bytes _signature)` | `nonpayable` | `bool` |
-| `previewDeposit(uint256 _assets)` | `view` | `uint256` |
-| `previewMint(uint256 _shares)` | `view` | `uint256` |
-| `previewRedeem(uint256 _shares)` | `view` | `uint256` |
-| `previewWithdraw(uint256 _assets)` | `view` | `uint256` |
-| `pricePerShare()` | `view` | `uint256` |
-| `redeem(uint256 _shares)` | `nonpayable` | `uint256` |
-| `redeem(uint256 _shares, address _receiver)` | `nonpayable` | `uint256` |
-| `redeem(uint256 _shares, address _receiver, address _owner)` | `nonpayable` | `uint256` |
-| `ripeHq()` | `view` | `address` |
-| `setBlacklist(address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` |
-| `setHqChangeTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `symbol()` | `view` | `string` |
-| `totalAssets()` | `view` | `uint256` |
-| `totalSupply()` | `view` | `uint256` |
-| `transfer(address _recipient, uint256 _amount)` | `nonpayable` | `bool` |
-| `transferFrom(address _sender, address _recipient, uint256 _amount)` | `nonpayable` | `bool` |
-| `withdraw(uint256 _assets)` | `nonpayable` | `uint256` |
-| `withdraw(uint256 _assets, address _receiver)` | `nonpayable` | `uint256` |
-| `withdraw(uint256 _assets, address _receiver, address _owner)` | `nonpayable` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `DOMAIN_SEPARATOR()` | `view` | `bytes32` | — |
+| `TOKEN_DECIMALS()` | `view` | `uint8` | — |
+| `TOKEN_NAME()` | `view` | `string` | — |
+| `TOKEN_SYMBOL()` | `view` | `string` | — |
+| `VERSION()` | `view` | `string` | — |
+| `allowance(address arg0, address arg1)` | `view` | `uint256` | — |
+| `approve(address _spender, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `asset()` | `view` | `address` | — |
+| `balanceOf(address arg0)` | `view` | `uint256` | — |
+| `blacklisted(address arg0)` | `view` | `bool` | — |
+| `burn(uint256 _amount)` | `nonpayable` | `bool` | — |
+| `burnBlacklistTokens(address _addr)` | `nonpayable` | `bool` | — |
+| `burnBlacklistTokens(address _addr, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `cancelHqChange()` | `nonpayable` | — | — |
+| `confirmHqChange()` | `nonpayable` | `bool` | — |
+| `convertToAssets(uint256 _shares)` | `view` | `uint256` | — |
+| `convertToShares(uint256 _assets)` | `view` | `uint256` | — |
+| `decimals()` | `view` | `uint8` | — |
+| `decreaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `deposit(uint256 _assets)` | `nonpayable` | `uint256` | — |
+| `deposit(uint256 _assets, address _receiver)` | `nonpayable` | `uint256` | — |
+| `finishTokenSetup(address _newHq)` | `nonpayable` | `bool` | — |
+| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getCCIPAdmin()` | `view` | `address` | — |
+| `getLastUnderlying(uint256 _shares)` | `view` | `uint256` | — |
+| `hasPendingHqChange()` | `view` | `bool` | — |
+| `hqChangeTimeLock()` | `view` | `uint256` | — |
+| `increaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `initiateHqChange(address _newHq)` | `nonpayable` | — | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidHqChangeTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewRipeHq(address _newHq)` | `view` | `bool` | — |
+| `lastPricePerShare()` | `view` | `uint256` | — |
+| `maxDeposit(address _receiver)` | `view` | `uint256` | — |
+| `maxHqTimeLock()` | `view` | `uint256` | — |
+| `maxMint(address _receiver)` | `view` | `uint256` | — |
+| `maxRedeem(address _owner)` | `view` | `uint256` | — |
+| `maxWithdraw(address _owner)` | `view` | `uint256` | — |
+| `minHqTimeLock()` | `view` | `uint256` | — |
+| `mint(uint256 _shares)` | `nonpayable` | `uint256` | — |
+| `mint(uint256 _shares, address _receiver)` | `nonpayable` | `uint256` | — |
+| `name()` | `view` | `string` | — |
+| `nonces(address arg0)` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingHq()` | `view` | `(address newHq, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `permit(address _owner, address _spender, uint256 _value, uint256 _deadline, bytes _signature)` | `nonpayable` | `bool` | — |
+| `previewDeposit(uint256 _assets)` | `view` | `uint256` | — |
+| `previewMint(uint256 _shares)` | `view` | `uint256` | — |
+| `previewRedeem(uint256 _shares)` | `view` | `uint256` | — |
+| `previewWithdraw(uint256 _assets)` | `view` | `uint256` | — |
+| `pricePerShare()` | `view` | `uint256` | — |
+| `redeem(uint256 _shares)` | `nonpayable` | `uint256` | — |
+| `redeem(uint256 _shares, address _receiver)` | `nonpayable` | `uint256` | — |
+| `redeem(uint256 _shares, address _receiver, address _owner)` | `nonpayable` | `uint256` | — |
+| `ripeHq()` | `view` | `address` | — |
+| `setBlacklist(address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` | — |
+| `setHqChangeTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `symbol()` | `view` | `string` | — |
+| `totalAssets()` | `view` | `uint256` | — |
+| `totalSupply()` | `view` | `uint256` | — |
+| `transfer(address _recipient, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `transferFrom(address _sender, address _recipient, uint256 _amount)` | `nonpayable` | `bool` | — |
+| `withdraw(uint256 _assets)` | `nonpayable` | `uint256` | — |
+| `withdraw(uint256 _assets, address _receiver)` | `nonpayable` | `uint256` | — |
+| `withdraw(uint256 _assets, address _receiver, address _owner)` | `nonpayable` | `uint256` | — |
 
 ### Events
 
@@ -172,5 +178,11 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 | `TokenPauseModified` | `bool isPaused` |
 | `Transfer` | `address sender indexed, address recipient indexed, uint256 amount` |
 | `Withdraw` | `address sender indexed, address receiver indexed, address owner indexed, uint256 assets, uint256 shares` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid initial supply`
 
 <!-- END GENERATED API REFERENCE: SavingsGreen -->

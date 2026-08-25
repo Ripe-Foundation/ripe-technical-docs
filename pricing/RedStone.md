@@ -1,6 +1,6 @@
 # RedStone
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/RedStone.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/RedStone.vy)
 
 ## Overview
 
@@ -67,93 +67,93 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `2–4` | `_staleTime`, `_needsEthToUsd` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `getRedStoneData(address _feed, uint256 _decimals, uint256 _staleTime)` | `2–3` | `_staleTime` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `2–4` | `_staleTime`, `_needsEthToUsd` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `2–4` | `_staleTime = 0`, `_needsEthToUsd = False` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getRedStoneData(address _feed, uint256 _decimals, uint256 _staleTime)` | `2–3` | `_staleTime = 0` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `2–4` | `_staleTime = 0`, `_needsEthToUsd = False` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `ETH()` | `view` | `address` |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `addNewPriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` |
-| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
-| `assets(uint256 arg0)` | `view` | `address` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `feedConfig(address arg0)` | `view` | `(address,uint256,bool,uint256)` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getGovernors()` | `view` | `address[]` |
-| `getPrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
-| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
-| `getPricedAssets()` | `view` | `address[]` |
-| `getRedStoneData(address _feed, uint256 _decimals)` | `view` | `uint256` |
-| `getRedStoneData(address _feed, uint256 _decimals, uint256 _staleTime)` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
-| `hasPriceFeed(address _asset)` | `view` | `bool` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, uint256 _staleTime)` | `view` | `bool` |
-| `isValidStaleTimeUpdate(address _asset, uint256 _staleTime)` | `view` | `bool` |
-| `isValidUpdateFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, uint256 _staleTime)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numAssets()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingUpdates(address arg0)` | `view` | `(uint256,(address,uint256,bool,uint256))` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `updatePriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` |
-| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` |
-| `updateStaleTime(address _asset, uint256 _staleTime)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `ETH()` | `view` | `address` | — |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `addNewPriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `feedConfig(address arg0)` | `view` | `(address feed, uint256 decimals, bool needsEthToUsd, uint256 staleTime)` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` | — |
+| `getRedStoneData(address _feed, uint256 _decimals)` | `view` | `uint256` | `uint256` |
+| `getRedStoneData(address _feed, uint256 _decimals, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `isValidStaleTimeUpdate(address _asset, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `isValidUpdateFeed(address _asset, address _newFeed, uint256 _decimals, bool _needsEthToUsd, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingUpdates(address arg0)` | `view` | `(uint256 actionId, (address feed, uint256 decimals, bool needsEthToUsd, uint256 staleTime) config)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `updatePriceFeed(address _asset, address _newFeed)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceFeed(address _asset, address _newFeed, uint256 _staleTime, bool _needsEthToUsd)` | `nonpayable` | `bool` | `bool` |
+| `updateStaleTime(address _asset, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
 
 ### Events
 
@@ -184,5 +184,21 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `ChainlinkRound(roundId: uint80, answer: int256, startedAt: uint256, updatedAt: uint256, answeredInRound: uint80)`
 - `RedStoneConfig(feed: address, decimals: uint256, needsEthToUsd: bool, staleTime: uint256)`
 - `PendingRedStoneConfig(actionId: uint256, config: RedStoneConfig)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `invalid addr`
+- `invalid asset`
+- `invalid feed`
+- `no pending disable feed`
+- `no pending new feed`
+- `no pending update feed`
+- `no perms`
+- `pending feed action`
+- `time lock not reached`
 
 <!-- END GENERATED API REFERENCE: RedStone -->

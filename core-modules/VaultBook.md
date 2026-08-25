@@ -1,10 +1,10 @@
 # VaultBook
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/registries/VaultBook.vy)
+
 `VaultBook` is the registry of protocol vault implementations. A numeric vault
 ID is the stable routing identity; its current implementation address may be
 updated or disabled through governance-controlled registry operations.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/registries/VaultBook.vy)
 
 ## Composition and authority
 
@@ -12,6 +12,14 @@ VaultBook composes `LocalGov`, `AddressRegistry`, `Addys`, and `DeptBasics`.
 Registry mutations require a recognized governor and an unpaused VaultBook.
 Registry IDs are one-based and remain allocated even if their current address
 is disabled.
+
+Construction starts VaultBook unpaused, with a zero registry delay,
+`canMintGreen() = false`, and `canMintRipe() = true`. The zero setup delay lets
+registry proposals confirm in the same block until governance calls
+`setRegistryTimeLockAfterSetup`. The inherited ABI also exposes
+`finishRipeHqSetup`, but that function is permanently inapplicable here:
+VaultBook is constructed with a nonzero RipeHq, while the function accepts only
+the top-level RipeHq governance instance.
 
 `isVaultBookAddr(addr)` tests current registry membership. It does not recognize
 an implementation that has been replaced or disabled.
@@ -29,6 +37,14 @@ and disables add custody protections:
 For ordinary vaults, `doesVaultHaveAnyFunds()` is the accounting signal. For an
 ID ever classified as RipeGov, nonzero `totalGovPoints()` also blocks update or
 disable because zero-share governance-point residue cannot be migrated safely.
+The historical-classification lookup comes from the current MissionControl. If
+RipeHq resolves MissionControl to zero, both the specialized replacement probes
+and the extra RipeGov-point residue check are skipped; the generic vault-funds
+check still runs.
+
+Replacement shape is checked at proposal and again after the generic registry
+update during confirmation. A failed post-update probe reverts the whole
+transaction, including the registry write.
 
 ## Current pointers versus historical classifications
 
@@ -43,7 +59,7 @@ MissionControl maintains two different concepts:
 
 Changing a current pointer does not erase the previous ID's classification.
 Historical IDs can retain user balances, maintenance paths, or reward-minting
-authority. Consequently:
+authority. When MissionControl is present:
 
 - replacing any historically classified RipeGov ID probes the new
   implementation's governance-points interface; and
@@ -65,7 +81,18 @@ requires all of the following:
 4. the requested amount does not exceed Ledger's remaining reward budget.
 
 On success, VaultBook mints RIPE to the calling StabilityPool and tells Ledger
-to account for the reward expenditure.
+to account for the reward expenditure. This entry point does not check
+VaultBook's own pause flag, and zero is an accepted amount; both downstream
+calls still execute for a zero amount.
+
+Those downstream calls enforce additional current-state gates. RIPE minting
+requires VaultBook to remain the current RipeHq registry implementation with
+RIPE-mint permission, global minting enabled, and its immutable RIPE capability;
+the RIPE token must also be unpaused and the recipient StabilityPool must not be
+blacklisted. Ledger then requires the caller to remain the current VaultBook
+and Ledger itself to be unpaused. A failure in either call reverts the entire
+transaction, so a successful mint cannot persist without the matching Ledger
+accounting update.
 
 ## Operational cautions
 
@@ -74,6 +101,9 @@ to account for the reward expenditure.
   point residue.
 - Historical StabilityPool classification is intentionally not revoked when a
   preferred or special pool changes.
+- An inherited disable proposal is bound only to its vault ID. If that ID is
+  updated while the disable remains pending, confirmation checks and disables
+  the then-current replacement, not the proposal-time address.
 - Update and disable confirmations must be treated as state-sensitive actions;
   conditions are deliberately checked again after the timelock.
 
@@ -92,76 +122,76 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `addrInfo(uint256 arg0)` | `view` | `(address,uint256,uint256,string)` |
-| `addrToRegId(address arg0)` | `view` | `uint256` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` |
-| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getAddr(uint256 _regId)` | `view` | `address` |
-| `getAddrDescription(uint256 _regId)` | `view` | `string` |
-| `getAddrInfo(uint256 _regId)` | `view` | `(address,uint256,uint256,string)` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getGovernors()` | `view` | `address[]` |
-| `getLastAddr()` | `view` | `address` |
-| `getLastRegId()` | `view` | `uint256` |
-| `getNumAddrs()` | `view` | `uint256` |
-| `getRegId(address _addr)` | `view` | `uint256` |
-| `getRegistryDescription()` | `view` | `string` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidAddr(address _addr)` | `view` | `bool` |
-| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` |
-| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewAddress(address _addr)` | `view` | `bool` |
-| `isValidRegId(uint256 _regId)` | `view` | `bool` |
-| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` |
-| `isVaultBookAddr(address _addr)` | `view` | `bool` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `maxRegistryTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `minRegistryTimeLock()` | `view` | `uint256` |
-| `mintRipeForStabPoolClaims(uint256 _amount, address _ripeToken, address _ledger)` | `nonpayable` | `bool` |
-| `numAddrs()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256,uint256)` |
-| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingNewAddr(address arg0)` | `view` | `(string,uint256,uint256)` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `registryChangeTimeLock()` | `view` | `uint256` |
-| `relinquishGov()` | `nonpayable` | — |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` |
-| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `addrInfo(uint256 arg0)` | `view` | `(address addr, uint256 version, uint256 lastModified, string description)` | — |
+| `addrToRegId(address arg0)` | `view` | `uint256` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` | `bool` |
+| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getAddr(uint256 _regId)` | `view` | `address` | — |
+| `getAddrDescription(uint256 _regId)` | `view` | `string` | — |
+| `getAddrInfo(uint256 _regId)` | `view` | `(address addr, uint256 version, uint256 lastModified, string description)` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getLastAddr()` | `view` | `address` | — |
+| `getLastRegId()` | `view` | `uint256` | — |
+| `getNumAddrs()` | `view` | `uint256` | — |
+| `getRegId(address _addr)` | `view` | `uint256` | — |
+| `getRegistryDescription()` | `view` | `string` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidAddr(address _addr)` | `view` | `bool` | — |
+| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` | — |
+| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewAddress(address _addr)` | `view` | `bool` | — |
+| `isValidRegId(uint256 _regId)` | `view` | `bool` | — |
+| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` | — |
+| `isVaultBookAddr(address _addr)` | `view` | `bool` | `bool` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `maxRegistryTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minRegistryTimeLock()` | `view` | `uint256` | — |
+| `mintRipeForStabPoolClaims(uint256 _amount, address _ripeToken, address _ledger)` | `nonpayable` | `bool` | `bool` |
+| `numAddrs()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address newAddr, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingNewAddr(address arg0)` | `view` | `(string description, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `registryChangeTimeLock()` | `view` | `uint256` | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` | `bool` |
+| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -185,5 +215,16 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 | `NewAddressPending` | `address addr indexed, string description, uint256 confirmBlock, string registry` |
 | `RegistryTimeLockModified` | `uint256 newTimeLock, uint256 prevTimeLock, string registry` |
 | `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `insufficient rewards`
+- `invalid ledger`
+- `invalid ripe token`
+- `no perms`
+- `not stab vault`
+- `vault has funds`
 
 <!-- END GENERATED API REFERENCE: VaultBook -->

@@ -1,6 +1,6 @@
 # CurvePrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/CurvePrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/CurvePrices.vy)
 
 ## Overview
 
@@ -182,102 +182,102 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins, uint256 _poolType)` | `3–4` | `_poolType` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins, uint256 _poolType)` | `3–4` | `_poolType = empty(PoolType)` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `CURVE_META_REGISTRY()` | `view` | `address` |
-| `CURVE_REGISTRIES()` | `view` | `(address,address,address,address,address)` |
-| `GREEN()` | `view` | `address` |
-| `SGREEN()` | `view` | `address` |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `addGreenRefPoolSnapshot()` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, address _pool)` | `nonpayable` | `bool` |
-| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
-| `assets(uint256 arg0)` | `view` | `address` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelGreenRefPoolConfig(uint256 _aid)` | `nonpayable` | `bool` |
-| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmGreenRefPoolConfig(uint256 _aid)` | `nonpayable` | `bool` |
-| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `curveConfig(address arg0)` | `view` | `(address,address,uint256,address[4],uint256,bool)` |
-| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getCryptoLpPrice(address _pool, address _firstAsset)` | `view` | `uint256` |
-| `getCurrentGreenPoolStatus()` | `view` | `(uint256,uint256,uint256)` |
-| `getCurvePoolConfig(address _pool)` | `view` | `(address,address,uint256,address[4],uint256,bool)` |
-| `getCurvePoolData()` | `view` | `(uint256, uint256)` |
-| `getGovernors()` | `view` | `address[]` |
-| `getGreenStabilizerConfig()` | `view` | `(address,address,uint256,uint256,uint256,uint256,uint256,uint256)` |
-| `getPrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
-| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
-| `getPricedAssets()` | `view` | `address[]` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins)` | `view` | `uint256` |
-| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins, uint256 _poolType)` | `view` | `uint256` |
-| `getStableLpPrice(address _pool, address[4] _coins)` | `view` | `uint256` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `greenRefPoolConfig()` | `view` | `(address,address,uint256,address,uint256,uint256,uint256,uint256,uint256,uint256)` |
-| `greenRefPoolData()` | `view` | `((uint256,uint256,uint256,bool),uint256,uint256)` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
-| `hasPriceFeed(address _asset)` | `view` | `bool` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewFeed(address _asset, address _pool)` | `view` | `bool` |
-| `isValidUpdateFeed(address _asset, address _newPool)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numAssets()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingGreenRefPoolConfig(uint256 arg0)` | `view` | `(address,address,uint256,address,uint256,uint256,uint256,uint256,uint256,uint256)` |
-| `pendingUpdates(address arg0)` | `view` | `(uint256,(address,address,uint256,address[4],uint256,bool))` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setGreenRefPoolConfig(address _pool, uint256 _maxNumSnapshots, uint256 _dangerTrigger, uint256 _staleBlocks, uint256 _stabilizerAdjustWeight, uint256 _stabilizerMaxPoolDebt)` | `nonpayable` | `uint256` |
-| `snapShots(uint256 arg0)` | `view` | `(uint256,uint256,uint256,bool)` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `updatePriceFeed(address _asset, address _pool)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `CURVE_META_REGISTRY()` | `view` | `address` | — |
+| `CURVE_REGISTRIES()` | `view` | `(address StableSwapNg, address TwoCryptoNg, address TricryptoNg, address TwoCrypto, address MetaPool)` | — |
+| `GREEN()` | `view` | `address` | — |
+| `SGREEN()` | `view` | `address` | — |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `addGreenRefPoolSnapshot()` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _pool)` | `nonpayable` | `bool` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelGreenRefPoolConfig(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmGreenRefPoolConfig(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `curveConfig(address arg0)` | `view` | `(address pool, address lpToken, uint256 numUnderlying, address[4] underlying, uint256 poolType, bool hasEcoToken)` | — |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getCryptoLpPrice(address _pool, address _firstAsset)` | `view` | `uint256` | `uint256` |
+| `getCurrentGreenPoolStatus()` | `view` | `(uint256 weightedRatio, uint256 dangerTrigger, uint256 numBlocksInDanger)` | `CurrentGreenPoolStatus` |
+| `getCurvePoolConfig(address _pool)` | `view` | `(address pool, address lpToken, uint256 numUnderlying, address[4] underlying, uint256 poolType, bool hasEcoToken)` | `CurvePriceConfig` |
+| `getCurvePoolData()` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getGreenStabilizerConfig()` | `view` | `(address pool, address lpToken, uint256 greenBalance, uint256 greenRatio, uint256 greenIndex, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt, uint256 altBalance)` | `StabilizerConfig` |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins)` | `view` | `uint256` | `uint256` |
+| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins, uint256 _poolType)` | `view` | `uint256` | `uint256` |
+| `getStableLpPrice(address _pool, address[4] _coins)` | `view` | `uint256` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `greenRefPoolConfig()` | `view` | `(address pool, address lpToken, uint256 greenIndex, address altAsset, uint256 altAssetDecimals, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt)` | — |
+| `greenRefPoolData()` | `view` | `((uint256 greenBalance, uint256 ratio, uint256 update, bool inDanger) lastSnapshot, uint256 numBlocksInDanger, uint256 nextIndex)` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewFeed(address _asset, address _pool)` | `view` | `bool` | `bool` |
+| `isValidUpdateFeed(address _asset, address _newPool)` | `view` | `bool` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingGreenRefPoolConfig(uint256 arg0)` | `view` | `(address pool, address lpToken, uint256 greenIndex, address altAsset, uint256 altAssetDecimals, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt)` | — |
+| `pendingUpdates(address arg0)` | `view` | `(uint256 actionId, (address pool, address lpToken, uint256 numUnderlying, address[4] underlying, uint256 poolType, bool hasEcoToken) config)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setGreenRefPoolConfig(address _pool, uint256 _maxNumSnapshots, uint256 _dangerTrigger, uint256 _staleBlocks, uint256 _stabilizerAdjustWeight, uint256 _stabilizerMaxPoolDebt)` | `nonpayable` | `uint256` | `uint256` |
+| `snapShots(uint256 arg0)` | `view` | `(uint256 greenBalance, uint256 ratio, uint256 update, bool inDanger)` | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `updatePriceFeed(address _asset, address _pool)` | `nonpayable` | `bool` | `bool` |
 
 ### Events
 
@@ -317,5 +317,25 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `GreenRefPoolData(lastSnapshot: RefPoolSnapshot, numBlocksInDanger: uint256, nextIndex: uint256)`
 - `CurrentGreenPoolStatus(weightedRatio: uint256, dangerTrigger: uint256, numBlocksInDanger: uint256)`
 - `StabilizerConfig(pool: address, lpToken: address, greenBalance: uint256, greenRatio: uint256, greenIndex: uint256, stabilizerAdjustWeight: uint256, stabilizerMaxPoolDebt: uint256, altBalance: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `empty pool`
+- `invalid asset`
+- `invalid feed`
+- `invalid pool`
+- `invalid ref pool config`
+- `invalid snapshot`
+- `no pending disable feed`
+- `no pending new feed`
+- `no pending update`
+- `no pending update feed`
+- `no perms`
+- `price source not executable`
+- `time lock not reached`
 
 <!-- END GENERATED API REFERENCE: CurvePrices -->

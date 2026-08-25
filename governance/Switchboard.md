@@ -1,11 +1,11 @@
 # Switchboard
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/registries/Switchboard.vy)
+
 `Switchboard` is the registry of configuration and operational authority
 contracts. Contracts currently registered here are recognized by `Addys` as
 Switchboard addresses and can call the configuration surfaces exposed by
 MissionControl and shared Department modules.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/registries/Switchboard.vy)
 
 ## Composition
 
@@ -65,76 +65,76 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `addrInfo(uint256 arg0)` | `view` | `(address,uint256,uint256,string)` |
-| `addrToRegId(address arg0)` | `view` | `uint256` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` |
-| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getAddr(uint256 _regId)` | `view` | `address` |
-| `getAddrDescription(uint256 _regId)` | `view` | `string` |
-| `getAddrInfo(uint256 _regId)` | `view` | `(address,uint256,uint256,string)` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getGovernors()` | `view` | `address[]` |
-| `getLastAddr()` | `view` | `address` |
-| `getLastRegId()` | `view` | `uint256` |
-| `getNumAddrs()` | `view` | `uint256` |
-| `getRegId(address _addr)` | `view` | `uint256` |
-| `getRegistryDescription()` | `view` | `string` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isSwitchboardAddr(address _addr)` | `view` | `bool` |
-| `isValidAddr(address _addr)` | `view` | `bool` |
-| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` |
-| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewAddress(address _addr)` | `view` | `bool` |
-| `isValidRegId(uint256 _regId)` | `view` | `bool` |
-| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `maxRegistryTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `minRegistryTimeLock()` | `view` | `uint256` |
-| `numAddrs()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256,uint256)` |
-| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingNewAddr(address arg0)` | `view` | `(string,uint256,uint256)` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `registryChangeTimeLock()` | `view` | `uint256` |
-| `relinquishGov()` | `nonpayable` | — |
-| `setBlacklist(address _tokenAddr, address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` |
-| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
-| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `addrInfo(uint256 arg0)` | `view` | `(address addr, uint256 version, uint256 lastModified, string description)` | — |
+| `addrToRegId(address arg0)` | `view` | `uint256` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` | `bool` |
+| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getAddr(uint256 _regId)` | `view` | `address` | — |
+| `getAddrDescription(uint256 _regId)` | `view` | `string` | — |
+| `getAddrInfo(uint256 _regId)` | `view` | `(address addr, uint256 version, uint256 lastModified, string description)` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getLastAddr()` | `view` | `address` | — |
+| `getLastRegId()` | `view` | `uint256` | — |
+| `getNumAddrs()` | `view` | `uint256` | — |
+| `getRegId(address _addr)` | `view` | `uint256` | — |
+| `getRegistryDescription()` | `view` | `string` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isSwitchboardAddr(address _addr)` | `view` | `bool` | `bool` |
+| `isValidAddr(address _addr)` | `view` | `bool` | — |
+| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` | — |
+| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewAddress(address _addr)` | `view` | `bool` | — |
+| `isValidRegId(uint256 _regId)` | `view` | `bool` | — |
+| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `maxRegistryTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minRegistryTimeLock()` | `view` | `uint256` | — |
+| `numAddrs()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address newAddr, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingNewAddr(address arg0)` | `view` | `(string description, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `registryChangeTimeLock()` | `view` | `uint256` | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setBlacklist(address _tokenAddr, address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` | `bool` |
+| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` | `bool` |
+| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -158,5 +158,11 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 | `NewAddressPending` | `address addr indexed, string description, uint256 confirmBlock, string registry` |
 | `RegistryTimeLockModified` | `uint256 newTimeLock, uint256 prevTimeLock, string registry` |
 | `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `no perms`
 
 <!-- END GENERATED API REFERENCE: Switchboard -->

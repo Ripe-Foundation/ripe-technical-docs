@@ -1,6 +1,6 @@
 # AuctionHouse
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/AuctionHouse.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/AuctionHouse.vy)
 
 ## Purpose
 
@@ -11,6 +11,10 @@ Liquidation is account-wide. Once an unhealthy account enters liquidation, its `
 ## Liquidation flow
 
 `liquidateUser` and `liquidateManyUsers` are callable only by Teller. A batch is bounded to 50 users. An entry is skipped when it cannot presently be liquidated—for example, when the user has no debt, is healthy, has quarantined collateral, is an Underscore Earn vault, or already has an outstanding auction.
+
+An all-skipped liquidation batch returns zero rather than reverting for lack of
+a successful row. Teller still performs final housekeeping for the caller, and
+that independent housekeeping step can revert the transaction.
 
 For an eligible account, the implementation:
 
@@ -48,10 +52,24 @@ startBlock <= block.number < endBlock
 
 The discount increases over that interval and reaches its configured maximum on the last purchasable block. Purchases are capped by the account's current debt as well as the remaining auction collateral, so a previously observed quote is not an execution guarantee.
 
+Auction creation, purchase eligibility, discount progression, expiry, and
+removal use native EVM `block.number`. This is not Ledger's configurable
+action-block clock; on Arbitrum, Ledger may instead use
+`ArbSys.arbBlockNumber()`, so the two block identities can diverge.
+
 Public auction purchases use Teller's `buyManyFungibleAuctions` batch route,
 which calls AuctionHouse's purchase entry point. A batch contains at most 20
 purchases; a one-item batch handles a single purchase. Any unused GREEN is
-returned to the actual payer, optionally as sGREEN according to the request.
+returned to the actual payer, with an sGREEN preference honored only when the
+amount is above `10**9` base units; smaller refunds remain raw GREEN.
+
+Purchase rows can be skipped individually, but the batch reverts if aggregate
+GREEN spent remains zero. Collateral delivery has two modes. With
+`_shouldTransferBalance == true`, the vault transfers the balance internally,
+checkpoints the seller, adds the recipient's Ledger vault membership, and
+checkpoints the recipient. With `false`, it withdraws tokens externally to the
+recipient and checkpoints only the seller. Teller defaults this flag to
+`false`.
 
 Auction settlement preflights nonzero credit before moving collateral. If the post-transfer repayment would be zero, the transaction reverts atomically.
 
@@ -112,48 +130,48 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `buyFungibleAuction(address _liqUser, uint256 _vaultId, address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, Addys _a)` | `8–9` | `_a` |
-| `buyManyFungibleAuctions(tuple[] _purchases, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, Addys _a)` | `6–7` | `_a` |
-| `liquidateManyUsers(address[] _liqUsers, address _keeper, bool _wantsSavingsGreen, Addys _a)` | `3–4` | `_a` |
-| `liquidateUser(address _liqUser, address _keeper, bool _wantsSavingsGreen, Addys _a)` | `3–4` | `_a` |
-| `pauseAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, Addys _a)` | `3–4` | `_a` |
-| `pauseManyAuctions(tuple[] _auctions, Addys _a)` | `1–2` | `_a` |
-| `startAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, Addys _a)` | `3–4` | `_a` |
-| `startManyAuctions(tuple[] _auctions, Addys _a)` | `1–2` | `_a` |
+| `buyFungibleAuction(address _liqUser, uint256 _vaultId, address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, Addys _a)` | `8–9` | `_a = empty(addys.Addys)` |
+| `buyManyFungibleAuctions(tuple[] _purchases, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, Addys _a)` | `6–7` | `_a = empty(addys.Addys)` |
+| `liquidateManyUsers(address[] _liqUsers, address _keeper, bool _wantsSavingsGreen, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `liquidateUser(address _liqUser, address _keeper, bool _wantsSavingsGreen, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `pauseAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `pauseManyAuctions(tuple[] _auctions, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `startAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `startManyAuctions(tuple[] _auctions, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `buyFungibleAuction(address _liqUser, uint256 _vaultId, address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` |
-| `buyFungibleAuction(address _liqUser, uint256 _vaultId, address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` |
-| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `calcAmountOfDebtToRepayDuringLiq(address _user)` | `view` | `uint256` |
-| `calcTargetRepayAmount(uint256 _debtAmount, uint256 _collateralValue, uint256 _targetLtv)` | `view` | `uint256` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `canStartAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset)` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `liquidateManyUsers(address[] _liqUsers, address _keeper, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` |
-| `liquidateManyUsers(address[] _liqUsers, address _keeper, bool _wantsSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `liquidateUser(address _liqUser, address _keeper, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` |
-| `liquidateUser(address _liqUser, address _keeper, bool _wantsSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pauseAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset)` | `nonpayable` | `bool` |
-| `pauseAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` |
-| `pauseManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` |
-| `pauseManyAuctions((address,uint256,address)[] _auctions, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `removeExpiredFungibleAuction(address _liqUser, uint256 _vaultId, address _asset)` | `nonpayable` | `bool` |
-| `startAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset)` | `nonpayable` | `bool` |
-| `startAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` |
-| `startManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` |
-| `startManyAuctions((address,uint256,address)[] _auctions, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, address _vaultAddr, bool _preflightSafeConversion, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `buyFungibleAuction(address _liqUser, uint256 _vaultId, address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `buyFungibleAuction(address _liqUser, uint256 _vaultId, address _asset, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `calcAmountOfDebtToRepayDuringLiq(address _user)` | `view` | `uint256` | `uint256` |
+| `calcTargetRepayAmount(uint256 _debtAmount, uint256 _collateralValue, uint256 _targetLtv)` | `view` | `uint256` | `uint256` |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `canStartAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset)` | `view` | `bool` | `bool` |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `liquidateManyUsers(address[] _liqUsers, address _keeper, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `liquidateManyUsers(address[] _liqUsers, address _keeper, bool _wantsSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `liquidateUser(address _liqUser, address _keeper, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `liquidateUser(address _liqUser, address _keeper, bool _wantsSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pauseAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset)` | `nonpayable` | `bool` | `bool` |
+| `pauseAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` | `bool` |
+| `pauseManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` | `uint256` |
+| `pauseManyAuctions((address,uint256,address)[] _auctions, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `removeExpiredFungibleAuction(address _liqUser, uint256 _vaultId, address _asset)` | `nonpayable` | `bool` | `bool` |
+| `startAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset)` | `nonpayable` | `bool` | `bool` |
+| `startAuction(address _liqUser, uint256 _liqVaultId, address _liqAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` | `bool` |
+| `startManyAuctions((address,uint256,address)[] _auctions)` | `nonpayable` | `uint256` | `uint256` |
+| `startManyAuctions((address,uint256,address)[] _auctions, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, address _vaultAddr, bool _preflightSafeConversion, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
 
 ### Events
 
@@ -179,5 +197,26 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `FungibleAuction(liqUser: address, vaultId: uint256, asset: address, startDiscount: uint256, maxDiscount: uint256, startBlock: uint256, endBlock: uint256, isActive: bool)`
 - `FungAuctionPurchase(liqUser: address, vaultId: uint256, asset: address, maxGreenAmount: uint256)`
 - `FungAuctionConfig(liqUser: address, vaultId: uint256, asset: address)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `amounts do not match up`
+- `cannot liquidate`
+- `collateral exceeds buy cap`
+- `contract paused`
+- `could not transfer`
+- `failed to set auction`
+- `green approval failed`
+- `green transfer failed`
+- `invalid stability pool swap`
+- `no green spent`
+- `no green to spend`
+- `no perms`
+- `not allowed to deposit for user`
+- `only deleverage allowed`
+- `only teller allowed`
+- `repayment exceeds creditable debt`
 
 <!-- END GENERATED API REFERENCE: AuctionHouse -->

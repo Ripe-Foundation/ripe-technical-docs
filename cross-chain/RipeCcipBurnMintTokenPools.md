@@ -1,6 +1,6 @@
 # RipeCcipBurnMintTokenPools
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/solidity/src/RipeCcipBurnMintTokenPools.sol)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/solidity/src/RipeCcipBurnMintTokenPools.sol)
 
 ## Overview
 
@@ -73,6 +73,9 @@ transfer, RMN checks, allowlist behavior, remote-chain state, router management,
 and rate limiting come from the vendored Chainlink pool implementation. The
 Ripe contracts do not override that state machine.
 
+The complete inherited selector, event, and custom-error surface is documented
+in the [composed BurnMintTokenPool 1.5.1 reference](BurnMintTokenPool151.md).
+
 For a completed transfer, the source pool burns the transferred amount and the
 destination pool mints the corresponding amount. This moves supply between
 chain-local token representations. Neither pool maintains a cross-chain supply
@@ -87,9 +90,9 @@ TokenAdminRegistry administrator nomination. Administrator nomination and
 token-pool registration are distinct operations.
 
 <!-- BEGIN GENERATED API REFERENCE: RipeCcipBurnMintTokenPools -->
-## Exact source-declared API reference
+## Ripe-specific source delta
 
-> Generated from declarations in `solidity/src/RipeCcipBurnMintTokenPools.sol`. This file has no first-party tracked ABI under `scripts/abis`; inherited Chainlink members are outside this source-declared inventory.
+> Generated from declarations written directly in `solidity/src/RipeCcipBurnMintTokenPools.sol`. The concrete contracts also expose the inherited operational surface documented in the [composed BurnMintTokenPool 1.5.1 reference](BurnMintTokenPool151.md).
 
 ### `GreenCcipBurnMintTokenPool`
 

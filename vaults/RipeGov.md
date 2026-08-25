@@ -1,6 +1,6 @@
 # RipeGov vault
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/RipeGov.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/RipeGov.vy)
 
 ## Overview
 
@@ -143,7 +143,12 @@ The permanent tombstone prevents migration back into that source user/asset posi
 
 ### Import
 
-`importPositionForMigration` is Teller-only, nonreentrant, and requires the target vault paused. The source must be a distinct registered vault. The target user/asset must have no balance, no existing governance data, and no target tombstone.
+`importPositionForMigration` is Teller-only, nonreentrant, and requires the target vault paused. The source must be a distinct registered vault. The target user/asset must have no balance, no target tombstone, and zero stored `govPoints` and `lastShares`.
+
+The import does not require the existing `lastPointsUpdate`, `unlock`, or
+`lastTerms` fields to be empty. It overwrites the complete `GovData` record, so
+any prior values in those unchecked fields are replaced by the imported
+points/terms, newly calculated shares, and the current import block.
 
 The target must already have received at least `migration.amount`. Shares are calculated against custody immediately before that incoming amount and must be nonzero. Import restores governance points, unlock, and `lastTerms` exactly, while setting `lastPointsUpdate` to the import block.
 
@@ -176,85 +181,85 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `adjustLock(address _user, address _asset, uint256 _newLockDuration, Addys _a)` | `3–4` | `_a` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a` |
-| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration, Addys _a)` | `4–5` | `_a` |
-| `exportPositionForMigration(address _user, address _asset, address _targetVault, Addys _a)` | `3–4` | `_a` |
-| `releaseLock(address _user, address _asset, Addys _a)` | `2–3` | `_a` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a` |
-| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration, Addys _a)` | `3–4` | `_a` |
-| `updateUserGovPoints(address _user, Addys _a)` | `1–2` | `_a` |
-| `withdrawContributorTokensToBurn(address _user, Addys _a)` | `1–2` | `_a` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a` |
+| `adjustLock(address _user, address _asset, uint256 _newLockDuration, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `exportPositionForMigration(address _user, address _asset, address _targetVault, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `releaseLock(address _user, address _asset, Addys _a)` | `2–3` | `_a = empty(addys.Addys)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `updateUserGovPoints(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `withdrawContributorTokensToBurn(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `adjustLock(address _user, address _asset, uint256 _newLockDuration)` | `nonpayable` | — |
-| `adjustLock(address _user, address _asset, uint256 _newLockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
-| `amountToShares(address _asset, uint256 _amount, bool _shouldRoundUp)` | `view` | `uint256` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `uint256` |
-| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` |
-| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |
-| `disableGovPointAccrualForUser(address _user)` | `nonpayable` | — |
-| `disableGovPointAccrualGlobally()` | `nonpayable` | — |
-| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` |
-| `doesVaultHaveAnyFunds()` | `view` | `bool` |
-| `exportPositionForMigration(address _user, address _asset, address _targetVault)` | `nonpayable` | `(uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256))` |
-| `exportPositionForMigration(address _user, address _asset, address _targetVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256))` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getLatestGovPoints(uint256 _lastShares, uint256 _lastPointsUpdate, uint256 _unlock, (uint256,uint256,uint256,bool,uint256) _terms, uint256 _weight)` | `view` | `uint256` |
-| `getLockBonusPoints(uint256 _points, uint256 _unlock, (uint256,uint256,uint256,bool,uint256) _terms)` | `view` | `uint256` |
-| `getNumUserAssets(address _user)` | `view` | `uint256` |
-| `getNumVaultAssets()` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` |
-| `getTotalAmountForVault(address _asset)` | `view` | `uint256` |
-| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` |
-| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` |
-| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` |
-| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool,uint256,uint256,uint256)` |
-| `getWeightedLockOnTokenDeposit(uint256 _newShares, uint256 _newLockDuration, (uint256,uint256,uint256,bool,uint256) _lockTerms, uint256 _prevShares, uint256 _prevUnlock)` | `view` | `uint256` |
-| `govPointAccrualDisabledBlock()` | `view` | `uint256` |
-| `importPositionForMigration(address _user, address _asset, address _sourceVault, (uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256)) _migration)` | `nonpayable` | `uint256` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` |
-| `inheritUserGovPointAccrualDisableForMigration(address _user, uint256 _disabledBlock)` | `nonpayable` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isSupportedVaultAsset(address _asset)` | `view` | `bool` |
-| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` |
-| `numAssets()` | `view` | `uint256` |
-| `numUserAssets(address arg0)` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `positionMigratedOut(address arg0, address arg1)` | `view` | `bool` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `refreshUnlock(uint256 _prevUnlock, (uint256,uint256,uint256,bool,uint256) _newTerms, (uint256,uint256,uint256,bool,uint256) _prevTerms)` | `view` | `uint256` |
-| `releaseLock(address _user, address _asset)` | `nonpayable` | — |
-| `releaseLock(address _user, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
-| `sharesToAmount(address _asset, uint256 _shares, bool _shouldRoundUp)` | `view` | `uint256` |
-| `totalBalances(address arg0)` | `view` | `uint256` |
-| `totalGovPoints()` | `view` | `uint256` |
-| `totalUserGovPoints(address arg0)` | `view` | `uint256` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
-| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration)` | `nonpayable` | `uint256` |
-| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `updateUserGovPoints(address _user)` | `nonpayable` | — |
-| `updateUserGovPoints(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
-| `userAssets(address arg0, uint256 arg1)` | `view` | `address` |
-| `userBalances(address arg0, address arg1)` | `view` | `uint256` |
-| `userGovData(address arg0, address arg1)` | `view` | `(uint256,uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256))` |
-| `userGovPointAccrualDisabledBlock(address arg0)` | `view` | `uint256` |
-| `vaultAssets(uint256 arg0)` | `view` | `address` |
-| `withdrawContributorTokensToBurn(address _user)` | `nonpayable` | `uint256` |
-| `withdrawContributorTokensToBurn(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `adjustLock(address _user, address _asset, uint256 _newLockDuration)` | `nonpayable` | — | — |
+| `adjustLock(address _user, address _asset, uint256 _newLockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — | — |
+| `amountToShares(address _asset, uint256 _amount, bool _shouldRoundUp)` | `view` | `uint256` | — |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` | — |
+| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` | — |
+| `disableGovPointAccrualForUser(address _user)` | `nonpayable` | — | — |
+| `disableGovPointAccrualGlobally()` | `nonpayable` | — | — |
+| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` | — |
+| `doesVaultHaveAnyFunds()` | `view` | `bool` | — |
+| `exportPositionForMigration(address _user, address _asset, address _targetVault)` | `nonpayable` | `(uint256 amount, uint256 govPoints, uint256 unlock, (uint256 minLockDuration, uint256 maxLockDuration, uint256 maxLockBoost, bool canExit, uint256 exitFee) lastTerms)` | `RipeGovMigrationData` |
+| `exportPositionForMigration(address _user, address _asset, address _targetVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256 amount, uint256 govPoints, uint256 unlock, (uint256 minLockDuration, uint256 maxLockDuration, uint256 maxLockBoost, bool canExit, uint256 exitFee) lastTerms)` | `RipeGovMigrationData` |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getLatestGovPoints(uint256 _lastShares, uint256 _lastPointsUpdate, uint256 _unlock, (uint256,uint256,uint256,bool,uint256) _terms, uint256 _weight)` | `view` | `uint256` | `uint256` |
+| `getLockBonusPoints(uint256 _points, uint256 _unlock, (uint256,uint256,uint256,bool,uint256) _terms)` | `view` | `uint256` | `uint256` |
+| `getNumUserAssets(address _user)` | `view` | `uint256` | — |
+| `getNumVaultAssets()` | `view` | `uint256` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` | `uint256` |
+| `getTotalAmountForVault(address _asset)` | `view` | `uint256` | `uint256` |
+| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` | `(address, uint256)` |
+| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` | `(address, bool)` |
+| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` | `uint256` |
+| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool hasPosition, uint256 numAssets, uint256 userBalance, uint256 totalBalance)` | `Vault.VaultDataOnDeposit` |
+| `getWeightedLockOnTokenDeposit(uint256 _newShares, uint256 _newLockDuration, (uint256,uint256,uint256,bool,uint256) _lockTerms, uint256 _prevShares, uint256 _prevUnlock)` | `view` | `uint256` | `uint256` |
+| `govPointAccrualDisabledBlock()` | `view` | `uint256` | — |
+| `importPositionForMigration(address _user, address _asset, address _sourceVault, (uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256)) _migration)` | `nonpayable` | `uint256` | `uint256` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` | — |
+| `inheritUserGovPointAccrualDisableForMigration(address _user, uint256 _disabledBlock)` | `nonpayable` | `bool` | `bool` |
+| `isPaused()` | `view` | `bool` | — |
+| `isSupportedVaultAsset(address _asset)` | `view` | `bool` | — |
+| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numUserAssets(address arg0)` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `positionMigratedOut(address arg0, address arg1)` | `view` | `bool` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `refreshUnlock(uint256 _prevUnlock, (uint256,uint256,uint256,bool,uint256) _newTerms, (uint256,uint256,uint256,bool,uint256) _prevTerms)` | `view` | `uint256` | `uint256` |
+| `releaseLock(address _user, address _asset)` | `nonpayable` | — | — |
+| `releaseLock(address _user, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — | — |
+| `sharesToAmount(address _asset, uint256 _shares, bool _shouldRoundUp)` | `view` | `uint256` | — |
+| `totalBalances(address arg0)` | `view` | `uint256` | — |
+| `totalGovPoints()` | `view` | `uint256` | — |
+| `totalUserGovPoints(address arg0)` | `view` | `uint256` | — |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `updateUserGovPoints(address _user)` | `nonpayable` | — | — |
+| `updateUserGovPoints(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — | — |
+| `userAssets(address arg0, uint256 arg1)` | `view` | `address` | — |
+| `userBalances(address arg0, address arg1)` | `view` | `uint256` | — |
+| `userGovData(address arg0, address arg1)` | `view` | `(uint256 govPoints, uint256 lastShares, uint256 lastPointsUpdate, uint256 unlock, (uint256 minLockDuration, uint256 maxLockDuration, uint256 maxLockBoost, bool canExit, uint256 exitFee) lastTerms)` | — |
+| `userGovPointAccrualDisabledBlock(address arg0)` | `view` | `uint256` | — |
+| `vaultAssets(uint256 arg0)` | `view` | `address` | — |
+| `withdrawContributorTokensToBurn(address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `withdrawContributorTokensToBurn(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
 
 ### Events
 
@@ -278,5 +283,50 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 - `GovData(govPoints: uint256, lastShares: uint256, lastPointsUpdate: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
 - `RipeGovMigrationData(amount: uint256, govPoints: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `already disabled`
+- `cannot exit`
+- `cannot withdraw when bad debt`
+- `contract paused`
+- `globally disabled`
+- `incomplete migration`
+- `inconsistent global gov points`
+- `inconsistent position shares`
+- `inconsistent user gov points`
+- `invalid disabled block`
+- `invalid migration address`
+- `invalid migration amount`
+- `invalid source vault`
+- `invalid target shares`
+- `invalid target vault`
+- `invalid user`
+- `invalid vault addr`
+- `migration funds not received`
+- `new lock cannot be earlier`
+- `no exit fee`
+- `no fee-bearing claim`
+- `no lock terms`
+- `no perms`
+- `no position`
+- `no release needed`
+- `no remaining holders`
+- `not allowed`
+- `not reached unlock`
+- `only Teller allowed`
+- `only vault migrator allowed`
+- `partial migration`
+- `position already migrated`
+- `position already migrated out`
+- `position migrated`
+- `recipient position migrated`
+- `saving user money`
+- `target balance exists`
+- `target gov data exists`
+- `token transfer failed`
+- `vault not paused`
 
 <!-- END GENERATED API REFERENCE: RipeGov -->

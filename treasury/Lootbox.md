@@ -1,6 +1,6 @@
 # Lootbox
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/Lootbox.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/Lootbox.vy)
 
 ## Purpose
 
@@ -11,6 +11,11 @@ The main reward buckets are borrowers, RipeGov stakers, voters, and general depo
 ## Claims
 
 Teller and other registered Ripe addresses call `claimLootForUser` or `claimLootForManyUsers` (up to 25 users). A caller claiming for another user needs the current user permission or Underscore-owner relationship, except for the explicitly privileged Switchboard route. `claimDepositLootForAsset` and `claimBorrowLoot` are likewise department-gated settlement helpers, not permissionless user mint functions.
+
+The 25-user bound is also the effective limit for claims routed through
+SwitchboardCharlie. Charlie's own input type permits up to 50 users, but it
+forwards the complete array to this 25-user entry point; lengths 26–50 revert at
+Lootbox's ABI decoding boundary before claim execution.
 
 A full claim settles borrow loot and enumerated deposit loot before minting. The final RIPE may be sent to the user, staked through Teller, or split according to current claim configuration. Staked rewards use MissionControl's dynamic `coreRipeGovVaultId`; historical RipeGov vaults can still contribute deposit points, but there is no hardcoded current ID.
 
@@ -68,58 +73,58 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake, Addys _a)` | `3–4` | `_a` |
-| `claimLootForUser(address _user, address _caller, bool _shouldStake, Addys _a)` | `3–4` | `_a` |
-| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset, Addys _a)` | `3–4` | `_a` |
-| `updateBorrowPoints(address _user, Addys _a)` | `1–2` | `_a` |
-| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset, Addys _a)` | `4–5` | `_a` |
-| `updateRipeRewards(Addys _a)` | `0–1` | `_a` |
+| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `claimLootForUser(address _user, address _caller, bool _shouldStake, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `updateBorrowPoints(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `updateRipeRewards(Addys _a)` | `0–1` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `calcSpecificLoot(uint256 _userShareOfAsset, uint256 _assetPoints, uint256 _globalPoints, uint256 _rewardsAvailable)` | `view` | `(uint256, uint256, uint256, uint256)` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `claimBorrowLoot(address _user)` | `nonpayable` | `uint256` |
-| `claimDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` |
-| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake)` | `nonpayable` | `uint256` |
-| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `claimLootForUser(address _user, address _caller, bool _shouldStake)` | `nonpayable` | `uint256` |
-| `claimLootForUser(address _user, address _caller, bool _shouldStake, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `distributeUnderscoreRewards()` | `nonpayable` | `(uint256, uint256)` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getClaimableBorrowLoot(address _user)` | `view` | `uint256` |
-| `getClaimableDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `view` | `uint256` |
-| `getClaimableLoot(address _user)` | `view` | `uint256` |
-| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset)` | `view` | `((uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256))` |
-| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `((uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256))` |
-| `getLatestGlobalRipeRewards()` | `view` | `(uint256,uint256,uint256,uint256,uint256,uint256)` |
-| `getRipeHq()` | `view` | `address` |
-| `hasUnderscoreRewards()` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `lastUnderscoreSend()` | `view` | `uint256` |
-| `minUnderscoreSendInterval()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `resetAssetPoints(address _asset, uint256 _vaultId)` | `nonpayable` | — |
-| `resetUserBalancePoints(address _user, address _asset, uint256 _vaultId)` | `nonpayable` | — |
-| `resetUserBorrowPoints(address _user)` | `nonpayable` | — |
-| `setHasUnderscoreRewards(bool _hasRewards)` | `nonpayable` | — |
-| `setUnderscoreSendInterval(uint256 _numBlocks)` | `nonpayable` | — |
-| `setUndyDepositRewardsAmount(uint256 _amount)` | `nonpayable` | — |
-| `setUndyYieldBonusAmount(uint256 _amount)` | `nonpayable` | — |
-| `underscoreSendInterval()` | `view` | `uint256` |
-| `undyDepositRewardsAmount()` | `view` | `uint256` |
-| `undyYieldBonusAmount()` | `view` | `uint256` |
-| `updateBorrowPoints(address _user)` | `nonpayable` | — |
-| `updateBorrowPoints(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
-| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset)` | `nonpayable` | — |
-| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
-| `updateRipeRewards()` | `nonpayable` | `(uint256,uint256,uint256,uint256,uint256,uint256)` |
-| `updateRipeRewards((address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256,uint256,uint256,uint256,uint256,uint256)` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `calcSpecificLoot(uint256 _userShareOfAsset, uint256 _assetPoints, uint256 _globalPoints, uint256 _rewardsAvailable)` | `view` | `(uint256, uint256, uint256, uint256)` | `(uint256, uint256, uint256, uint256)` |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `claimBorrowLoot(address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `claimDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForUser(address _user, address _caller, bool _shouldStake)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForUser(address _user, address _caller, bool _shouldStake, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `distributeUnderscoreRewards()` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getClaimableBorrowLoot(address _user)` | `view` | `uint256` | `uint256` |
+| `getClaimableDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `view` | `uint256` | `uint256` |
+| `getClaimableLoot(address _user)` | `view` | `uint256` | `uint256` |
+| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset)` | `view` | `((uint256 balancePoints, uint256 lastBalance, uint256 lastUpdate), (uint256 balancePoints, uint256 lastBalance, uint256 lastUsdValue, uint256 ripeStakerPoints, uint256 ripeVotePoints, uint256 ripeGenPoints, uint256 lastUpdate, uint256 precision), (uint256 lastUsdValue, uint256 ripeStakerPoints, uint256 ripeVotePoints, uint256 ripeGenPoints, uint256 lastUpdate))` | `(UserDepositPoints, AssetDepositPoints, GlobalDepositPoints)` |
+| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `((uint256 balancePoints, uint256 lastBalance, uint256 lastUpdate), (uint256 balancePoints, uint256 lastBalance, uint256 lastUsdValue, uint256 ripeStakerPoints, uint256 ripeVotePoints, uint256 ripeGenPoints, uint256 lastUpdate, uint256 precision), (uint256 lastUsdValue, uint256 ripeStakerPoints, uint256 ripeVotePoints, uint256 ripeGenPoints, uint256 lastUpdate))` | `(UserDepositPoints, AssetDepositPoints, GlobalDepositPoints)` |
+| `getLatestGlobalRipeRewards()` | `view` | `(uint256 borrowers, uint256 stakers, uint256 voters, uint256 genDepositors, uint256 newRipeRewards, uint256 lastUpdate)` | `RipeRewards` |
+| `getRipeHq()` | `view` | `address` | — |
+| `hasUnderscoreRewards()` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `lastUnderscoreSend()` | `view` | `uint256` | — |
+| `minUnderscoreSendInterval()` | `view` | `uint256` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `resetAssetPoints(address _asset, uint256 _vaultId)` | `nonpayable` | — | — |
+| `resetUserBalancePoints(address _user, address _asset, uint256 _vaultId)` | `nonpayable` | — | — |
+| `resetUserBorrowPoints(address _user)` | `nonpayable` | — | — |
+| `setHasUnderscoreRewards(bool _hasRewards)` | `nonpayable` | — | — |
+| `setUnderscoreSendInterval(uint256 _numBlocks)` | `nonpayable` | — | — |
+| `setUndyDepositRewardsAmount(uint256 _amount)` | `nonpayable` | — | — |
+| `setUndyYieldBonusAmount(uint256 _amount)` | `nonpayable` | — | — |
+| `underscoreSendInterval()` | `view` | `uint256` | — |
+| `undyDepositRewardsAmount()` | `view` | `uint256` | — |
+| `undyYieldBonusAmount()` | `view` | `uint256` | — |
+| `updateBorrowPoints(address _user)` | `nonpayable` | — | — |
+| `updateBorrowPoints(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — | — |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset)` | `nonpayable` | — | — |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — | — |
+| `updateRipeRewards()` | `nonpayable` | `(uint256 borrowers, uint256 stakers, uint256 voters, uint256 genDepositors, uint256 newRipeRewards, uint256 lastUpdate)` | `RipeRewards` |
+| `updateRipeRewards((address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256 borrowers, uint256 stakers, uint256 voters, uint256 genDepositors, uint256 newRipeRewards, uint256 lastUpdate)` | `RipeRewards` |
 
 ### Events
 
@@ -149,5 +154,27 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `RewardsConfig(arePointsEnabled: bool, ripePerBlock: uint256, borrowersAlloc: uint256, stakersAlloc: uint256, votersAlloc: uint256, genDepositorsAlloc: uint256, stakersPointsAllocTotal: uint256, voterPointsAllocTotal: uint256)`
 - `DepositPointsConfig(stakersPointsAlloc: uint256, voterPointsAlloc: uint256, isNft: bool)`
 - `ClaimLootConfig(canClaimLoot: bool, canClaimLootForUser: bool, autoStakeRatio: uint256, rewardsLockDuration: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot claim for user`
+- `contract paused`
+- `invalid amount`
+- `invalid floor`
+- `invalid interval`
+- `invalid vault id`
+- `loot claims disabled`
+- `no change`
+- `no perms`
+- `no rewards to distribute`
+- `no underscore distributor`
+- `no underscore rewards`
+- `result overflows`
+- `ripe approval failed`
+- `ripe transfer failed`
+- `too early`
+- `zero denominator`
 
 <!-- END GENERATED API REFERENCE: Lootbox -->

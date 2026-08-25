@@ -1,6 +1,6 @@
 # RipeTokenPool
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/solidity/src/RipeTokenPool.sol)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/solidity/src/RipeTokenPool.sol)
 
 ## Overview
 
@@ -24,6 +24,11 @@ false. It also inherits an arbitrary token constructor argument. The
 constructor does not validate that the token identity matches the selected
 capabilities.
 
+New integrations should prefer the token-specific pool classes. They compile
+the intended GREEN or RIPE capability pair into separate contracts and remove
+the configurable flag-mismatch hazard, although callers must still bind each
+class to the corresponding token.
+
 ## Constructor
 
 ```text
@@ -45,10 +50,14 @@ inherited. The token-specific classes in
 capability arguments by compiling the GREEN and RIPE pairs into separate
 contracts.
 
-<!-- BEGIN GENERATED API REFERENCE: RipeTokenPool -->
-## Exact source-declared API reference
+See the [composed BurnMintTokenPool 1.5.1 reference](BurnMintTokenPool151.md)
+for the inherited execution, ownership, remote-chain, allowlist, router, RMN,
+rate-limit, event, and error surface.
 
-> Generated from declarations in `solidity/src/RipeTokenPool.sol`. This file has no first-party tracked ABI under `scripts/abis`; inherited Chainlink members are outside this source-declared inventory.
+<!-- BEGIN GENERATED API REFERENCE: RipeTokenPool -->
+## Ripe-specific source delta
+
+> Generated from declarations written directly in `solidity/src/RipeTokenPool.sol`. The concrete contracts also expose the inherited operational surface documented in the [composed BurnMintTokenPool 1.5.1 reference](BurnMintTokenPool151.md).
 
 ### `RipeTokenPool`
 

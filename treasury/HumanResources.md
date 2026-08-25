@@ -1,6 +1,6 @@
 # HumanResources
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/HumanResources.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/HumanResources.vy)
 
 ## Purpose
 
@@ -66,77 +66,77 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `getRipeGovVaultId(uint256 _vaultId)` | `0–1` | `_vaultId` |
-| `hasRipeBalance(address _contributor, uint256 _vaultId)` | `1–2` | `_vaultId` |
-| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition, uint256 _vaultId)` | `2–3` | `_vaultId` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `transferContributorRipeTokens(address _owner, uint256 _lockDuration, uint256 _vaultId)` | `2–3` | `_vaultId` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getRipeGovVaultId(uint256 _vaultId)` | `0–1` | `_vaultId = 0` |
+| `hasRipeBalance(address _contributor, uint256 _vaultId)` | `1–2` | `_vaultId = 0` |
+| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition, uint256 _vaultId)` | `2–3` | `_vaultId = 0` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `transferContributorRipeTokens(address _owner, uint256 _lockDuration, uint256 _vaultId)` | `2–3` | `_vaultId = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `areValidContributorTerms(address _owner, address _manager, uint256 _compensation, uint256 _startDelay, uint256 _vestingLength, uint256 _cliffLength, uint256 _unlockLength, uint256 _depositLockDuration)` | `view` | `bool` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `canModifyHrContributor(address _addr)` | `view` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewContributor(uint256 _aid)` | `nonpayable` | `bool` |
-| `cashRipeCheck(uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewContributor(uint256 _aid)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getGovernors()` | `view` | `address[]` |
-| `getRipeGovVaultId()` | `view` | `uint256` |
-| `getRipeGovVaultId(uint256 _vaultId)` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `getTotalClaimed()` | `view` | `uint256` |
-| `getTotalCompensation()` | `view` | `uint256` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `hasRipeBalance(address _contributor)` | `view` | `bool` |
-| `hasRipeBalance(address _contributor, uint256 _vaultId)` | `view` | `bool` |
-| `initiateNewContributor(address _owner, address _manager, uint256 _compensation, uint256 _startDelay, uint256 _vestingLength, uint256 _cliffLength, uint256 _unlockLength, uint256 _depositLockDuration)` | `nonpayable` | `uint256` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `legacyContributorRipeGovVaultId(address arg0)` | `view` | `uint256` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingContributor(uint256 arg0)` | `view` | `(address,address,uint256,uint256,uint256,uint256,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition)` | `nonpayable` | — |
-| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition, uint256 _vaultId)` | `nonpayable` | — |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setLegacyContributorRipeGovVaultId(address _contributor, uint256 _vaultId)` | `nonpayable` | — |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `transferContributorRipeTokens(address _owner, uint256 _lockDuration)` | `nonpayable` | `uint256` |
-| `transferContributorRipeTokens(address _owner, uint256 _lockDuration, uint256 _vaultId)` | `nonpayable` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `areValidContributorTerms(address _owner, address _manager, uint256 _compensation, uint256 _startDelay, uint256 _vestingLength, uint256 _cliffLength, uint256 _unlockLength, uint256 _depositLockDuration)` | `view` | `bool` | `bool` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `canModifyHrContributor(address _addr)` | `view` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewContributor(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `cashRipeCheck(uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewContributor(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getRipeGovVaultId()` | `view` | `uint256` | `uint256` |
+| `getRipeGovVaultId(uint256 _vaultId)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `getTotalClaimed()` | `view` | `uint256` | `uint256` |
+| `getTotalCompensation()` | `view` | `uint256` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasRipeBalance(address _contributor)` | `view` | `bool` | `bool` |
+| `hasRipeBalance(address _contributor, uint256 _vaultId)` | `view` | `bool` | `bool` |
+| `initiateNewContributor(address _owner, address _manager, uint256 _compensation, uint256 _startDelay, uint256 _vestingLength, uint256 _cliffLength, uint256 _unlockLength, uint256 _depositLockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `legacyContributorRipeGovVaultId(address arg0)` | `view` | `uint256` | — |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingContributor(uint256 arg0)` | `view` | `(address owner, address manager, uint256 compensation, uint256 startDelay, uint256 vestingLength, uint256 cliffLength, uint256 unlockLength, uint256 depositLockDuration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition)` | `nonpayable` | — | — |
+| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition, uint256 _vaultId)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setLegacyContributorRipeGovVaultId(address _contributor, uint256 _vaultId)` | `nonpayable` | — | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `transferContributorRipeTokens(address _owner, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `transferContributorRipeTokens(address _owner, uint256 _lockDuration, uint256 _vaultId)` | `nonpayable` | `uint256` | `uint256` |
 
 ### Events
 
@@ -160,5 +160,22 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 ### Structs declared by this source
 
 - `ContributorTerms(owner: address, manager: address, compensation: uint256, startDelay: uint256, vestingLength: uint256, cliffLength: uint256, unlockLength: uint256, depositLockDuration: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `could not deploy`
+- `invalid terms`
+- `invalid vault id`
+- `no balance`
+- `no pending contributor`
+- `no perms`
+- `not a contributor`
+- `ripe approval failed`
+- `ripe burn failed`
+- `time lock not reached`
 
 <!-- END GENERATED API REFERENCE: HumanResources -->

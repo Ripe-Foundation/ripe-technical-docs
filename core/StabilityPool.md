@@ -1,6 +1,6 @@
 # StabilityPool
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/StabilityPool.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/StabilityPool.vy)
 
 ## Overview
 
@@ -12,7 +12,7 @@ The detailed accounting and claim lifecycle live in [StabVault](../vaults/module
 
 The host combines:
 
-- Addys for RipeHQ-backed protocol addresses;
+- Addys for RipeHq-backed protocol addresses;
 - VaultData for pause state, user/vault asset indexes, and share storage; and
 - StabVault for valuation, reservations, liquidation swaps, claims, redemptions, and maintenance.
 
@@ -110,7 +110,12 @@ AssetClaimedInStabilityPool(
 
 Teller transfers GREEN to the selected StabilityPool, optionally by redeeming the caller's Savings GREEN first. It forwards up to 15 `(claimAsset, maxGreenAmount)` rows. The pool exchanges GREEN at current strict USD value for aggregate reserved claim assets across registered stabilization cohorts.
 
-The requested claim assets go to the recipient or an eligible auto-deposit vault. GREEN spent against a Savings GREEN cohort becomes additional Savings GREEN principal; GREEN spent against other cohorts becomes a reserved GREEN claim for those shareholders. Unspent payment is refunded to the original caller as GREEN or, when requested and above the dust guard, Savings GREEN.
+The requested claim assets go to the recipient or an eligible auto-deposit
+vault. GREEN spent against a Savings GREEN cohort becomes additional Savings
+GREEN principal; GREEN spent against other cohorts becomes a reserved GREEN
+claim for those shareholders. Unspent payment is refunded to the original
+caller as Savings GREEN only when requested and strictly above `10**9` GREEN
+base units; otherwise it remains GREEN.
 
 The return value is GREEN spent. A batch with no successful redemption reverts.
 
@@ -206,68 +211,68 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `claimManyFromStabilityPool(address _claimer, tuple[] _claims, address _caller, bool _shouldAutoDeposit, Addys _a)` | `4–5` | `_a` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a` |
-| `redeemManyFromStabilityPool(tuple[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen, Addys _a)` | `6–7` | `_a` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a` |
+| `claimManyFromStabilityPool(address _claimer, tuple[] _claims, address _caller, bool _shouldAutoDeposit, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `redeemManyFromStabilityPool(tuple[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen, Addys _a)` | `6–7` | `_a = empty(addys.Addys)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `activateClaimAssets(address _stabAsset, address[] _claimAssets)` | `nonpayable` | — |
-| `canAcceptLiquidationAsset(address _stabAsset, address _claimAsset)` | `view` | `bool` |
-| `claimManyFromStabilityPool(address _claimer, (address,address,uint256)[] _claims, address _caller, bool _shouldAutoDeposit)` | `nonpayable` | `uint256` |
-| `claimManyFromStabilityPool(address _claimer, (address,address,uint256)[] _claims, address _caller, bool _shouldAutoDeposit, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `claimableAssets(address arg0, uint256 arg1)` | `view` | `address` |
-| `claimableBalances(address arg0, address arg1)` | `view` | `uint256` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` |
-| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |
-| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` |
-| `doesVaultHaveAnyFunds()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getClaimAssetState(address _stabAsset, address _claimAsset)` | `view` | `uint256` |
-| `getNumActiveClaimAssets(address _stabAsset)` | `view` | `uint256` |
-| `getNumUserAssets(address _user)` | `view` | `uint256` |
-| `getNumVaultAssets()` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` |
-| `getTotalAmountForVault(address _asset)` | `view` | `uint256` |
-| `getTotalUserValue(address _user, address _asset)` | `view` | `uint256` |
-| `getTotalValue(address _asset)` | `view` | `uint256` |
-| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` |
-| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` |
-| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` |
-| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool,uint256,uint256,uint256)` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `indexOfClaimableAsset(address arg0, address arg1)` | `view` | `uint256` |
-| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` |
-| `isPaused()` | `view` | `bool` |
-| `isSupportedVaultAsset(address _asset)` | `view` | `bool` |
-| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` |
-| `numAssets()` | `view` | `uint256` |
-| `numClaimableAssets(address arg0)` | `view` | `uint256` |
-| `numUserAssets(address arg0)` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pruneClaimableAssets(address _stabAsset, address[] _claimAssets)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `redeemManyFromStabilityPool((address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` |
-| `redeemManyFromStabilityPool((address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `swapForLiquidatedCollateral(address _stabAsset, uint256 _stabAssetAmount, address _liqAsset, uint256 _liqAmountSent, address _recipient, address _greenToken, address _savingsGreenToken)` | `nonpayable` | `uint256` |
-| `swapWithClaimableGreen(address _stabAsset, uint256 _greenAmount, address _liqAsset, uint256 _liqAmountSent, address _greenToken)` | `nonpayable` | `uint256` |
-| `totalBalances(address arg0)` | `view` | `uint256` |
-| `totalClaimableBalances(address arg0)` | `view` | `uint256` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
-| `userAssets(address arg0, uint256 arg1)` | `view` | `address` |
-| `userBalances(address arg0, address arg1)` | `view` | `uint256` |
-| `vaultAssets(uint256 arg0)` | `view` | `address` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `activateClaimAssets(address _stabAsset, address[] _claimAssets)` | `nonpayable` | — | — |
+| `canAcceptLiquidationAsset(address _stabAsset, address _claimAsset)` | `view` | `bool` | — |
+| `claimManyFromStabilityPool(address _claimer, (address,address,uint256)[] _claims, address _caller, bool _shouldAutoDeposit)` | `nonpayable` | `uint256` | — |
+| `claimManyFromStabilityPool(address _claimer, (address,address,uint256)[] _claims, address _caller, bool _shouldAutoDeposit, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | — |
+| `claimableAssets(address arg0, uint256 arg1)` | `view` | `address` | — |
+| `claimableBalances(address arg0, address arg1)` | `view` | `uint256` | — |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` | — |
+| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` | — |
+| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` | — |
+| `doesVaultHaveAnyFunds()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getClaimAssetState(address _stabAsset, address _claimAsset)` | `view` | `uint256` | — |
+| `getNumActiveClaimAssets(address _stabAsset)` | `view` | `uint256` | — |
+| `getNumUserAssets(address _user)` | `view` | `uint256` | — |
+| `getNumVaultAssets()` | `view` | `uint256` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` | `uint256` |
+| `getTotalAmountForVault(address _asset)` | `view` | `uint256` | `uint256` |
+| `getTotalUserValue(address _user, address _asset)` | `view` | `uint256` | — |
+| `getTotalValue(address _asset)` | `view` | `uint256` | — |
+| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` | `(address, uint256)` |
+| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` | `(address, bool)` |
+| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` | `uint256` |
+| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool hasPosition, uint256 numAssets, uint256 userBalance, uint256 totalBalance)` | `Vault.VaultDataOnDeposit` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `indexOfClaimableAsset(address arg0, address arg1)` | `view` | `uint256` | — |
+| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isSupportedVaultAsset(address _asset)` | `view` | `bool` | — |
+| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numClaimableAssets(address arg0)` | `view` | `uint256` | — |
+| `numUserAssets(address arg0)` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pruneClaimableAssets(address _stabAsset, address[] _claimAssets)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `redeemManyFromStabilityPool((address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | — |
+| `redeemManyFromStabilityPool((address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldAutoDeposit, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | — |
+| `swapForLiquidatedCollateral(address _stabAsset, uint256 _stabAssetAmount, address _liqAsset, uint256 _liqAmountSent, address _recipient, address _greenToken, address _savingsGreenToken)` | `nonpayable` | `uint256` | — |
+| `swapWithClaimableGreen(address _stabAsset, uint256 _greenAmount, address _liqAsset, uint256 _liqAmountSent, address _greenToken)` | `nonpayable` | `uint256` | — |
+| `totalBalances(address arg0)` | `view` | `uint256` | — |
+| `totalClaimableBalances(address arg0)` | `view` | `uint256` | — |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `userAssets(address arg0, uint256 arg1)` | `view` | `address` | — |
+| `userBalances(address arg0, address arg1)` | `view` | `uint256` | — |
+| `vaultAssets(uint256 arg0)` | `view` | `address` | — |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
 
 ### Events
 
@@ -281,5 +286,13 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 | `StabilityPoolTransfer` | `address fromUser indexed, address toUser indexed, address asset indexed, uint256 transferAmount, bool isFromUserDepleted, uint256 transferShares` |
 | `StabilityPoolWithdrawal` | `address user indexed, address asset indexed, uint256 amount, bool isDepleted, uint256 shares` |
 | `VaultPauseModified` | `bool isPaused` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `not allowed`
+- `only Teller allowed`
+- `recovery disabled`
 
 <!-- END GENERATED API REFERENCE: StabilityPool -->

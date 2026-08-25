@@ -1,10 +1,10 @@
 # ConfigStructs interface
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/interfaces/ConfigStructs.vyi)
+
 `ConfigStructs.vyi` is the canonical shared type vocabulary for Defaults,
 MissionControl, Switchboards, and configuration consumers. It declares data
 shapes only and does not validate their values.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/interfaces/ConfigStructs.vyi)
 
 ## Configuration groups
 
@@ -50,13 +50,19 @@ every function that consumes it. Consumers should use the exact generated
 interface inventory rather than reconstructing tuples from examples.
 
 <!-- BEGIN GENERATED API REFERENCE: ConfigStructs -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `interfaces/ConfigStructs.vyi`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
 ### External functions declared by this source
 
-- None.
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| None | — | — | — |
+
+### Constants declared by this source
+
+- `MAX_VAULTS_PER_ASSET: uint256 = 10`
 
 ### Structs declared by this source
 

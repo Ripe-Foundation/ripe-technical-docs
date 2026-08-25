@@ -1,11 +1,11 @@
 # LocalGov
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/modules/LocalGov.vy)
+
 `LocalGov` is the governance module inherited by RipeHq, Departments, and
 Switchboard configuration contracts. It supports a local governor, optional
 fallback authority from the root RipeHq governor, and a block-based governance
 transfer process.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/modules/LocalGov.vy)
 
 ## Authority model
 
@@ -17,8 +17,10 @@ For a child contract, `getGovernors()` can return two addresses:
 Either is accepted by `canGovern`. The RipeHq contract itself has no parent and
 therefore exposes only its own governor.
 
-Child local governance may be relinquished to zero, leaving RipeHq governance
-as the remaining authority. Top-level RipeHq governance cannot be set to zero or
+The current child-local governor may call `relinquishGov()` to clear local
+governance immediately, leaving RipeHq governance as the remaining authority.
+The RipeHq fallback governor cannot invoke this shortcut on the local
+governor's behalf. Top-level RipeHq governance cannot be set to zero or
 relinquished.
 
 ## Governance transfer
@@ -32,6 +34,14 @@ confirms the zero-address change.
 Pending transfers may be cancelled by a current governor. The governance-change
 delay cannot be changed while a transfer is pending, and every new delay must be
 different from the current value and within the immutable bounds.
+
+`relinquishGov()` is separate from the timelocked zero-address transfer path: it
+increments the governance-change count immediately and does not clear
+`pendingGov`. If a nonzero successor was nominated before relinquishment, that
+contract may still self-confirm after the recorded confirmation block. RipeHq
+governance remains able to cancel the pending transfer, so an unwanted
+nomination should be cancelled before or after relinquishment rather than
+assuming the shortcut invalidated it.
 
 ## One-time RipeHq setup
 
@@ -68,30 +78,30 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getGovernors()` | `view` | `address[]` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `relinquishGov()` | `nonpayable` | — |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `canGovern(address _addr)` | `view` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | `bool` |
+| `getGovernors()` | `view` | `address[]` | `DynArray[address, 2]` |
+| `getRipeHqFromGov()` | `view` | `address` | `address` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingGovChange()` | `view` | `bool` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | `bool` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -107,5 +117,25 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 ### Structs declared by this source
 
 - `PendingGovernance(newGov: address, initiatedBlock: uint256, confirmBlock: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `_newGov must be a contract`
+- `already changed gov`
+- `invalid _newGov`
+- `invalid time lock`
+- `need ripe hq if no time locks`
+- `no pending change`
+- `no perms`
+- `only new gov can confirm`
+- `only ripe hq`
+- `ripe hq cannot relinquish gov`
+- `ripe hq cannot set 0x0`
+- `ripe hq cannot set same gov`
+- `ripe hq must have gov`
+- `ripe hq setup required`
+- `time lock not reached`
 
 <!-- END GENERATED API REFERENCE: LocalGov -->

@@ -1,6 +1,6 @@
 # Erc4626Token module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/tokens/modules/Erc4626Token.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/tokens/modules/Erc4626Token.vy)
 
 ## Overview
 
@@ -32,6 +32,13 @@ The maximum-operation views reflect safety state:
 “Underlying blocked” means the underlying token reports itself paused or reports this vault as blacklisted. These views assume the underlying implements that Ripe token control surface.
 
 Preview functions are conversion views; they do not substitute for the maximum views and may return a mathematical result while an operation is currently blocked.
+
+The maximum views are limited state screens, not execution guarantees.
+`maxDeposit` and `maxMint` cannot check the eventual caller's underlying
+balance, allowance, or blacklist state. `maxWithdraw` and `maxRedeem` cannot
+check a third-party caller's share allowance/blacklist state or the eventual
+underlying withdrawal recipient's blacklist state. A positive maximum can
+therefore accompany calldata that still reverts.
 
 ## Deposits and minting
 
@@ -77,7 +84,9 @@ Savings GREEN additionally requires zero initial share supply at construction.
 
 ## Integration requirements
 
-- Consult `max*` immediately before submitting an operation.
+- Consult `max*` immediately before submitting an operation, but separately
+  validate caller, allowance, and recipient conditions that those signatures
+  cannot express.
 - Do not interpret previews as authorization or availability.
 - Use owner-specific `maxWithdraw`; it is not total vault liquidity.
 - Account for direct donations and the distinction between current and stored
@@ -85,34 +94,96 @@ Savings GREEN additionally requires zero initial share supply at construction.
 - Verify the underlying exposes the expected pause/blacklist getters.
 
 <!-- BEGIN GENERATED API REFERENCE: Erc4626Token -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `contracts/tokens/modules/Erc4626Token.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
+### Deployment/module initializer declared by this source
+
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
+
+- `def __init__(_asset: address)`
+
 ### External functions declared by this source
 
-- `def asset() -> address`
-- `def convertToAssets(_shares: uint256) -> uint256`
-- `def convertToShares(_assets: uint256) -> uint256`
-- `def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256`
-- `def getLastUnderlying(_shares: uint256) -> uint256`
-- `def maxDeposit(_receiver: address) -> uint256`
-- `def maxMint(_receiver: address) -> uint256`
-- `def maxRedeem(_owner: address) -> uint256`
-- `def maxWithdraw(_owner: address) -> uint256`
-- `def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256`
-- `def previewDeposit(_assets: uint256) -> uint256`
-- `def previewMint(_shares: uint256) -> uint256`
-- `def previewRedeem(_shares: uint256) -> uint256`
-- `def previewWithdraw(_assets: uint256) -> uint256`
-- `def pricePerShare() -> uint256`
-- `def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256`
-- `def totalAssets() -> uint256`
-- `def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256`
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def asset() -> address` | `0` | `view` | `address` |
+| `def convertToAssets(_shares: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def convertToShares(_assets: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256` | `1–2` | `nonpayable` | `uint256` |
+| `def getLastUnderlying(_shares: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def maxDeposit(_receiver: address) -> uint256` | `1` | `view` | `uint256` |
+| `def maxMint(_receiver: address) -> uint256` | `1` | `view` | `uint256` |
+| `def maxRedeem(_owner: address) -> uint256` | `1` | `view` | `uint256` |
+| `def maxWithdraw(_owner: address) -> uint256` | `1` | `view` | `uint256` |
+| `def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256` | `1–2` | `nonpayable` | `uint256` |
+| `def previewDeposit(_assets: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def previewMint(_shares: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def previewRedeem(_shares: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def previewWithdraw(_assets: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def pricePerShare() -> uint256` | `0` | `view` | `uint256` |
+| `def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256` | `1–3` | `nonpayable` | `uint256` |
+| `def totalAssets() -> uint256` | `0` | `view` | `uint256` |
+| `def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256` | `1–3` | `nonpayable` | `uint256` |
+
+### Source-declared selector arities
+
+Each row is one callable selector prefix created by the source declaration's trailing defaults.
+
+| Selector declaration | Mutability | Returns |
+| --- | --- | --- |
+| `asset()` | `view` | `address` |
+| `convertToAssets(uint256 _shares)` | `view` | `uint256` |
+| `convertToShares(uint256 _assets)` | `view` | `uint256` |
+| `deposit(uint256 _assets)` | `nonpayable` | `uint256` |
+| `deposit(uint256 _assets, address _receiver)` | `nonpayable` | `uint256` |
+| `getLastUnderlying(uint256 _shares)` | `view` | `uint256` |
+| `maxDeposit(address _receiver)` | `view` | `uint256` |
+| `maxMint(address _receiver)` | `view` | `uint256` |
+| `maxRedeem(address _owner)` | `view` | `uint256` |
+| `maxWithdraw(address _owner)` | `view` | `uint256` |
+| `mint(uint256 _shares)` | `nonpayable` | `uint256` |
+| `mint(uint256 _shares, address _receiver)` | `nonpayable` | `uint256` |
+| `previewDeposit(uint256 _assets)` | `view` | `uint256` |
+| `previewMint(uint256 _shares)` | `view` | `uint256` |
+| `previewRedeem(uint256 _shares)` | `view` | `uint256` |
+| `previewWithdraw(uint256 _assets)` | `view` | `uint256` |
+| `pricePerShare()` | `view` | `uint256` |
+| `redeem(uint256 _shares)` | `nonpayable` | `uint256` |
+| `redeem(uint256 _shares, address _receiver)` | `nonpayable` | `uint256` |
+| `redeem(uint256 _shares, address _receiver, address _owner)` | `nonpayable` | `uint256` |
+| `totalAssets()` | `view` | `uint256` |
+| `withdraw(uint256 _assets)` | `nonpayable` | `uint256` |
+| `withdraw(uint256 _assets, address _receiver)` | `nonpayable` | `uint256` |
+| `withdraw(uint256 _assets, address _receiver, address _owner)` | `nonpayable` | `uint256` |
+
+### Compiler-generated public getters
+
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `lastPricePerShare()` | `view` | `uint256` |
 
 ### Events declared by this source
 
 - `Deposit(sender: indexed(address), owner: indexed(address), assets: uint256, shares: uint256)`
 - `Withdraw(sender: indexed(address), receiver: indexed(address), owner: indexed(address), assets: uint256, shares: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot deposit 0 amount`
+- `cannot receive 0 shares`
+- `cannot redeem 0 shares`
+- `cannot withdraw 0 amount`
+- `deposit failed`
+- `insufficient shares`
+- `invalid asset`
+- `invalid recipient`
+- `owner blacklisted`
+- `spender blacklisted`
+- `token paused`
+- `withdrawal failed`
 
 <!-- END GENERATED API REFERENCE: Erc4626Token -->

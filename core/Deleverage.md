@@ -1,6 +1,6 @@
 # Deleverage
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/Deleverage.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/Deleverage.vy)
 
 ## Purpose
 
@@ -28,6 +28,14 @@ their own trusted integration boundaries.
   valid LegoBook address, and a cross-user Underscore call additionally
   requires `canBorrow` delegation.
 - `getDeleverageInfo` and `getMaxDeleverageAmount` are screening/quote views, not execution guarantees.
+
+The general batch accepts at most 25 users. The specific-asset and volatile-
+asset routes each accept at most 25 asset rows. Rows can be skipped as current
+state is evaluated, but the aggregate outcomes are not uniformly fail-soft:
+the general batch reverts if no user repays anything. The specific and volatile
+routes can return zero at the account-level no-debt or quarantine screen; once
+they proceed into asset processing, they revert if no listed asset is
+processed.
 
 The collateral/debt execution routes above are nonreentrant; configuration
 setters are separately Switchboard-gated. Their trust models differ.
@@ -92,13 +100,16 @@ cooldown, minimum-size, price, and settlement checks. A successful repayment rec
 `block.number` in `lastDeleverageBlock`; it does not call Teller housekeeping or
 write Ledger `lastTouch`.
 
+For this route, `_vaultId == 0` asks MissionControl for the first configured
+vault for `_asset`; it does not address vault ID zero.
+
 ### Trusted collateral swap
 
 `swapCollateral` accepts a registered Ripe caller or the exact governance
 address returned by RipeHq. It does not accept arbitrary Switchboards, ordinary
 user delegation, or preflight debt, quarantine, or liquidation state. Both
-vault IDs must resolve, and the replacement asset's current LTV must be at
-least the withdrawn asset's LTV. AuctionHouse sends the user's withdrawn
+vault IDs must be explicitly nonzero and resolve, and the replacement asset's
+current LTV must be at least the withdrawn asset's LTV. AuctionHouse sends the user's withdrawn
 collateral to the trusted caller, both sides are converted with strict prices,
 and the caller must supply the USD-equivalent replacement asset for Teller to
 deposit for the user. Any failed replacement or housekeeping step reverts the
@@ -127,8 +138,11 @@ Collateral custody, realized output, and debt repayment are reconciled exactly. 
 Small residual debt is not automatically forgiven. The full-payoff path
 requires both the configured absolute debt-clear threshold and the configured
 basis-point threshold to authorize clearing. If either governing condition does
-not permit it, the remainder stays as debt. Setting both controls to zero
-disables dust forgiveness.
+not permit it, the remainder stays as debt. Setting either control to zero
+therefore disables forgiveness of a positive remainder. When forgiveness does
+apply, `debtToClear` is raised above the collateral value actually realized:
+`repayFromDept` removes that remainder from debt without burning GREEN for the
+written-off amount.
 
 ## Security properties
 
@@ -158,46 +172,46 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `deleverageManyUsers(tuple[] _users, address _caller, Addys _a)` | `2–3` | `_a` |
-| `deleverageWithSpecificAssets(address _user, tuple[] _assets, address _caller, Addys _a)` | `3–4` | `_a` |
-| `swapCollateral(address _user, uint256 _withdrawVaultId, address _withdrawAsset, uint256 _depositVaultId, address _depositAsset, uint256 _withdrawAmount)` | `5–6` | `_withdrawAmount` |
+| `deleverageManyUsers(tuple[] _users, address _caller, Addys _a)` | `2–3` | `_a = empty(addys.Addys)` |
+| `deleverageWithSpecificAssets(address _user, tuple[] _assets, address _caller, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `swapCollateral(address _user, uint256 _withdrawVaultId, address _withdrawAsset, uint256 _depositVaultId, address _depositAsset, uint256 _withdrawAmount)` | `5–6` | `_withdrawAmount = max_value(uint256)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `deleverageBuffer()` | `view` | `uint256` |
-| `deleverageCooldown()` | `view` | `uint256` |
-| `deleverageDustBps()` | `view` | `uint256` |
-| `deleverageDustThreshold()` | `view` | `uint256` |
-| `deleverageForWithdrawal(address _user, uint256 _vaultId, address _asset, uint256 _amount)` | `nonpayable` | `bool` |
-| `deleverageFullPayoffBuffer()` | `view` | `uint256` |
-| `deleverageManyUsers((address,uint256)[] _users, address _caller)` | `nonpayable` | `uint256` |
-| `deleverageManyUsers((address,uint256)[] _users, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `deleverageOverageBps()` | `view` | `uint256` |
-| `deleverageWithSpecificAssets(address _user, (uint256,address,uint256)[] _assets, address _caller)` | `nonpayable` | `uint256` |
-| `deleverageWithSpecificAssets(address _user, (uint256,address,uint256)[] _assets, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `deleverageWithVolAssets(address _user, (uint256,address,uint256)[] _assets)` | `nonpayable` | `uint256` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getDeleverageInfo(address _user)` | `view` | `(uint256, uint256)` |
-| `getMaxDeleverageAmount(address _user)` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `lastDeleverageBlock(address arg0)` | `view` | `uint256` |
-| `minDeleverageBps()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `setDeleverageBuffer(uint256 _bps)` | `nonpayable` | — |
-| `setDeleverageCooldown(uint256 _blocks)` | `nonpayable` | — |
-| `setDeleverageFullPayoffParam(uint256 _param, uint256 _amount)` | `nonpayable` | — |
-| `setMinDeleverageBps(uint256 _bps)` | `nonpayable` | — |
-| `setUnderscoreSafeSpreadBps(uint256 _bps)` | `nonpayable` | — |
-| `swapCollateral(address _user, uint256 _withdrawVaultId, address _withdrawAsset, uint256 _depositVaultId, address _depositAsset)` | `nonpayable` | `(uint256, uint256)` |
-| `swapCollateral(address _user, uint256 _withdrawVaultId, address _withdrawAsset, uint256 _depositVaultId, address _depositAsset, uint256 _withdrawAmount)` | `nonpayable` | `(uint256, uint256)` |
-| `underscoreSafeSpreadBps()` | `view` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `deleverageBuffer()` | `view` | `uint256` | — |
+| `deleverageCooldown()` | `view` | `uint256` | — |
+| `deleverageDustBps()` | `view` | `uint256` | — |
+| `deleverageDustThreshold()` | `view` | `uint256` | — |
+| `deleverageForWithdrawal(address _user, uint256 _vaultId, address _asset, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `deleverageFullPayoffBuffer()` | `view` | `uint256` | — |
+| `deleverageManyUsers((address,uint256)[] _users, address _caller)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageManyUsers((address,uint256)[] _users, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageOverageBps()` | `view` | `uint256` | — |
+| `deleverageWithSpecificAssets(address _user, (uint256,address,uint256)[] _assets, address _caller)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageWithSpecificAssets(address _user, (uint256,address,uint256)[] _assets, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageWithVolAssets(address _user, (uint256,address,uint256)[] _assets)` | `nonpayable` | `uint256` | `uint256` |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getDeleverageInfo(address _user)` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `getMaxDeleverageAmount(address _user)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `lastDeleverageBlock(address arg0)` | `view` | `uint256` | — |
+| `minDeleverageBps()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `setDeleverageBuffer(uint256 _bps)` | `nonpayable` | — | — |
+| `setDeleverageCooldown(uint256 _blocks)` | `nonpayable` | — | — |
+| `setDeleverageFullPayoffParam(uint256 _param, uint256 _amount)` | `nonpayable` | — | — |
+| `setMinDeleverageBps(uint256 _bps)` | `nonpayable` | — | — |
+| `setUnderscoreSafeSpreadBps(uint256 _bps)` | `nonpayable` | — | — |
+| `swapCollateral(address _user, uint256 _withdrawVaultId, address _withdrawAsset, uint256 _depositVaultId, address _depositAsset)` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `swapCollateral(address _user, uint256 _withdrawVaultId, address _withdrawAsset, uint256 _depositVaultId, address _depositAsset, uint256 _withdrawAmount)` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `underscoreSafeSpreadBps()` | `view` | `uint256` | — |
 
 ### Events
 
@@ -225,5 +239,37 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `VaultData(vaultId: uint256, vaultAddr: address, asset: address)`
 - `UserBorrowTerms(collateralVal: uint256, totalMaxDebt: uint256, debtTerms: cs.DebtTerms, lowestLtv: uint256, highestLtv: uint256, hasQuarantinedAsset: bool)`
 - `UserDebt(amount: uint256, principal: uint256, debtTerms: cs.DebtTerms, lastTimestamp: uint256, inLiquidation: bool)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `approve failed`
+- `contract paused`
+- `cooldown too large`
+- `debt changed`
+- `deposit asset LTV too low`
+- `exceeds hard ceiling`
+- `failed to burn green`
+- `governance only`
+- `invalid USD value`
+- `invalid assets`
+- `invalid bps`
+- `invalid deposit amount`
+- `invalid deposit vault`
+- `invalid param`
+- `invalid vault ids`
+- `invalid withdraw vault`
+- `no assets processed`
+- `no collateral withdrawn`
+- `no perms`
+- `no volatile assets processed`
+- `nobody deleveraged`
+- `not allowed`
+- `only switchboard allowed`
+- `only teller allowed`
+- `savings green redeem failed`
+- `transferFrom failed`
+- `zero safe underlying`
 
 <!-- END GENERATED API REFERENCE: Deleverage -->

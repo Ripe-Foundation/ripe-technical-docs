@@ -1,6 +1,6 @@
 # VaultData module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/modules/VaultData.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/modules/VaultData.vy)
 
 ## Overview
 
@@ -49,27 +49,85 @@ Specialized vaults may deliberately override or disable this inherited surface. 
 - Treat raw custody, recorded total, and user accounting as separate invariants.
 
 <!-- BEGIN GENERATED API REFERENCE: VaultData -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `contracts/vaults/modules/VaultData.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
+### Deployment/module initializer declared by this source
+
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
+
+- `def __init__(_shouldPause: bool)`
+
 ### External functions declared by this source
 
-- `def deregisterUserAsset(_user: address, _asset: address) -> bool`
-- `def deregisterVaultAsset(_asset: address) -> bool`
-- `def doesUserHaveBalance(_user: address, _asset: address) -> bool`
-- `def doesVaultHaveAnyFunds() -> bool`
-- `def getNumUserAssets(_user: address) -> uint256`
-- `def getNumVaultAssets() -> uint256`
-- `def isSupportedVaultAsset(_asset: address) -> bool`
-- `def isUserInVaultAsset(_user: address, _asset: address) -> bool`
-- `def pause(_shouldPause: bool)`
-- `def recoverFunds(_recipient: address, _asset: address)`
-- `def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS])`
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def deregisterUserAsset(_user: address, _asset: address) -> bool` | `2` | `nonpayable` | `bool` |
+| `def deregisterVaultAsset(_asset: address) -> bool` | `1` | `nonpayable` | `bool` |
+| `def doesUserHaveBalance(_user: address, _asset: address) -> bool` | `2` | `view` | `bool` |
+| `def doesVaultHaveAnyFunds() -> bool` | `0` | `view` | `bool` |
+| `def getNumUserAssets(_user: address) -> uint256` | `1` | `view` | `uint256` |
+| `def getNumVaultAssets() -> uint256` | `0` | `view` | `uint256` |
+| `def isSupportedVaultAsset(_asset: address) -> bool` | `1` | `view` | `bool` |
+| `def isUserInVaultAsset(_user: address, _asset: address) -> bool` | `2` | `view` | `bool` |
+| `def pause(_shouldPause: bool)` | `1` | `nonpayable` | — |
+| `def recoverFunds(_recipient: address, _asset: address)` | `2` | `nonpayable` | — |
+| `def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS])` | `2` | `nonpayable` | — |
+
+### Source-declared selector arities
+
+Each row is one callable selector prefix created by the source declaration's trailing defaults.
+
+| Selector declaration | Mutability | Returns |
+| --- | --- | --- |
+| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` |
+| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |
+| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` |
+| `doesVaultHaveAnyFunds()` | `view` | `bool` |
+| `getNumUserAssets(address _user)` | `view` | `uint256` |
+| `getNumVaultAssets()` | `view` | `uint256` |
+| `isSupportedVaultAsset(address _asset)` | `view` | `bool` |
+| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, DynArray[address, MAX_RECOVER_ASSETS] _assets)` | `nonpayable` | — |
+
+### Compiler-generated public getters
+
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `indexOfAsset(address key1)` | `view` | `uint256` |
+| `indexOfUserAsset(address key1, address key2)` | `view` | `uint256` |
+| `isPaused()` | `view` | `bool` |
+| `numAssets()` | `view` | `uint256` |
+| `numUserAssets(address key1)` | `view` | `uint256` |
+| `totalBalances(address key1)` | `view` | `uint256` |
+| `userAssets(address key1, uint256 key2)` | `view` | `address` |
+| `userBalances(address key1, address key2)` | `view` | `uint256` |
+| `vaultAssets(uint256 key1)` | `view` | `address` |
 
 ### Events declared by this source
 
 - `VaultPauseModified(isPaused: bool)`
 - `VaultFundsRecovered(asset: indexed(address), recipient: indexed(address), balance: uint256)`
+
+### Constants declared by this source
+
+- `MAX_RECOVER_ASSETS: uint256 = 20`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid recipient or asset`
+- `invalid recovery`
+- `no change`
+- `no perms`
+- `nothing to recover`
+- `nothing to withdraw`
+- `only Lootbox allowed`
+- `recovery failed`
+- `user does not have this asset`
 
 <!-- END GENERATED API REFERENCE: VaultData -->

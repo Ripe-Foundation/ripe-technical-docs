@@ -1,6 +1,6 @@
 # TellerUtils
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/TellerUtils.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/TellerUtils.vy)
 
 ## Purpose
 
@@ -66,44 +66,44 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `isUnderscoreAddr(address _addr, address _mc)` | `1–2` | `_mc` |
-| `isUnderscoreOwnerOrLego(address _user, address _caller, address _mc)` | `2–3` | `_mc` |
-| `isUnderscoreVault(address _user, address _mc)` | `1–2` | `_mc` |
-| `isUnderscoreWallet(address _user, address _mc)` | `1–2` | `_mc` |
-| `isUnderscoreWalletOrVault(address _addr, address _mc)` | `1–2` | `_mc` |
-| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `2–3` | `_mc` |
-| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, tuple _d, Addys _a)` | `9–10` | `_a` |
-| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, tuple _config, Addys _a)` | `7–8` | `_a` |
+| `isUnderscoreAddr(address _addr, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreOwnerOrLego(address _user, address _caller, address _mc)` | `2–3` | `_mc = empty(address)` |
+| `isUnderscoreVault(address _user, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreWallet(address _user, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreWalletOrVault(address _addr, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `2–3` | `_mc = empty(address)` |
+| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, tuple _d, Addys _a)` | `9–10` | `_a = empty(addys.Addys)` |
+| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, tuple _config, Addys _a)` | `7–8` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getRipeHq()` | `view` | `address` |
-| `getVaultAddrAndId(address _asset, address _vaultAddr, uint256 _vaultId, address _vaultBook, address _missionControl)` | `view` | `(address, uint256)` |
-| `isPaused()` | `view` | `bool` |
-| `isUnderscoreAddr(address _addr)` | `view` | `bool` |
-| `isUnderscoreAddr(address _addr, address _mc)` | `view` | `bool` |
-| `isUnderscoreOwnerOrLego(address _user, address _caller)` | `view` | `bool` |
-| `isUnderscoreOwnerOrLego(address _user, address _caller, address _mc)` | `view` | `bool` |
-| `isUnderscoreVault(address _user)` | `view` | `bool` |
-| `isUnderscoreVault(address _user, address _mc)` | `view` | `bool` |
-| `isUnderscoreWallet(address _user)` | `view` | `bool` |
-| `isUnderscoreWallet(address _user, address _mc)` | `view` | `bool` |
-| `isUnderscoreWalletOrVault(address _addr)` | `view` | `bool` |
-| `isUnderscoreWalletOrVault(address _addr, address _mc)` | `view` | `bool` |
-| `isUnderscoreWalletOwner(address _user, address _caller)` | `view` | `bool` |
-| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `view` | `bool` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, (bool,uint256) _d)` | `view` | `uint256` |
-| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, (bool,uint256) _d, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` |
-| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, (bool,bool,bool,bool,uint256) _config)` | `view` | `uint256` |
-| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, (bool,bool,bool,bool,uint256) _config, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getVaultAddrAndId(address _asset, address _vaultAddr, uint256 _vaultId, address _vaultBook, address _missionControl)` | `view` | `(address, uint256)` | `(address, uint256)` |
+| `isPaused()` | `view` | `bool` | — |
+| `isUnderscoreAddr(address _addr)` | `view` | `bool` | `bool` |
+| `isUnderscoreAddr(address _addr, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreOwnerOrLego(address _user, address _caller)` | `view` | `bool` | `bool` |
+| `isUnderscoreOwnerOrLego(address _user, address _caller, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreVault(address _user)` | `view` | `bool` | `bool` |
+| `isUnderscoreVault(address _user, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreWallet(address _user)` | `view` | `bool` | `bool` |
+| `isUnderscoreWallet(address _user, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOrVault(address _addr)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOrVault(address _addr, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOwner(address _user, address _caller)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `view` | `bool` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, (bool,uint256) _d)` | `view` | `uint256` | `uint256` |
+| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, (bool,uint256) _d, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` | `uint256` |
+| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, (bool,bool,bool,bool,uint256) _config)` | `view` | `uint256` | `uint256` |
+| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, (bool,bool,bool,bool,uint256) _config, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` | `uint256` |
 
 ### Events
 
@@ -117,5 +117,31 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `DepositLedgerData(isParticipatingInVault: bool, numUserVaults: uint256)`
 - `TellerDepositConfig(canDepositGeneral: bool, canDepositAsset: bool, doesVaultSupportAsset: bool, isUserAllowed: bool, perUserDepositLimit: uint256, globalDepositLimit: uint256, perUserMaxAssetsPerVault: uint256, perUserMaxVaults: uint256, canAnyoneDeposit: bool, minDepositBalance: uint256)`
 - `TellerWithdrawConfig(canWithdrawGeneral: bool, canWithdrawAsset: bool, isUserAllowed: bool, canWithdrawForUser: bool, minDepositBalance: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `asset deposits disabled`
+- `asset withdrawals disabled`
+- `cannot deposit 0`
+- `cannot deposit for user`
+- `cannot deposit, reached global limit`
+- `cannot deposit, reached user limit`
+- `cannot partially deposit held funds`
+- `cannot withdraw 0`
+- `cannot withdraw anything`
+- `invalid asset`
+- `invalid vault addr`
+- `invalid vault id`
+- `not allowed to withdraw for user`
+- `protocol deposits disabled`
+- `protocol withdrawals disabled`
+- `reached max assets per vault`
+- `reached max vaults`
+- `too small a balance`
+- `user not on whitelist`
+- `vault does not support asset`
+- `vault id and vault addr mismatch`
 
 <!-- END GENERATED API REFERENCE: TellerUtils -->

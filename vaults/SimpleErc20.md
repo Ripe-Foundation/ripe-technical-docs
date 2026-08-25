@@ -1,6 +1,6 @@
 # SimpleErc20 vault
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/SimpleErc20.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/SimpleErc20.vy)
 
 ## Overview
 
@@ -65,48 +65,48 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` |
-| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` |
-| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |
-| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` |
-| `doesVaultHaveAnyFunds()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getNumUserAssets(address _user)` | `view` | `uint256` |
-| `getNumVaultAssets()` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` |
-| `getTotalAmountForVault(address _asset)` | `view` | `uint256` |
-| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` |
-| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` |
-| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` |
-| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool,uint256,uint256,uint256)` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` |
-| `isPaused()` | `view` | `bool` |
-| `isSupportedVaultAsset(address _asset)` | `view` | `bool` |
-| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` |
-| `numAssets()` | `view` | `uint256` |
-| `numUserAssets(address arg0)` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `totalBalances(address arg0)` | `view` | `uint256` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` |
-| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
-| `userAssets(address arg0, uint256 arg1)` | `view` | `address` |
-| `userBalances(address arg0, address arg1)` | `view` | `uint256` |
-| `vaultAssets(uint256 arg0)` | `view` | `address` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` |
-| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` | — |
+| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` | — |
+| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` | — |
+| `doesVaultHaveAnyFunds()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getNumUserAssets(address _user)` | `view` | `uint256` | — |
+| `getNumVaultAssets()` | `view` | `uint256` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` | `uint256` |
+| `getTotalAmountForVault(address _asset)` | `view` | `uint256` | `uint256` |
+| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` | `(address, uint256)` |
+| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` | `(address, bool)` |
+| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` | `uint256` |
+| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool hasPosition, uint256 numAssets, uint256 userBalance, uint256 totalBalance)` | `Vault.VaultDataOnDeposit` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isSupportedVaultAsset(address _asset)` | `view` | `bool` | — |
+| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numUserAssets(address arg0)` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `totalBalances(address arg0)` | `view` | `uint256` | — |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `userAssets(address arg0, uint256 arg1)` | `view` | `address` | — |
+| `userBalances(address arg0, address arg1)` | `view` | `uint256` | — |
+| `vaultAssets(uint256 arg0)` | `view` | `address` | — |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
 
 ### Events
 
@@ -117,5 +117,12 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 | `SimpleErc20VaultWithdrawal` | `address user indexed, address asset indexed, uint256 amount, bool isDepleted` |
 | `VaultFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
 | `VaultPauseModified` | `bool isPaused` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `not allowed`
+- `only Teller allowed`
 
 <!-- END GENERATED API REFERENCE: SimpleErc20 -->

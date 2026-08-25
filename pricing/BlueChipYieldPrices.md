@@ -1,6 +1,6 @@
 # BlueChipYieldPrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/BlueChipYieldPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/BlueChipYieldPrices.vy)
 
 ## Overview
 
@@ -58,7 +58,7 @@ Configuration validation requires:
 - `maxUpsideDeviation <= 100%`; and
 - nonzero underlying/vault decimals no greater than 77.
 
-Feed add, configuration update, and disable operations are governance-controlled, paused-aware, and timelocked. Confirmation revalidates the pending configuration. Changing the ring size resets snapshot history for snapshot-based protocols. Aave V3 and Compound V3 do not use snapshots and clear the ring.
+Feed add, configuration update, and disable operations are governance-controlled, paused-aware, and timelocked. Proposal construction discovers and snapshots protocol membership, the underlying asset, and both decimal values. Confirmation revalidates the stored configuration and current underlying price, but it does not rerun factory or registry membership checks or reread `asset()` or decimals. Pending metadata is therefore snapshot-bound. Changing the ring size resets snapshot history for snapshot-based protocols. Aave V3 and Compound V3 do not use snapshots and clear the ring.
 
 ## Time-weighted snapshot price
 
@@ -83,7 +83,11 @@ A new snapshot reads:
 - ERC-20 `totalSupply`, scaled by vault-token decimals; and
 - current price per share from ERC-4626 `convertToAssets`, or Moonwell `exchangeRateStored`.
 
-An upward move is capped relative to the previous snapshot by `maxUpsideDeviation`. Downward moves are not throttled. Zero values and checked-arithmetic failures fail soft.
+When `maxUpsideDeviation` is nonzero, an upward move is capped relative to the
+previous snapshot and a downward move is not throttled.
+`maxUpsideDeviation == 0` disables upside throttling; it does not mean zero
+tolerated upside. Zero price-per-share values and checked-arithmetic failures
+fail soft.
 
 ## Final token price
 
@@ -136,101 +140,101 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `2–6` | `_minSnapshotDelay`, `_maxNumSnapshots`, `_maxUpsideDeviation`, `_staleTime` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `1–5` | `_minSnapshotDelay`, `_maxNumSnapshots`, `_maxUpsideDeviation`, `_staleTime` |
+| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `2–6` | `_minSnapshotDelay = 60 * 5`, `_maxNumSnapshots = 20`, `_maxUpsideDeviation = 10_00`, `_staleTime = 60 * 60 * 24` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `1–5` | `_minSnapshotDelay = 60 * 5`, `_maxNumSnapshots = 20`, `_maxUpsideDeviation = 10_00`, `_staleTime = 60 * 60 * 24` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `AAVE_V3_ADDR()` | `view` | `address` |
-| `COMPOUND_V3_ADDR()` | `view` | `address` |
-| `EULER_ADDRS(uint256 arg0)` | `view` | `address` |
-| `FLUID_ADDR()` | `view` | `address` |
-| `MOONWELL_ADDR()` | `view` | `address` |
-| `MORPHO_ADDRS(uint256 arg0)` | `view` | `address` |
-| `MORPHO_V2_ADDR()` | `view` | `address` |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `addNewPriceFeed(address _asset, uint256 _protocol)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation)` | `nonpayable` | `bool` |
-| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `nonpayable` | `bool` |
-| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
-| `assets(uint256 arg0)` | `view` | `address` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getGovernors()` | `view` | `address[]` |
-| `getLatestSnapshot(address _asset)` | `view` | `(uint256,uint256,uint256)` |
-| `getPrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
-| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
-| `getPricedAssets()` | `view` | `address[]` |
-| `getRipeHq()` | `view` | `address` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `getWeightedPrice(address _asset)` | `view` | `uint256` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
-| `hasPriceFeed(address _asset)` | `view` | `bool` |
-| `indexOfAsset(address arg0)` | `view` | `uint256` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidNewFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `view` | `bool` |
-| `isValidUpdateConfig(address _asset, uint256 _maxNumSnapshots, uint256 _staleTime)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numAssets()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingPriceConfigs(address arg0)` | `view` | `(uint256,(uint256,address,uint256,uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256),uint256))` |
-| `priceConfigs(address arg0)` | `view` | `(uint256,address,uint256,uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256),uint256)` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `snapShots(address arg0, uint256 arg1)` | `view` | `(uint256,uint256,uint256)` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
-| `updatePriceConfig(address _asset)` | `nonpayable` | `bool` |
-| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay)` | `nonpayable` | `bool` |
-| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots)` | `nonpayable` | `bool` |
-| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation)` | `nonpayable` | `bool` |
-| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `AAVE_V3_ADDR()` | `view` | `address` | — |
+| `COMPOUND_V3_ADDR()` | `view` | `address` | — |
+| `EULER_ADDRS(uint256 arg0)` | `view` | `address` | — |
+| `FLUID_ADDR()` | `view` | `address` | — |
+| `MOONWELL_ADDR()` | `view` | `address` | — |
+| `MORPHO_ADDRS(uint256 arg0)` | `view` | `address` | — |
+| `MORPHO_V2_ADDR()` | `view` | `address` | — |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `addNewPriceFeed(address _asset, uint256 _protocol)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation)` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getLatestSnapshot(address _asset)` | `view` | `(uint256 totalSupply, uint256 pricePerShare, uint256 lastUpdate)` | `PriceSnapshot` |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `getWeightedPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewFeed(address _asset, uint256 _protocol, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `isValidUpdateConfig(address _asset, uint256 _maxNumSnapshots, uint256 _staleTime)` | `view` | `bool` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingPriceConfigs(address arg0)` | `view` | `(uint256 actionId, (uint256 protocol, address underlyingAsset, uint256 underlyingDecimals, uint256 vaultTokenDecimals, uint256 minSnapshotDelay, uint256 maxNumSnapshots, uint256 maxUpsideDeviation, uint256 staleTime, (uint256 totalSupply, uint256 pricePerShare, uint256 lastUpdate) lastSnapshot, uint256 nextIndex) config)` | — |
+| `priceConfigs(address arg0)` | `view` | `(uint256 protocol, address underlyingAsset, uint256 underlyingDecimals, uint256 vaultTokenDecimals, uint256 minSnapshotDelay, uint256 maxNumSnapshots, uint256 maxUpsideDeviation, uint256 staleTime, (uint256 totalSupply, uint256 pricePerShare, uint256 lastUpdate) lastSnapshot, uint256 nextIndex)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `snapShots(address arg0, uint256 arg1)` | `view` | `(uint256 totalSupply, uint256 pricePerShare, uint256 lastUpdate)` | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `updatePriceConfig(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation)` | `nonpayable` | `bool` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `nonpayable` | `bool` | `bool` |
 
 ### Events
 
@@ -263,5 +267,20 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `PriceSnapshot(totalSupply: uint256, pricePerShare: uint256, lastUpdate: uint256)`
 - `PendingPriceConfig(actionId: uint256, config: PriceConfig)`
 - `TokenData(symbol: String[32], tokenAddress: address)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `invalid asset`
+- `invalid config`
+- `invalid feed`
+- `invalid snapshot`
+- `no pending config`
+- `no pending disable feed`
+- `no perms`
+- `time lock not reached`
 
 <!-- END GENERATED API REFERENCE: BlueChipYieldPrices -->

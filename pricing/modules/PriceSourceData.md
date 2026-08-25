@@ -1,6 +1,6 @@
 # PriceSourceData module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/modules/PriceSourceData.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/modules/PriceSourceData.vy)
 
 ## Overview
 
@@ -55,20 +55,64 @@ The function does not distinguish “tracked” from “untracked” tokens. It 
 - Do not infer concrete pause behavior from `PriceSourceData` alone.
 
 <!-- BEGIN GENERATED API REFERENCE: PriceSourceData -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `contracts/priceSources/modules/PriceSourceData.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
+### Deployment/module initializer declared by this source
+
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
+
+- `def __init__(_shouldPause: bool)`
+
 ### External functions declared by this source
 
-- `def getPricedAssets() -> DynArray[address, MAX_ASSETS]`
-- `def pause(_shouldPause: bool)`
-- `def recoverFunds(_recipient: address, _asset: address)`
-- `def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS])`
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def getPricedAssets() -> DynArray[address, MAX_ASSETS]` | `0` | `view` | `DynArray[address, MAX_ASSETS]` |
+| `def pause(_shouldPause: bool)` | `1` | `nonpayable` | — |
+| `def recoverFunds(_recipient: address, _asset: address)` | `2` | `nonpayable` | — |
+| `def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS])` | `2` | `nonpayable` | — |
+
+### Source-declared selector arities
+
+Each row is one callable selector prefix created by the source declaration's trailing defaults.
+
+| Selector declaration | Mutability | Returns |
+| --- | --- | --- |
+| `getPricedAssets()` | `view` | `DynArray[address, MAX_ASSETS]` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, DynArray[address, MAX_RECOVER_ASSETS] _assets)` | `nonpayable` | — |
+
+### Compiler-generated public getters
+
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `assets(uint256 key1)` | `view` | `address` |
+| `indexOfAsset(address key1)` | `view` | `uint256` |
+| `isPaused()` | `view` | `bool` |
+| `numAssets()` | `view` | `uint256` |
 
 ### Events declared by this source
 
 - `PriceSourcePauseModified(isPaused: bool)`
 - `PriceSourceFundsRecovered(asset: indexed(address), recipient: indexed(address), balance: uint256)`
+
+### Constants declared by this source
+
+- `MAX_ASSETS: uint256 = 50`
+- `MAX_RECOVER_ASSETS: uint256 = 20`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid recipient or asset`
+- `no change`
+- `no perms`
+- `nothing to recover`
+- `recovery failed`
+- `too many assets`
 
 <!-- END GENERATED API REFERENCE: PriceSourceData -->

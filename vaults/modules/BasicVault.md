@@ -1,6 +1,6 @@
 # BasicVault module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/modules/BasicVault.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/modules/BasicVault.vy)
 
 ## Overview
 
@@ -63,12 +63,38 @@ still returns zero usable/reward amount but does not quarantine account debt.
   current debt terms before classifying the account as quarantined.
 
 <!-- BEGIN GENERATED API REFERENCE: BasicVault -->
-## Exact API reference
+## Exact source-declared API reference
 
 > Generated from declarations in `contracts/vaults/modules/BasicVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
+### Deployment/module initializer declared by this source
+
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
+
+- `def __init__()`
+
 ### External functions declared by this source
 
-- None.
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| None | — | — | — |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `contract paused`
+- `insufficient vault backing`
+- `invalid deposit amount`
+- `invalid recipient delivery`
+- `invalid transfer amount`
+- `invalid transfer users`
+- `invalid user or asset`
+- `invalid user, asset, or recipient`
+- `invalid users or asset`
+- `invalid vault outflow`
+- `invalid withdrawal amount`
+- `no withdrawal amount`
+- `token transfer failed`
 
 <!-- END GENERATED API REFERENCE: BasicVault -->

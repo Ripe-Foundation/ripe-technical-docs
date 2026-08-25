@@ -1,11 +1,11 @@
 # SwitchboardDelta
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/config/SwitchboardDelta.vy)
+
 `SwitchboardDelta` governs deleveraging, Human Resources, RIPE bonds, reward
 budgets, bond boosters, Lootbox resets, and Underscore integration settings.
 It combines immediate direction-limited operations with timelocked policy
 changes.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/SwitchboardDelta.vy)
 
 ## Deleveraging
 
@@ -93,136 +93,136 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `setCanPurchaseRipeBond(bool _canBond, address _missionControl)` | `1–2` | `_missionControl` |
-| `setContributorTemplate(address _contribTemplate, address _missionControl)` | `1–2` | `_missionControl` |
-| `setMaxCompensation(uint256 _maxComp, address _missionControl)` | `1–2` | `_missionControl` |
-| `setMaxStartDelay(uint256 _maxStartDelay, address _missionControl)` | `1–2` | `_missionControl` |
-| `setMinCliffLength(uint256 _minCliffLength, address _missionControl)` | `1–2` | `_missionControl` |
-| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks, address _missionControl)` | `7–8` | `_missionControl` |
-| `setRipeBondEpochLength(uint256 _epochLength, address _missionControl)` | `1–2` | `_missionControl` |
-| `setShouldCheckLastTouch(bool _shouldCheck, address _missionControl)` | `1–2` | `_missionControl` |
-| `setStartEpochAtBlock(uint256 _block)` | `0–1` | `_block` |
-| `setUnderscoreRegistry(address _underscoreRegistry, address _missionControl)` | `1–2` | `_missionControl` |
-| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength, address _missionControl)` | `2–3` | `_missionControl` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `setCanPurchaseRipeBond(bool _canBond, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setContributorTemplate(address _contribTemplate, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setMaxCompensation(uint256 _maxComp, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setMaxStartDelay(uint256 _maxStartDelay, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setMinCliffLength(uint256 _minCliffLength, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks, address _missionControl)` | `7–8` | `_missionControl = empty(address)` |
+| `setRipeBondEpochLength(uint256 _epochLength, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setShouldCheckLastTouch(bool _shouldCheck, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setStartEpochAtBlock(uint256 _block)` | `0–1` | `_block = 0` |
+| `setUnderscoreRegistry(address _underscoreRegistry, address _missionControl)` | `1–2` | `_missionControl = empty(address)` |
+| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `actionType(uint256 arg0)` | `view` | `uint256` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelOwnershipChangeForContributor(address _contributor)` | `nonpayable` | `bool` |
-| `cancelPaycheckForContributor(address _contributor)` | `nonpayable` | `uint256` |
-| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` |
-| `cancelRipeTransferForContributor(address _contributor)` | `nonpayable` | `bool` |
-| `cashRipeCheckForContributor(address _contributor)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `deleverageManyUsers((address,uint256)[] _users)` | `nonpayable` | `uint256` |
-| `deleverageWithSpecificAssets((uint256,address,uint256)[] _assets, address _user)` | `nonpayable` | `uint256` |
-| `deleverageWithVolAssets(address _user, (uint256,address,uint256)[] _assets)` | `nonpayable` | `uint256` |
-| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `freezeContributor(address _contributor, bool _shouldFreeze)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getGovernors()` | `view` | `address[]` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingAssetReset(uint256 arg0, uint256 arg1)` | `view` | `(address,uint256)` |
-| `pendingBondBooster(uint256 arg0)` | `view` | `address` |
-| `pendingBoosterBoundaries(uint256 arg0)` | `view` | `(uint256,uint256)` |
-| `pendingBoosterConfigs(uint256 arg0, uint256 arg1)` | `view` | `(address,uint256,uint256,uint256)` |
-| `pendingCancelPaycheck(uint256 arg0)` | `view` | `address` |
-| `pendingDeleverageBuffer(uint256 arg0)` | `view` | `uint256` |
-| `pendingDeleverageCooldown(uint256 arg0)` | `view` | `uint256` |
-| `pendingDeleverageDustBps(uint256 arg0)` | `view` | `uint256` |
-| `pendingDeleverageDustThreshold(uint256 arg0)` | `view` | `uint256` |
-| `pendingDeleverageFullPayoffBuffer(uint256 arg0)` | `view` | `uint256` |
-| `pendingDeleverageOverageBps(uint256 arg0)` | `view` | `uint256` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingHrConfig(uint256 arg0)` | `view` | `(address,uint256,uint256,uint256,uint256,uint256)` |
-| `pendingManager(uint256 arg0)` | `view` | `(address,address)` |
-| `pendingMinDeleverageBps(uint256 arg0)` | `view` | `uint256` |
-| `pendingMissionControl(uint256 arg0)` | `view` | `address` |
-| `pendingRipeAvailable(uint256 arg0)` | `view` | `uint256` |
-| `pendingRipeBondConfig(uint256 arg0)` | `view` | `(address,uint256,bool,uint256,uint256,uint256,uint256,bool,uint256)` |
-| `pendingRipeBondConfigValue(uint256 arg0)` | `view` | `uint256` |
-| `pendingShouldCheckLastTouch(uint256 arg0)` | `view` | `bool` |
-| `pendingUnderscoreRegistry(uint256 arg0)` | `view` | `address` |
-| `pendingUnderscoreSafeSpreadBps(uint256 arg0)` | `view` | `uint256` |
-| `pendingUserBalanceReset(uint256 arg0, uint256 arg1)` | `view` | `(address,address,uint256)` |
-| `pendingUserBorrowReset(uint256 arg0, uint256 arg1)` | `view` | `address` |
-| `relinquishGov()` | `nonpayable` | — |
-| `removeBondBooster(address _user)` | `nonpayable` | `bool` |
-| `removeManyBondBoosters(address[] _users)` | `nonpayable` | `bool` |
-| `resetManyAssetPoints((address,uint256)[] _assets)` | `nonpayable` | `uint256` |
-| `resetManyUserBalancePoints((address,address,uint256)[] _users)` | `nonpayable` | `uint256` |
-| `resetManyUserBorrowPoints(address[] _users)` | `nonpayable` | `uint256` |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setBadDebt(uint256 _amount)` | `nonpayable` | `uint256` |
-| `setBondBooster((address,uint256,uint256,uint256) _config)` | `nonpayable` | `uint256` |
-| `setBoosterBoundaries(uint256 _maxBoostRatio, uint256 _maxUnits)` | `nonpayable` | `uint256` |
-| `setBoosterMinLockDuration(uint256 _minLockDuration)` | `nonpayable` | `bool` |
-| `setCanPurchaseRipeBond(bool _canBond)` | `nonpayable` | `bool` |
-| `setCanPurchaseRipeBond(bool _canBond, address _missionControl)` | `nonpayable` | `bool` |
-| `setContributorTemplate(address _contribTemplate)` | `nonpayable` | `uint256` |
-| `setContributorTemplate(address _contribTemplate, address _missionControl)` | `nonpayable` | `uint256` |
-| `setDeleverageBuffer(uint256 _bps)` | `nonpayable` | `uint256` |
-| `setDeleverageCooldown(uint256 _blocks)` | `nonpayable` | `uint256` |
-| `setDeleverageDustBps(uint256 _bps)` | `nonpayable` | `uint256` |
-| `setDeleverageDustThreshold(uint256 _usdAmount)` | `nonpayable` | `uint256` |
-| `setDeleverageFullPayoffBuffer(uint256 _usdAmount)` | `nonpayable` | `uint256` |
-| `setDeleverageOverageBps(uint256 _bps)` | `nonpayable` | `uint256` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setManagerForContributor(address _contributor, address _manager)` | `nonpayable` | `uint256` |
-| `setManyBondBoosters((address,uint256,uint256,uint256)[] _boosters)` | `nonpayable` | `uint256` |
-| `setMaxCompensation(uint256 _maxComp)` | `nonpayable` | `uint256` |
-| `setMaxCompensation(uint256 _maxComp, address _missionControl)` | `nonpayable` | `uint256` |
-| `setMaxStartDelay(uint256 _maxStartDelay)` | `nonpayable` | `uint256` |
-| `setMaxStartDelay(uint256 _maxStartDelay, address _missionControl)` | `nonpayable` | `uint256` |
-| `setMinCliffLength(uint256 _minCliffLength)` | `nonpayable` | `uint256` |
-| `setMinCliffLength(uint256 _minCliffLength, address _missionControl)` | `nonpayable` | `uint256` |
-| `setMinDeleverageBps(uint256 _bps)` | `nonpayable` | `uint256` |
-| `setRipeAvailableForBonds(uint256 _amount)` | `nonpayable` | `uint256` |
-| `setRipeAvailableForHr(uint256 _amount)` | `nonpayable` | `uint256` |
-| `setRipeAvailableForRewards(uint256 _amount)` | `nonpayable` | `uint256` |
-| `setRipeBondBooster(address _bondBooster)` | `nonpayable` | `uint256` |
-| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks)` | `nonpayable` | `uint256` |
-| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks, address _missionControl)` | `nonpayable` | `uint256` |
-| `setRipeBondEpochLength(uint256 _epochLength)` | `nonpayable` | `uint256` |
-| `setRipeBondEpochLength(uint256 _epochLength, address _missionControl)` | `nonpayable` | `uint256` |
-| `setShouldCheckLastTouch(bool _shouldCheck)` | `nonpayable` | `uint256` |
-| `setShouldCheckLastTouch(bool _shouldCheck, address _missionControl)` | `nonpayable` | `uint256` |
-| `setStartEpochAtBlock()` | `nonpayable` | — |
-| `setStartEpochAtBlock(uint256 _block)` | `nonpayable` | — |
-| `setUnderscoreRegistry(address _underscoreRegistry)` | `nonpayable` | `uint256` |
-| `setUnderscoreRegistry(address _underscoreRegistry, address _missionControl)` | `nonpayable` | `uint256` |
-| `setUnderscoreSafeSpreadBps(uint256 _bps)` | `nonpayable` | `uint256` |
-| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength)` | `nonpayable` | `uint256` |
-| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength, address _missionControl)` | `nonpayable` | `uint256` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `actionType(uint256 arg0)` | `view` | `uint256` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelOwnershipChangeForContributor(address _contributor)` | `nonpayable` | `bool` | `bool` |
+| `cancelPaycheckForContributor(address _contributor)` | `nonpayable` | `uint256` | `uint256` |
+| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `cancelRipeTransferForContributor(address _contributor)` | `nonpayable` | `bool` | `bool` |
+| `cashRipeCheckForContributor(address _contributor)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `deleverageManyUsers((address,uint256)[] _users)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageWithSpecificAssets((uint256,address,uint256)[] _assets, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageWithVolAssets(address _user, (uint256,address,uint256)[] _assets)` | `nonpayable` | `uint256` | `uint256` |
+| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `freezeContributor(address _contributor, bool _shouldFreeze)` | `nonpayable` | `bool` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingAssetReset(uint256 arg0, uint256 arg1)` | `view` | `(address asset, uint256 vaultId)` | — |
+| `pendingBondBooster(uint256 arg0)` | `view` | `address` | — |
+| `pendingBoosterBoundaries(uint256 arg0)` | `view` | `(uint256 maxBoostRatio, uint256 maxUnits)` | — |
+| `pendingBoosterConfigs(uint256 arg0, uint256 arg1)` | `view` | `(address user, uint256 boostRatio, uint256 maxUnitsAllowed, uint256 expireBlock)` | — |
+| `pendingCancelPaycheck(uint256 arg0)` | `view` | `address` | — |
+| `pendingDeleverageBuffer(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingDeleverageCooldown(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingDeleverageDustBps(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingDeleverageDustThreshold(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingDeleverageFullPayoffBuffer(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingDeleverageOverageBps(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingHrConfig(uint256 arg0)` | `view` | `(address contribTemplate, uint256 maxCompensation, uint256 minCliffLength, uint256 maxStartDelay, uint256 minVestingLength, uint256 maxVestingLength)` | — |
+| `pendingManager(uint256 arg0)` | `view` | `(address contributor, address pendingManager)` | — |
+| `pendingMinDeleverageBps(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingMissionControl(uint256 arg0)` | `view` | `address` | — |
+| `pendingRipeAvailable(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingRipeBondConfig(uint256 arg0)` | `view` | `(address asset, uint256 amountPerEpoch, bool canBond, uint256 minRipePerUnit, uint256 maxRipePerUnit, uint256 maxRipePerUnitLockBonus, uint256 epochLength, bool shouldAutoRestart, uint256 restartDelayBlocks)` | — |
+| `pendingRipeBondConfigValue(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingShouldCheckLastTouch(uint256 arg0)` | `view` | `bool` | — |
+| `pendingUnderscoreRegistry(uint256 arg0)` | `view` | `address` | — |
+| `pendingUnderscoreSafeSpreadBps(uint256 arg0)` | `view` | `uint256` | — |
+| `pendingUserBalanceReset(uint256 arg0, uint256 arg1)` | `view` | `(address user, address asset, uint256 vaultId)` | — |
+| `pendingUserBorrowReset(uint256 arg0, uint256 arg1)` | `view` | `address` | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `removeBondBooster(address _user)` | `nonpayable` | `bool` | `bool` |
+| `removeManyBondBoosters(address[] _users)` | `nonpayable` | `bool` | `bool` |
+| `resetManyAssetPoints((address,uint256)[] _assets)` | `nonpayable` | `uint256` | `uint256` |
+| `resetManyUserBalancePoints((address,address,uint256)[] _users)` | `nonpayable` | `uint256` | `uint256` |
+| `resetManyUserBorrowPoints(address[] _users)` | `nonpayable` | `uint256` | `uint256` |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setBadDebt(uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `setBondBooster((address,uint256,uint256,uint256) _config)` | `nonpayable` | `uint256` | `uint256` |
+| `setBoosterBoundaries(uint256 _maxBoostRatio, uint256 _maxUnits)` | `nonpayable` | `uint256` | `uint256` |
+| `setBoosterMinLockDuration(uint256 _minLockDuration)` | `nonpayable` | `bool` | `bool` |
+| `setCanPurchaseRipeBond(bool _canBond)` | `nonpayable` | `bool` | `bool` |
+| `setCanPurchaseRipeBond(bool _canBond, address _missionControl)` | `nonpayable` | `bool` | `bool` |
+| `setContributorTemplate(address _contribTemplate)` | `nonpayable` | `uint256` | `uint256` |
+| `setContributorTemplate(address _contribTemplate, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setDeleverageBuffer(uint256 _bps)` | `nonpayable` | `uint256` | `uint256` |
+| `setDeleverageCooldown(uint256 _blocks)` | `nonpayable` | `uint256` | `uint256` |
+| `setDeleverageDustBps(uint256 _bps)` | `nonpayable` | `uint256` | `uint256` |
+| `setDeleverageDustThreshold(uint256 _usdAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `setDeleverageFullPayoffBuffer(uint256 _usdAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `setDeleverageOverageBps(uint256 _bps)` | `nonpayable` | `uint256` | `uint256` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setManagerForContributor(address _contributor, address _manager)` | `nonpayable` | `uint256` | `uint256` |
+| `setManyBondBoosters((address,uint256,uint256,uint256)[] _boosters)` | `nonpayable` | `uint256` | `uint256` |
+| `setMaxCompensation(uint256 _maxComp)` | `nonpayable` | `uint256` | `uint256` |
+| `setMaxCompensation(uint256 _maxComp, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setMaxStartDelay(uint256 _maxStartDelay)` | `nonpayable` | `uint256` | `uint256` |
+| `setMaxStartDelay(uint256 _maxStartDelay, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setMinCliffLength(uint256 _minCliffLength)` | `nonpayable` | `uint256` | `uint256` |
+| `setMinCliffLength(uint256 _minCliffLength, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setMinDeleverageBps(uint256 _bps)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeAvailableForBonds(uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeAvailableForHr(uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeAvailableForRewards(uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeBondBooster(address _bondBooster)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeBondEpochLength(uint256 _epochLength)` | `nonpayable` | `uint256` | `uint256` |
+| `setRipeBondEpochLength(uint256 _epochLength, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setShouldCheckLastTouch(bool _shouldCheck)` | `nonpayable` | `uint256` | `uint256` |
+| `setShouldCheckLastTouch(bool _shouldCheck, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setStartEpochAtBlock()` | `nonpayable` | — | — |
+| `setStartEpochAtBlock(uint256 _block)` | `nonpayable` | — | — |
+| `setUnderscoreRegistry(address _underscoreRegistry)` | `nonpayable` | `uint256` | `uint256` |
+| `setUnderscoreRegistry(address _underscoreRegistry, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setUnderscoreSafeSpreadBps(uint256 _bps)` | `nonpayable` | `uint256` | `uint256` |
+| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength)` | `nonpayable` | `uint256` | `uint256` |
+| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -314,5 +314,38 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `UserBalanceReset(user: address, asset: address, vaultId: uint256)`
 - `AssetReset(asset: address, vaultId: uint256)`
 - `BoosterBoundaries(maxBoostRatio: uint256, maxUnits: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `cooldown too large`
+- `could not freeze`
+- `exceeds hard ceiling`
+- `infeasible hr config`
+- `invalid asset`
+- `invalid bond booster`
+- `invalid bps`
+- `invalid config`
+- `invalid contrib template`
+- `invalid epoch length`
+- `invalid manager`
+- `invalid max compensation`
+- `invalid max start delay`
+- `invalid max vesting length`
+- `invalid min cliff length`
+- `invalid min vesting length`
+- `invalid min/max ripe per unit`
+- `invalid underscore registry`
+- `invalid vesting length boundaries`
+- `max is 1000%`
+- `no assets`
+- `no boosters`
+- `no change`
+- `no perms`
+- `no users`
+- `not a contributor`
+- `use empty for current mission control`
 
 <!-- END GENERATED API REFERENCE: SwitchboardDelta -->

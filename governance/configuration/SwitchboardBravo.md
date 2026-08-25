@@ -1,10 +1,10 @@
 # SwitchboardBravo
 
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/config/SwitchboardBravo.vy)
+
 `SwitchboardBravo` governs collateral onboarding and the timelocked update of
 asset deposit, liquidation, debt, and whitelist configuration in
 MissionControl.
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/SwitchboardBravo.vy)
 
 ## Action model
 
@@ -53,8 +53,15 @@ liquidation-acceptance checks remain the StabilityPool settlement path's job.
 
 Debt terms must preserve the ordering
 `LTV <= redemption threshold <= liquidation threshold`, keep the liquidation
-threshold plus fee at or below 100%, and satisfy the remaining percentage and
-nonzero constraints.
+threshold plus its percentage-based liquidation bonus at or below 100%, and
+satisfy the remaining percentage and nonzero constraints. The exact combined
+bound is:
+
+```text
+liqThreshold + floor(liqThreshold * liqFee / 10_000) <= 10_000
+```
+
+It is not a raw `liqThreshold + liqFee` sum.
 
 `maxLtvDeviation` is directional:
 
@@ -68,6 +75,12 @@ nonzero constraints.
 These are risk-direction rails, not a symmetric absolute-difference band. A
 previously nonzero LTV cannot be set to zero. A zero deviation disables the step
 size checks, but not the structural debt-term invariants.
+
+The LTV helper has one additional path-dependent condition. When both the
+previous LTV and `maxLtvDeviation` are nonzero, the proposed LTV must also be
+strictly below 100%. If the previous LTV or the deviation is zero, that helper
+bypasses this strict comparison (while the general debt-term validation and its
+coupled liquidation constraints still run).
 
 The same directional checks run when the action is proposed and again against
 the then-current debt terms when it executes. Multiple queued actions therefore
@@ -94,84 +107,84 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, tuple _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, tuple _customAuctionParams, address _whitelist, bool _isNft, address _missionControl)` | `6–23` | `_minDepositBalance`, `_debtTerms`, `_shouldBurnAsPayment`, `_shouldTransferToEndaoment`, `_shouldSwapInStabPools`, `_shouldAuctionInstantly`, `_canDeposit`, `_canWithdraw`, `_canRedeemCollateral`, `_canRedeemInStabPool`, `_canBuyInAuction`, `_canClaimInStabPool`, `_specialStabPoolId`, `_customAuctionParams`, `_whitelist`, `_isNft`, `_missionControl` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
-| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry, address _missionControl)` | `7–8` | `_missionControl` |
-| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, address _missionControl)` | `7–8` | `_missionControl` |
-| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, tuple _customAuctionParams, address _missionControl)` | `5–8` | `_specialStabPoolId`, `_customAuctionParams`, `_missionControl` |
-| `setWhitelistForAsset(address _asset, address _whitelist, address _missionControl)` | `2–3` | `_missionControl` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, tuple _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, tuple _customAuctionParams, address _whitelist, bool _isNft, address _missionControl)` | `6–23` | `_minDepositBalance = 0`, `_debtTerms = empty(cs.DebtTerms)`, `_shouldBurnAsPayment = False`, `_shouldTransferToEndaoment = False`, `_shouldSwapInStabPools = True`, `_shouldAuctionInstantly = True`, `_canDeposit = True`, `_canWithdraw = True`, `_canRedeemCollateral = True`, `_canRedeemInStabPool = True`, `_canBuyInAuction = True`, `_canClaimInStabPool = True`, `_specialStabPoolId = 0`, `_customAuctionParams = empty(cs.AuctionParams)`, `_whitelist = empty(address)`, `_isNft = False`, `_missionControl = empty(address)` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry, address _missionControl)` | `7–8` | `_missionControl = empty(address)` |
+| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, address _missionControl)` | `7–8` | `_missionControl = empty(address)` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, tuple _customAuctionParams, address _missionControl)` | `5–8` | `_specialStabPoolId = 0`, `_customAuctionParams = empty(cs.AuctionParams)`, `_missionControl = empty(address)` |
+| `setWhitelistForAsset(address _asset, address _whitelist, address _missionControl)` | `2–3` | `_missionControl = empty(address)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `actionId()` | `view` | `uint256` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `actionType(uint256 arg0)` | `view` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist, bool _isNft)` | `nonpayable` | `uint256` |
-| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist, bool _isNft, address _missionControl)` | `nonpayable` | `uint256` |
-| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
-| `canGovern(address _addr)` | `view` | `bool` |
-| `cancelGovernanceChange()` | `nonpayable` | — |
-| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` |
-| `confirmGovernanceChange()` | `nonpayable` | — |
-| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` |
-| `expiration()` | `view` | `uint256` |
-| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
-| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getGovernors()` | `view` | `address[]` |
-| `getRipeHqFromGov()` | `view` | `address` |
-| `govChangeTimeLock()` | `view` | `uint256` |
-| `governance()` | `view` | `address` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingGovChange()` | `view` | `bool` |
-| `isExpired(uint256 _actionId)` | `view` | `bool` |
-| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
-| `maxActionTimeLock()` | `view` | `uint256` |
-| `maxGovChangeTimeLock()` | `view` | `uint256` |
-| `minActionTimeLock()` | `view` | `uint256` |
-| `minGovChangeTimeLock()` | `view` | `uint256` |
-| `numGovChanges()` | `view` | `uint256` |
-| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
-| `pendingAssetConfig(uint256 arg0)` | `view` | `(address,(uint256[],uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,uint256,(bool,uint256,uint256,uint256,uint256),address,bool))` |
-| `pendingGov()` | `view` | `(address,uint256,uint256)` |
-| `pendingMissionControl(uint256 arg0)` | `view` | `address` |
-| `relinquishGov()` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
-| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry)` | `nonpayable` | `uint256` |
-| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry, address _missionControl)` | `nonpayable` | `uint256` |
-| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance)` | `nonpayable` | `uint256` |
-| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, address _missionControl)` | `nonpayable` | `uint256` |
-| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly)` | `nonpayable` | `uint256` |
-| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId)` | `nonpayable` | `uint256` |
-| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams)` | `nonpayable` | `uint256` |
-| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _missionControl)` | `nonpayable` | `uint256` |
-| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
-| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setWhitelistForAsset(address _asset, address _whitelist)` | `nonpayable` | `uint256` |
-| `setWhitelistForAsset(address _asset, address _whitelist, address _missionControl)` | `nonpayable` | `uint256` |
-| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `actionType(uint256 arg0)` | `view` | `uint256` | — |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist, bool _isNft)` | `nonpayable` | `uint256` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist, bool _isNft, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingAssetConfig(uint256 arg0)` | `view` | `(address asset, (uint256[] vaultIds, uint256 stakersPointsAlloc, uint256 voterPointsAlloc, uint256 perUserDepositLimit, uint256 globalDepositLimit, uint256 minDepositBalance, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, bool shouldBurnAsPayment, bool shouldTransferToEndaoment, bool shouldSwapInStabPools, bool shouldAuctionInstantly, bool canDeposit, bool canWithdraw, bool canRedeemCollateral, bool canRedeemInStabPool, bool canBuyInAuction, bool canClaimInStabPool, uint256 specialStabPoolId, (bool hasParams, uint256 startDiscount, uint256 maxDiscount, uint256 delay, uint256 duration) customAuctionParams, address whitelist, bool isNft) config)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingMissionControl(uint256 arg0)` | `view` | `address` | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams)` | `nonpayable` | `uint256` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setWhitelistForAsset(address _asset, address _whitelist)` | `nonpayable` | `uint256` | `uint256` |
+| `setWhitelistForAsset(address _asset, address _whitelist, address _missionControl)` | `nonpayable` | `uint256` | `uint256` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -199,5 +212,26 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 ### Structs declared by this source
 
 - `AssetUpdate(asset: address, config: cs.AssetConfig)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `borrow rate is outside max deviation`
+- `cannot cancel action`
+- `invalid asset`
+- `invalid asset config`
+- `invalid asset deposit params`
+- `invalid asset liq config`
+- `invalid auction params`
+- `invalid debt terms`
+- `invalid whitelist`
+- `liq threshold is outside max deviation`
+- `ltv is outside max deviation`
+- `missing price desk`
+- `must be new asset`
+- `no perms`
+- `redemption threshold is outside max deviation`
+- `use empty for current mission control`
 
 <!-- END GENERATED API REFERENCE: SwitchboardBravo -->

@@ -1,6 +1,6 @@
 # Contributor
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/modules/Contributor.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/modules/Contributor.vy)
 
 ## Purpose
 
@@ -57,53 +57,53 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `confirmRipeTransfer(bool _shouldCashCheck)` | `0–1` | `_shouldCashCheck` |
-| `initiateRipeTransfer(bool _shouldCashCheck, uint256 _vaultId)` | `0–2` | `_shouldCashCheck`, `_vaultId` |
-| `removeDelegationFor(address _govAddr, address _recipient)` | `1–2` | `_recipient` |
+| `confirmRipeTransfer(bool _shouldCashCheck)` | `0–1` | `_shouldCashCheck = True` |
+| `initiateRipeTransfer(bool _shouldCashCheck, uint256 _vaultId)` | `0–2` | `_shouldCashCheck = True`, `_vaultId = 0` |
+| `removeDelegationFor(address _govAddr, address _recipient)` | `1–2` | `_recipient = empty(address)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `cancelOwnershipChange()` | `nonpayable` | — |
-| `cancelPaycheck()` | `nonpayable` | — |
-| `cancelRipeTransfer()` | `nonpayable` | — |
-| `cashRipeCheck()` | `nonpayable` | `uint256` |
-| `changeOwnership(address _newOwner)` | `nonpayable` | — |
-| `cliffTime()` | `view` | `uint256` |
-| `compensation()` | `view` | `uint256` |
-| `confirmOwnershipChange()` | `nonpayable` | — |
-| `confirmRipeTransfer()` | `nonpayable` | — |
-| `confirmRipeTransfer(bool _shouldCashCheck)` | `nonpayable` | — |
-| `delegateTo(address _govAddr, address _recipient, uint256 _ratio)` | `nonpayable` | — |
-| `depositLockDuration()` | `view` | `uint256` |
-| `endTime()` | `view` | `uint256` |
-| `getClaimable()` | `view` | `uint256` |
-| `getRemainingUnlockLength()` | `view` | `uint256` |
-| `getRemainingVestingLength()` | `view` | `uint256` |
-| `getTotalVested()` | `view` | `uint256` |
-| `getUnvestedComp()` | `view` | `uint256` |
-| `hasPendingOwnerChange()` | `view` | `bool` |
-| `hasPendingRipeTransfer()` | `view` | `bool` |
-| `initiateRipeTransfer()` | `nonpayable` | — |
-| `initiateRipeTransfer(bool _shouldCashCheck)` | `nonpayable` | — |
-| `initiateRipeTransfer(bool _shouldCashCheck, uint256 _vaultId)` | `nonpayable` | — |
-| `isFrozen()` | `view` | `bool` |
-| `keyActionDelay()` | `view` | `uint256` |
-| `manager()` | `view` | `address` |
-| `numOwnerChanges()` | `view` | `uint256` |
-| `owner()` | `view` | `address` |
-| `pendingOwner()` | `view` | `(address,uint256,uint256)` |
-| `pendingRipeTransfer()` | `view` | `(address,uint256,uint256)` |
-| `pendingRipeTransferVaultId()` | `view` | `uint256` |
-| `removeDelegationFor(address _govAddr)` | `nonpayable` | — |
-| `removeDelegationFor(address _govAddr, address _recipient)` | `nonpayable` | — |
-| `setIsFrozen(bool _shouldFreeze)` | `nonpayable` | `bool` |
-| `setKeyActionDelay(uint256 _numBlocks)` | `nonpayable` | — |
-| `setManager(address _newManager)` | `nonpayable` | — |
-| `startTime()` | `view` | `uint256` |
-| `totalClaimed()` | `view` | `uint256` |
-| `unlockTime()` | `view` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `cancelOwnershipChange()` | `nonpayable` | — | — |
+| `cancelPaycheck()` | `nonpayable` | — | — |
+| `cancelRipeTransfer()` | `nonpayable` | — | — |
+| `cashRipeCheck()` | `nonpayable` | `uint256` | `uint256` |
+| `changeOwnership(address _newOwner)` | `nonpayable` | — | — |
+| `cliffTime()` | `view` | `uint256` | — |
+| `compensation()` | `view` | `uint256` | — |
+| `confirmOwnershipChange()` | `nonpayable` | — | — |
+| `confirmRipeTransfer()` | `nonpayable` | — | — |
+| `confirmRipeTransfer(bool _shouldCashCheck)` | `nonpayable` | — | — |
+| `delegateTo(address _govAddr, address _recipient, uint256 _ratio)` | `nonpayable` | — | — |
+| `depositLockDuration()` | `view` | `uint256` | — |
+| `endTime()` | `view` | `uint256` | — |
+| `getClaimable()` | `view` | `uint256` | `uint256` |
+| `getRemainingUnlockLength()` | `view` | `uint256` | `uint256` |
+| `getRemainingVestingLength()` | `view` | `uint256` | `uint256` |
+| `getTotalVested()` | `view` | `uint256` | `uint256` |
+| `getUnvestedComp()` | `view` | `uint256` | `uint256` |
+| `hasPendingOwnerChange()` | `view` | `bool` | `bool` |
+| `hasPendingRipeTransfer()` | `view` | `bool` | `bool` |
+| `initiateRipeTransfer()` | `nonpayable` | — | — |
+| `initiateRipeTransfer(bool _shouldCashCheck)` | `nonpayable` | — | — |
+| `initiateRipeTransfer(bool _shouldCashCheck, uint256 _vaultId)` | `nonpayable` | — | — |
+| `isFrozen()` | `view` | `bool` | — |
+| `keyActionDelay()` | `view` | `uint256` | — |
+| `manager()` | `view` | `address` | — |
+| `numOwnerChanges()` | `view` | `uint256` | — |
+| `owner()` | `view` | `address` | — |
+| `pendingOwner()` | `view` | `(address newOwner, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingRipeTransfer()` | `view` | `(address recipient, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingRipeTransferVaultId()` | `view` | `uint256` | — |
+| `removeDelegationFor(address _govAddr)` | `nonpayable` | — | — |
+| `removeDelegationFor(address _govAddr, address _recipient)` | `nonpayable` | — | — |
+| `setIsFrozen(bool _shouldFreeze)` | `nonpayable` | `bool` | `bool` |
+| `setKeyActionDelay(uint256 _numBlocks)` | `nonpayable` | — | — |
+| `setManager(address _newManager)` | `nonpayable` | — | — |
+| `startTime()` | `view` | `uint256` | — |
+| `totalClaimed()` | `view` | `uint256` | — |
+| `unlockTime()` | `view` | `uint256` | — |
 
 ### Events
 
@@ -127,5 +127,38 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 - `PendingRipeTransfer(recipient: address, initiatedBlock: uint256, confirmBlock: uint256)`
 - `PendingOwnerChange(newOwner: address, initiatedBlock: uint256, confirmBlock: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot be 0x0`
+- `cannot cancel`
+- `cannot do with pending ownership change`
+- `cannot do with pending ripe transfer`
+- `cliff must be <= unlock`
+- `contract frozen`
+- `could not cash check`
+- `could not delegate`
+- `could not transfer`
+- `invalid compensation`
+- `invalid delay`
+- `invalid new owner`
+- `invalid owner / manager`
+- `invalid ripe hq`
+- `invalid vesting length`
+- `no balance`
+- `no pending change`
+- `no pending owner`
+- `no pending transfer`
+- `no perms`
+- `nothing to cancel`
+- `only new owner can confirm`
+- `owner change count overflow`
+- `owner confirmation overflow`
+- `time delay not reached`
+- `time not past unlock`
+- `unlock must be <= vesting`
+- `vesting length overflow`
 
 <!-- END GENERATED API REFERENCE: Contributor -->

@@ -1,12 +1,12 @@
 # AeroRipePrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/AeroRipePrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/AeroRipePrices.vy)
 
 ## Status and purpose
 
-`AeroRipePrices` is a **monitoring-only** reader for the canonical 18-decimal RIPE/WETH Aerodrome Classic pool. It is not a Ripe `PriceSource`, must not be registered as one, and does not provide a price that can be used for collateral, borrowing, liquidation, or accounting.
+`AeroRipePrices` is a **monitoring-only** reader for the canonical 18-decimal RIPE/WETH Aerodrome Classic pool. It implements the `PriceSource` compatibility interface but intentionally exposes no usable feed and must not be configured as an ordinary PriceDesk source. Its reserve-derived values cannot be used for collateral, borrowing, liquidation, or accounting.
 
-The contract retains the `PriceSource` interface only for compatibility. Every feed-facing method is deliberately inert. The useful surface consists of reserve and indicative-price views for dashboards and monitoring.
+Every feed-facing method is deliberately inert. The useful surface consists of reserve and indicative-price views for dashboards and monitoring.
 
 ## Constructor binding
 
@@ -33,7 +33,7 @@ Always returns `true`. Integrators should use this as an explicit capability sig
 
 ### `getRipePoolState()`
 
-Returns `(ripeReserve, wethReserve, lastUpdate)`. Invalid pool data returns `(0, 0, 0)` rather than reverting. Reserve values above `uint112` or an update value above `uint32` are rejected as conservative sanity bounds.
+Returns `(ripeReserve, wethReserve, lastUpdate)`. Returned reserve values above `uint112` or an update value above `uint32` fail soft to `(0, 0, 0)` as conservative sanity bounds. A reverting or ABI-incompatible pool dependency still propagates a revert.
 
 Aerodrome's reserve return types are wider than these bounds; the checks are monitor policy, not a claim about the pool's storage layout.
 
@@ -59,6 +59,10 @@ Reads the current PriceDesk address dynamically from RipeHq's canonical PriceDes
 
 Resolving PriceDesk dynamically prevents a registry rotation from leaving the monitor pointed at an obsolete address. Neither the lookup nor the result creates a RIPE price feed.
 
+A reverting or ABI-incompatible RipeHq or PriceDesk dependency can propagate a
+revert. The zero-result cases above describe values returned successfully by
+those dependencies, not universal dependency-failure isolation.
+
 ### `getAeroRipePrice(asset)`
 
 USD monitoring alias that returns zero unless `asset` is the configured RIPE
@@ -75,7 +79,7 @@ The following behavior is intentional:
 | `getPriceAndHasFeed(...)` | `(0, false)` |
 | `hasPriceFeed(...)`, `hasPendingPriceFeedUpdate(...)` | `false` |
 | `getPricedAssets()` | empty list |
-| snapshot/feed add, confirm, cancel, update, and disable methods | `false` |
+| `addPriceSnapshot`, `confirmNewPriceFeed`, `cancelNewPendingPriceFeed`, `confirmPriceFeedUpdate`, `cancelPriceFeedUpdate`, `disablePriceFeed`, `confirmDisablePriceFeed`, `cancelDisablePriceFeed` | `false` |
 | timelock getters | `0` or `false` |
 | timelock setters | `false` |
 | `isPaused()` | `false` |
@@ -86,6 +90,8 @@ There is no `PriceConfig`, snapshot history, weighted price, configuration valid
 ## Integration and safety guidance
 
 - Never submit this contract as a PriceDesk source.
+- AddressRegistry can technically register the contract, but it would remain an
+  inert `(0, false)` no-feed candidate.
 - Never use its reserve ratio as a protocol oracle or as proof of executable liquidity.
 - Treat zero as “unavailable,” not as a zero-dollar RIPE valuation.
 - Prefer the explicit monitoring views; the inert compatibility functions exist only to satisfy a shared interface.
@@ -105,50 +111,61 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `getPrice(address _asset, uint256 _staleTime, address _oracleRegistry)` | `1–3` | `_staleTime`, `_oracleRegistry` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _oracleRegistry)` | `1–3` | `_staleTime`, `_oracleRegistry` |
-| `setActionTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks` |
+| `getPrice(address _asset, uint256 _staleTime, address _oracleRegistry)` | `1–3` | `_staleTime = 0`, `_oracleRegistry = empty(address)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _oracleRegistry)` | `1–3` | `_staleTime = 0`, `_oracleRegistry = empty(address)` |
+| `setActionTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks = 0` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `RIPE_HQ()` | `view` | `address` |
-| `RIPE_IS_TOKEN0()` | `view` | `bool` |
-| `RIPE_TOKEN()` | `view` | `address` |
-| `RIPE_WETH_POOL()` | `view` | `address` |
-| `WETH_TOKEN()` | `view` | `address` |
-| `actionTimeLock()` | `view` | `uint256` |
-| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
-| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
-| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
-| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
-| `getAeroRipePrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
-| `getPrice(address _asset, uint256 _staleTime, address _oracleRegistry)` | `view` | `uint256` |
-| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
-| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _oracleRegistry)` | `view` | `(uint256, bool)` |
-| `getPricedAssets()` | `view` | `address[]` |
-| `getRipePoolState()` | `view` | `(uint256, uint256, uint256)` |
-| `getRipeUsdMonitoringPrice()` | `view` | `uint256` |
-| `getRipeWethMonitoringPrice()` | `view` | `uint256` |
-| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
-| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
-| `hasPriceFeed(address _asset)` | `view` | `bool` |
-| `isMonitoringOnly()` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `setActionTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
-| `setActionTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `RIPE_HQ()` | `view` | `address` | — |
+| `RIPE_IS_TOKEN0()` | `view` | `bool` | — |
+| `RIPE_TOKEN()` | `view` | `address` | — |
+| `RIPE_WETH_POOL()` | `view` | `address` | — |
+| `WETH_TOKEN()` | `view` | `address` | — |
+| `actionTimeLock()` | `view` | `uint256` | `uint256` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | `uint256` |
+| `getAeroRipePrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _oracleRegistry)` | `view` | `uint256` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _oracleRegistry)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` | `DynArray[address, 50]` |
+| `getRipePoolState()` | `view` | `(uint256, uint256, uint256)` | `(uint256, uint256, uint256)` |
+| `getRipeUsdMonitoringPrice()` | `view` | `uint256` | `uint256` |
+| `getRipeWethMonitoringPrice()` | `view` | `uint256` | `uint256` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | `bool` |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isMonitoringOnly()` | `view` | `bool` | `bool` |
+| `isPaused()` | `view` | `bool` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` | `bool` |
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `invalid monitoring config`
+- `invalid monitoring tokens`
+- `invalid ripe decimals`
+- `invalid weth decimals`
+- `monitoring only`
+- `not ripe weth pool`
 
 <!-- END GENERATED API REFERENCE: AeroRipePrices -->

@@ -1,6 +1,6 @@
 # BondRoom
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/BondRoom.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/BondRoom.vy)
 
 ## Purpose
 
@@ -74,32 +74,32 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `previewRipeBondPayout(address _recipient, uint256 _lockDuration, uint256 _paymentAmount)` | `1–3` | `_lockDuration`, `_paymentAmount` |
-| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller, Addys _a)` | `5–6` | `_a` |
+| `previewRipeBondPayout(address _recipient, uint256 _lockDuration, uint256 _paymentAmount)` | `1–3` | `_lockDuration = 0`, `_paymentAmount = max_value(uint256)` |
+| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller, Addys _a)` | `5–6` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `bondBooster()` | `view` | `address` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getLatestEpochBlockTimes(uint256 _prevStartBlock, uint256 _prevEndBlock, uint256 _epochLength)` | `view` | `(uint256, uint256, bool)` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `previewNextEpoch()` | `view` | `(uint256, uint256)` |
-| `previewRipeBondPayout(address _recipient)` | `view` | `uint256` |
-| `previewRipeBondPayout(address _recipient, uint256 _lockDuration)` | `view` | `uint256` |
-| `previewRipeBondPayout(address _recipient, uint256 _lockDuration, uint256 _paymentAmount)` | `view` | `uint256` |
-| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller)` | `nonpayable` | `uint256` |
-| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `refreshBondEpoch()` | `nonpayable` | `(uint256, uint256)` |
-| `setBondBooster(address _bondBooster)` | `nonpayable` | — |
-| `startBondEpochAtBlock(uint256 _block)` | `nonpayable` | — |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `bondBooster()` | `view` | `address` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getLatestEpochBlockTimes(uint256 _prevStartBlock, uint256 _prevEndBlock, uint256 _epochLength)` | `view` | `(uint256, uint256, bool)` | `(uint256, uint256, bool)` |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `previewNextEpoch()` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `previewRipeBondPayout(address _recipient)` | `view` | `uint256` | `uint256` |
+| `previewRipeBondPayout(address _recipient, uint256 _lockDuration)` | `view` | `uint256` | `uint256` |
+| `previewRipeBondPayout(address _recipient, uint256 _lockDuration, uint256 _paymentAmount)` | `view` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller)` | `nonpayable` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `refreshBondEpoch()` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `setBondBooster(address _bondBooster)` | `nonpayable` | — | — |
+| `startBondEpochAtBlock(uint256 _block)` | `nonpayable` | — | — |
 
 ### Events
 
@@ -114,5 +114,29 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 - `PurchaseRipeBondConfig(asset: address, amountPerEpoch: uint256, canBond: bool, minRipePerUnit: uint256, maxRipePerUnit: uint256, maxRipePerUnitLockBonus: uint256, epochLength: uint256, shouldAutoRestart: bool, restartDelayBlocks: uint256, minLockDuration: uint256, maxLockDuration: uint256, canAnyoneBondForUser: bool, isUserAllowed: bool)`
 - `RipeBondData(paymentAmountAvailInEpoch: uint256, ripeAvailForBonds: uint256, badDebt: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `asset mismatch`
+- `asset transfer failed`
+- `bonds disabled`
+- `cannot bond for user`
+- `contract paused`
+- `invalid amount per epoch`
+- `invalid epoch length`
+- `invalid user`
+- `invalid vault id`
+- `max ripe per unit is zero`
+- `must have base ripe payout`
+- `no more available in epoch`
+- `no perms`
+- `not enough ripe avail`
+- `not within epoch window`
+- `only Teller allowed`
+- `ripe approval failed`
+- `user has no asset balance (or zero specified)`
+- `user not on whitelist`
 
 <!-- END GENERATED API REFERENCE: BondRoom -->

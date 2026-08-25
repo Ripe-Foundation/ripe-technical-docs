@@ -1,6 +1,6 @@
 # CreditRedeem
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/CreditRedeem.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/CreditRedeem.vy)
 
 ## Purpose
 
@@ -32,12 +32,27 @@ vault IDs.
 
 For an eligible item, CreditRedeem targets collateral at the account's lowest relevant LTV, applies the configured buffer and cap, obtains a fail-soft price, and computes no more than the caller requested or the target can safely provide.
 
-Before mutating the vault, it verifies that the collateral transfer would produce nonzero GREEN debt credit. The collateral is then moved in-vault to the recipient, GREEN is burned, and CreditEngine updates the borrower's debt. If the post-transfer repayment would be zero, the transaction reverts atomically rather than consuming collateral without reducing debt.
+Before mutating the vault, it verifies that the collateral delivery would
+produce nonzero GREEN debt credit. Delivery has two modes:
+
+- With `_shouldTransferBalance == true`, the vault transfers the balance
+  internally, checkpoints the borrower, adds the recipient's vault membership
+  in Ledger, and checkpoints the recipient.
+- With `_shouldTransferBalance == false`, the vault withdraws tokens externally
+  to the recipient and checkpoints only the borrower. This is Teller's default.
+
+GREEN is then burned and CreditEngine updates the borrower's debt. If the
+post-delivery repayment would be zero, the transaction reverts atomically
+rather than consuming collateral without reducing debt.
 
 A batch is bounded to 20 redemption requests. Unused GREEN is returned to the
-actual caller, optionally as sGREEN according to the request. A preview or
+actual caller. An sGREEN preference wraps only amounts above `10**9` base
+units; smaller refunds remain raw GREEN. A preview or
 previously observed balance is not an execution guarantee because debt, prices,
 balances, and account health are re-read during execution.
+
+Individual rows may be skipped, but the whole batch reverts if every row is
+skipped and aggregate GREEN spent remains zero.
 
 ## Views
 
@@ -51,7 +66,8 @@ The view is a screening result, not a reservation. Execution repeats the checks 
 - Authorized but ineligible entries can fail soft; failed third-party authority
   and accounting inconsistencies revert the transaction.
 - GREEN is burned only against debt actually credited through CreditEngine.
-- In-vault collateral transfer preserves protocol custody and invokes the appropriate checkpoints.
+- The selected delivery mode determines whether collateral remains in protocol
+  custody and whether recipient membership and checkpoints are written.
 - Quarantine and liquidation state prevent redemption from competing with account recovery or liquidation ownership.
 
 <!-- BEGIN GENERATED API REFERENCE: CreditRedeem -->
@@ -69,23 +85,23 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `redeemCollateralFromMany(tuple[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, Addys _a)` | `6–7` | `_a` |
+| `redeemCollateralFromMany(tuple[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, Addys _a)` | `6–7` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getMaxRedeemValue(address _user)` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `isPaused()` | `view` | `bool` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` |
-| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getMaxRedeemValue(address _user)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _greenAmount, address _recipient, address _caller, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
 
 ### Events
 
@@ -102,5 +118,22 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `RepayDataBundle(userDebt: UserDebt, numUserVaults: uint256)`
 - `RedeemCollateralConfig(canRedeemCollateralGeneral: bool, canRedeemCollateralAsset: bool, isUserAllowed: bool, ltvPaybackBuffer: uint256, canAnyoneDeposit: bool)`
 - `CollateralRedemption(user: address, vaultId: uint256, asset: address, maxGreenAmount: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `contract paused`
+- `could not burn green`
+- `green approval failed`
+- `green transfer failed`
+- `invalid vault id`
+- `no green to redeem`
+- `no redemptions occurred`
+- `not allowed to deposit for user`
+- `only Teller allowed`
+- `sgreen approval failed`
+- `vault outflow exceeds request`
+- `zero repayment value (vault under-send)`
 
 <!-- END GENERATED API REFERENCE: CreditRedeem -->

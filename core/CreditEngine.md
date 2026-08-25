@@ -1,6 +1,6 @@
 # CreditEngine
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/CreditEngine.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/CreditEngine.vy)
 
 ## Purpose
 
@@ -18,13 +18,18 @@ Users do not call its state-changing borrowing and repayment methods directly. [
 - that the account is not already in liquidation; and
 - that no collateral condition has placed the account in quarantine.
 
-It accrues existing interest before applying the new principal and origination fee, updates reward points, and sends the borrowed GREEN according to the user's current configuration. GREEN may be delivered directly, converted to sGREEN, and optionally deposited into the dynamically configured preferred Stability Pool vault. Neither the core nor preferred vault is assumed to have a hardcoded ID.
+It accrues existing interest before applying the new principal and origination fee, updates reward points, and sends the borrowed GREEN according to the user's current configuration. GREEN may be delivered directly, converted to sGREEN, and optionally deposited into the dynamically configured preferred Stability Pool vault. An sGREEN preference falls back to raw GREEN when the handled amount is at or below `10**9` base units. Neither the core nor preferred vault is assumed to have a hardcoded ID.
 
 ## Repayment
 
 `repayForUser` is Teller-only. AuctionHouse uses `repayDuringAuctionPurchase`; AuctionHouse, CreditRedeem, and Deleverage can use the department settlement route exposed by `repayFromDept`.
 
-Repayment remains available for a quarantined account so the user can recover its debt health. Interest is checkpointed before principal accounting. Excess input is refunded to the actual payer, and a successful repayment can clear liquidation state when the account is healthy again.
+Repayment remains available for a quarantined account so the user can recover its debt health. Interest is checkpointed before principal accounting. Excess input is refunded to the actual payer, and an sGREEN-preferred refund at or below the `10**9`-base-unit dust guard is delivered as raw GREEN. A successful repayment can clear liquidation state when the account is healthy again.
+
+`NewBorrow.didReceiveSavingsGreen` and `RepayDebt.refundWasSavingsGreen` record
+the requested preference Boolean. They are not proof of the actual token form
+when the dust fallback applies (and the repayment field may be `true` even when
+the refund amount is zero).
 
 The price behavior depends on both the remaining debt and the settlement route:
 
@@ -63,15 +68,20 @@ buffer.
 ## Interest rate source
 
 The constructor binds an immutable Curve price-source ID.
-`getDynamicBorrowRate` reads that source when available. A missing, disabled, or
-unusable source falls back to the configured base rate; it does not make
-borrowing depend on an unhandled oracle failure.
+`getDynamicBorrowRate` returns the supplied base rate when that ID resolves to
+the zero address, or when Curve's current status reports a zero weighted ratio
+or a ratio below its danger trigger. Those are the explicit fallback cases.
+Typed failures from PriceDesk's registry, CurvePrices, or MissionControl
+propagate; a paused CurvePrices contract does not by itself select the base-rate
+fallback because `getCurrentGreenPoolStatus` does not consult its pause flag.
 
 ## Department integrations
 
 - `updateDebtForUser` permits registered Ripe departments to apply authorized debt changes.
-- The redemption wrapper is CreditRedeem-only and checkpoints the sender before transferring in-vault collateral to the recipient.
-- Sender and recipient reward/debt checkpoints are performed around balance-changing integrations.
+- The CreditRedeem-only wrapper either transfers collateral in-vault or
+  withdraws it externally. Both modes checkpoint the borrower after mutation;
+  only in-vault delivery adds the recipient's Ledger vault membership and
+  checkpoints the recipient.
 - Switchboard controls sensitive parameters such as the Underscore vault discount and buyback configuration.
 
 ## Security properties
@@ -98,74 +108,74 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 
 | Canonical full call | Accepted argument counts | Optional trailing arguments |
 | --- | --- | --- |
-| `borrowForUser(address _user, uint256 _greenAmount, bool _wantsSavingsGreen, bool _shouldEnterStabPool, address _caller, Addys _a)` | `5–6` | `_a` |
-| `canLiquidateUser(address _user, Addys _a)` | `1–2` | `_a` |
-| `canRedeemUserCollateral(address _user, Addys _a)` | `1–2` | `_a` |
-| `getLatestUserDebtAndTerms(address _user, bool _shouldRaise, Addys _a)` | `2–3` | `_a` |
-| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset, address _vaultAddr, Addys _a)` | `3–5` | `_vaultAddr`, `_a` |
-| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, Addys _a)` | `2–5` | `_skipVaultId`, `_skipAsset`, `_a` |
-| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, Addys _a)` | `3–6` | `_skipVaultId`, `_skipAsset`, `_a` |
-| `hasGoodDebtHealth(address _user, Addys _a)` | `1–2` | `_a` |
-| `repayDuringAuctionPurchase(address _liqUser, uint256 _repayValue, Addys _a)` | `2–3` | `_a` |
-| `repayForUser(address _user, uint256 _greenAmount, bool _shouldRefundSavingsGreen, address _caller, Addys _a)` | `4–5` | `_a` |
-| `repayFromDept(address _user, tuple _userDebt, uint256 _repayValue, uint256 _newInterest, uint256 _numUserVaults, Addys _a)` | `5–6` | `_a` |
-| `updateDebtForUser(address _user, Addys _a)` | `1–2` | `_a` |
+| `borrowForUser(address _user, uint256 _greenAmount, bool _wantsSavingsGreen, bool _shouldEnterStabPool, address _caller, Addys _a)` | `5–6` | `_a = empty(addys.Addys)` |
+| `canLiquidateUser(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `canRedeemUserCollateral(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `getLatestUserDebtAndTerms(address _user, bool _shouldRaise, Addys _a)` | `2–3` | `_a = empty(addys.Addys)` |
+| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset, address _vaultAddr, Addys _a)` | `3–5` | `_vaultAddr = empty(address)`, `_a = empty(addys.Addys)` |
+| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, Addys _a)` | `2–5` | `_skipVaultId = 0`, `_skipAsset = empty(address)`, `_a = empty(addys.Addys)` |
+| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, Addys _a)` | `3–6` | `_skipVaultId = 0`, `_skipAsset = empty(address)`, `_a = empty(addys.Addys)` |
+| `hasGoodDebtHealth(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
+| `repayDuringAuctionPurchase(address _liqUser, uint256 _repayValue, Addys _a)` | `2–3` | `_a = empty(addys.Addys)` |
+| `repayForUser(address _user, uint256 _greenAmount, bool _shouldRefundSavingsGreen, address _caller, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `repayFromDept(address _user, tuple _userDebt, uint256 _repayValue, uint256 _newInterest, uint256 _numUserVaults, Addys _a)` | `5–6` | `_a = empty(addys.Addys)` |
+| `updateDebtForUser(address _user, Addys _a)` | `1–2` | `_a = empty(addys.Addys)` |
 
 ### Functions
 
-| Signature | Mutability | Returns |
-| --- | --- | --- |
-| `borrowForUser(address _user, uint256 _greenAmount, bool _wantsSavingsGreen, bool _shouldEnterStabPool, address _caller)` | `nonpayable` | `uint256` |
-| `borrowForUser(address _user, uint256 _greenAmount, bool _wantsSavingsGreen, bool _shouldEnterStabPool, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `buybackRatio()` | `view` | `uint256` |
-| `canLiquidateUser(address _user)` | `view` | `bool` |
-| `canLiquidateUser(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `bool` |
-| `canMintGreen()` | `view` | `bool` |
-| `canMintRipe()` | `view` | `bool` |
-| `canRedeemUserCollateral(address _user)` | `view` | `bool` |
-| `canRedeemUserCollateral(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `bool` |
-| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
-| `getBorrowRate(address _user)` | `view` | `uint256` |
-| `getCollateralValue(address _user)` | `view` | `uint256` |
-| `getDynamicBorrowRate(uint256 _baseRate)` | `view` | `uint256` |
-| `getLatestUserDebtAndTerms(address _user, bool _shouldRaise)` | `view` | `((uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool), (uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool), uint256)` |
-| `getLatestUserDebtAndTerms(address _user, bool _shouldRaise, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `((uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool), (uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool), uint256)` |
-| `getLatestUserDebtWithInterest((uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool) _userDebt)` | `view` | `((uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool), uint256)` |
-| `getLiquidationThreshold(address _user)` | `view` | `uint256` |
-| `getMaxBorrowAmount(address _user)` | `view` | `uint256` |
-| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset)` | `view` | `uint256` |
-| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset, address _vaultAddr)` | `view` | `uint256` |
-| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset, address _vaultAddr, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` |
-| `getRedemptionThreshold(address _user)` | `view` | `uint256` |
-| `getRipeHq()` | `view` | `address` |
-| `getUserBorrowTerms(address _user, bool _shouldRaise)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `(uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,uint256,bool)` |
-| `getUserCollateralValueAndDebtAmount(address _user)` | `view` | `(uint256, uint256)` |
-| `getUserDebtAmount(address _user)` | `view` | `uint256` |
-| `hasGoodDebtHealth(address _user)` | `view` | `bool` |
-| `hasGoodDebtHealth(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `bool` |
-| `isPaused()` | `view` | `bool` |
-| `pause(bool _shouldPause)` | `nonpayable` | — |
-| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
-| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
-| `repayDuringAuctionPurchase(address _liqUser, uint256 _repayValue)` | `nonpayable` | `bool` |
-| `repayDuringAuctionPurchase(address _liqUser, uint256 _repayValue, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` |
-| `repayForUser(address _user, uint256 _greenAmount, bool _shouldRefundSavingsGreen, address _caller)` | `nonpayable` | `bool` |
-| `repayForUser(address _user, uint256 _greenAmount, bool _shouldRefundSavingsGreen, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` |
-| `repayFromDept(address _user, (uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool) _userDebt, uint256 _repayValue, uint256 _newInterest, uint256 _numUserVaults)` | `nonpayable` | `bool` |
-| `repayFromDept(address _user, (uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool) _userDebt, uint256 _repayValue, uint256 _newInterest, uint256 _numUserVaults, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` |
-| `setBuybackRatio(uint256 _ratio)` | `nonpayable` | — |
-| `setUnderscoreVaultDiscount(uint256 _discount)` | `nonpayable` | — |
-| `transferOrWithdrawViaRedemption(bool _shouldTransferBalance, address _asset, address _user, address _recipient, uint256 _amount, uint256 _vaultId, address _vaultAddr, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
-| `undyVaulDiscount()` | `view` | `uint256` |
-| `updateDebtForUser(address _user)` | `nonpayable` | `bool` |
-| `updateDebtForUser(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` |
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `borrowForUser(address _user, uint256 _greenAmount, bool _wantsSavingsGreen, bool _shouldEnterStabPool, address _caller)` | `nonpayable` | `uint256` | `uint256` |
+| `borrowForUser(address _user, uint256 _greenAmount, bool _wantsSavingsGreen, bool _shouldEnterStabPool, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `buybackRatio()` | `view` | `uint256` | — |
+| `canLiquidateUser(address _user)` | `view` | `bool` | `bool` |
+| `canLiquidateUser(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `bool` | `bool` |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `canRedeemUserCollateral(address _user)` | `view` | `bool` | `bool` |
+| `canRedeemUserCollateral(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `bool` | `bool` |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getBorrowRate(address _user)` | `view` | `uint256` | `uint256` |
+| `getCollateralValue(address _user)` | `view` | `uint256` | `uint256` |
+| `getDynamicBorrowRate(uint256 _baseRate)` | `view` | `uint256` | `uint256` |
+| `getLatestUserDebtAndTerms(address _user, bool _shouldRaise)` | `view` | `((uint256 amount, uint256 principal, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lastTimestamp, bool inLiquidation), (uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset), uint256)` | `(UserDebt, UserBorrowTerms, uint256)` |
+| `getLatestUserDebtAndTerms(address _user, bool _shouldRaise, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `((uint256 amount, uint256 principal, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lastTimestamp, bool inLiquidation), (uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset), uint256)` | `(UserDebt, UserBorrowTerms, uint256)` |
+| `getLatestUserDebtWithInterest((uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool) _userDebt)` | `view` | `((uint256 amount, uint256 principal, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lastTimestamp, bool inLiquidation), uint256)` | `(UserDebt, uint256)` |
+| `getLiquidationThreshold(address _user)` | `view` | `uint256` | `uint256` |
+| `getMaxBorrowAmount(address _user)` | `view` | `uint256` | `uint256` |
+| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset)` | `view` | `uint256` | `uint256` |
+| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset, address _vaultAddr)` | `view` | `uint256` | `uint256` |
+| `getMaxWithdrawableForAsset(address _user, uint256 _vaultId, address _asset, address _vaultAddr, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` | `uint256` |
+| `getRedemptionThreshold(address _user)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `getUserBorrowTerms(address _user, bool _shouldRaise)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTerms(address _user, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserBorrowTermsWithNumVaults(address _user, uint256 _numUserVaults, bool _shouldRaise, uint256 _skipVaultId, address _skipAsset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `(uint256 collateralVal, uint256 totalMaxDebt, (uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry) debtTerms, uint256 lowestLtv, uint256 highestLtv, bool hasQuarantinedAsset)` | `UserBorrowTerms` |
+| `getUserCollateralValueAndDebtAmount(address _user)` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `getUserDebtAmount(address _user)` | `view` | `uint256` | `uint256` |
+| `hasGoodDebtHealth(address _user)` | `view` | `bool` | `bool` |
+| `hasGoodDebtHealth(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `bool` | `bool` |
+| `isPaused()` | `view` | `bool` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `repayDuringAuctionPurchase(address _liqUser, uint256 _repayValue)` | `nonpayable` | `bool` | `bool` |
+| `repayDuringAuctionPurchase(address _liqUser, uint256 _repayValue, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` | `bool` |
+| `repayForUser(address _user, uint256 _greenAmount, bool _shouldRefundSavingsGreen, address _caller)` | `nonpayable` | `bool` | `bool` |
+| `repayForUser(address _user, uint256 _greenAmount, bool _shouldRefundSavingsGreen, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` | `bool` |
+| `repayFromDept(address _user, (uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool) _userDebt, uint256 _repayValue, uint256 _newInterest, uint256 _numUserVaults)` | `nonpayable` | `bool` | `bool` |
+| `repayFromDept(address _user, (uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),uint256,bool) _userDebt, uint256 _repayValue, uint256 _newInterest, uint256 _numUserVaults, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` | `bool` |
+| `setBuybackRatio(uint256 _ratio)` | `nonpayable` | — | — |
+| `setUnderscoreVaultDiscount(uint256 _discount)` | `nonpayable` | — | — |
+| `transferOrWithdrawViaRedemption(bool _shouldTransferBalance, address _asset, address _user, address _recipient, uint256 _amount, uint256 _vaultId, address _vaultAddr, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `undyVaulDiscount()` | `view` | `uint256` | — |
+| `updateDebtForUser(address _user)` | `nonpayable` | `bool` | `bool` |
+| `updateDebtForUser(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `bool` | `bool` |
 
 ### Events
 
@@ -189,5 +199,44 @@ Vyper exposes one ABI selector for each accepted prefix of a default-argument ca
 - `RepayConfig(canRepay: bool, canAnyoneRepayDebt: bool)`
 - `CurrentGreenPoolStatus(weightedRatio: uint256, dangerTrigger: uint256, numBlocksInDanger: uint256)`
 - `DynamicBorrowRateConfig(minDynamicRateBoost: uint256, maxDynamicRateBoost: uint256, increasePerDangerBlock: uint256, maxBorrowRate: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `bad debt health`
+- `borrow not enabled`
+- `cannot borrow`
+- `cannot borrow 0 amount`
+- `cannot borrow for 0x0`
+- `cannot borrow in liquidation`
+- `cannot repay with 0 green`
+- `contract paused`
+- `could not burn green`
+- `could not transfer`
+- `could not transfer to gov`
+- `debt too small`
+- `global debt limit reached`
+- `green approval failed`
+- `green transfer failed`
+- `interval borrow limit reached`
+- `invalid discount`
+- `invalid ratio`
+- `invalid vault id`
+- `max num borrowers reached`
+- `no debt available`
+- `no debt outstanding`
+- `no perms`
+- `not allowed`
+- `not allowed to borrow for user`
+- `not allowed to repay for user`
+- `only auction house allowed`
+- `only credit redeem allowed`
+- `only switchboard allowed`
+- `only teller allowed`
+- `per user debt limit reached`
+- `quarantined asset`
+- `repay paused`
+- `sgreen approval failed`
 
 <!-- END GENERATED API REFERENCE: CreditEngine -->
