@@ -1,1047 +1,153 @@
-# Lootbox Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/Lootbox.vy)
-
-## Overview
-
-Lootbox is the rewards distribution engine for Ripe Protocol, implementing a sophisticated points-based system that tracks user activity and distributes Ripe tokens proportionally. It incentivizes productive protocol usage
-through time-weighted participation scoring across multiple activities.
-
-**Core Mechanics**:
-- **Points Calculation**: Time-weighted scoring (balance × blocks) across borrowing, staking, voting, and general deposits for fair distribution
-- **Multi-Tier Rewards**: Distributes block-based Ripe emissions across four user categories with configurable allocation percentages
-- **Flexible Claiming**: Users can receive rewards directly or auto-stake in governance vault with configurable lock durations
-- **Gas Optimization**: Intelligent storage cleanup removes empty positions, reducing gas costs for all users
-
-The system implements block-level precision for point accumulation, USD value normalization for cross-asset fairness, fractional share calculations to prevent dust, batch processing for efficiency, and comprehensive event
-logging for transparency.
-
-## Architecture & Modules
-
-Lootbox is built using a modular architecture with the following components:
-
-### Addys Module
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Key Features**:
-  - Access to all protocol contract addresses
-  - Validation of caller permissions
-  - Centralized address management
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### DeptBasics Module
-- **Location**: `contracts/modules/DeptBasics.vy`
-- **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
-- **Key Features**:
-  - Pause mechanism for emergency stops
-  - Ripe token minting capability (for rewards)
-  - No Green minting capability
-- **Exported Interface**: Department basics via `deptBasics.__interface__`
-
-### Module Initialization
-```vyper
-initializes: addys
-initializes: deptBasics[addys := addys]
-```
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                         Lootbox Contract                               |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Points Accumulation System                    |  |
-|  |                                                                  |  |
-|  |  Time-Weighted Scoring:                                          |  |
-|  |  - User points = balance × elapsed_blocks                        |  |
-|  |  - Asset points = total_balance × elapsed_blocks                 |  |
-|  |  - Global points = total_usd_value × elapsed_blocks              |  |
-|  |                                                                  |  |
-|  |  Four Activity Types:                                            |  |
-|  |  1. Borrowing: principal × blocks                                |  |
-|  |  2. Staking: staked_amount × blocks                              |  |
-|  |  3. Voting: governance_deposits × blocks                         |  |
-|  |  4. General: other_deposits × blocks                             |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                  Reward Distribution Flow                        |  |
-|  |                                                                  |  |
-|  |  Block-Based Emissions:                                          |  |
-|  |  - ripePerBlock × elapsed_blocks = total_new_ripe                |  |
-|  |                                                                  |  |
-|  |  Allocation Percentages:                                         |  |
-|  |  - Borrowers: X%                                                 |  |
-|  |  - Stakers: Y%                                                   |  |
-|  |  - Voters: Z%                                                    |  |
-|  |  - Gen Depositors: W%                                            |  |
-|  |                                                                  |  |
-|  |  User Share Calculation:                                         |  |
-|  |  user_share = (user_points / total_points) × category_rewards    |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                   Auto-Staking & Distribution                    |  |
-|  |                                                                  |  |
-|  |  Claim Options:                                                  |  |
-|  |  1. Direct Transfer: Ripe → user wallet                         |  |
-|  |  2. Auto-Stake: Ripe → governance vault (locked)                |  |
-|  |                                                                  |  |
-|  |  Auto-Stake Ratio:                                               |  |
-|  |  - Configurable percentage (0-100%)                             |  |
-|  |  - Remainder sent directly to user                               |  |
-|  |  - Lock duration per config                                      |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| Ledger           |    | MissionControl    |    | Vault System     |
-| * Points storage |    | * Reward configs  |    | * User balances  |
-| * Reward data    |    | * Allocations     |    | * Share calc     |
-| * User tracking  |    | * Per-asset rules |    | * Balance track  |
-+------------------+    +-------------------+    +------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| Ripe Token       |    | PriceDesk         |    | Teller           |
-| * Mint rewards   |    | * USD valuations  |    | * Auto-stake     |
-| * Governance     |    | * Value tracking  |    | * Proxy claims   |
-+------------------+    +-------------------+    +------------------+
-```
-
-## Data Structures
-
-### RipeRewards Struct
-Global reward allocation tracking:
-```vyper
-struct RipeRewards:
-    borrowers: uint256        # Rewards allocated to borrowers
-    stakers: uint256         # Rewards for staking deposits
-    voters: uint256          # Rewards for governance deposits  
-    genDepositors: uint256   # Rewards for general deposits
-    newRipeRewards: uint256  # New rewards this update
-    lastUpdate: uint256      # Last update block
-```
-
-### UserDepositPoints Struct
-Individual user deposit scoring:
-```vyper
-struct UserDepositPoints:
-    balancePoints: uint256   # Accumulated balance × time
-    lastBalance: uint256     # Last recorded balance
-    lastUpdate: uint256      # Last update block
-```
-
-### AssetDepositPoints Struct
-Per-asset deposit scoring:
-```vyper
-struct AssetDepositPoints:
-    balancePoints: uint256      # Total balance × time for asset
-    lastBalance: uint256        # Total balance last update
-    lastUsdValue: uint256       # USD value at last update
-    ripeStakerPoints: uint256   # Points for staker rewards
-    ripeVotePoints: uint256     # Points for voter rewards
-    ripeGenPoints: uint256      # Points for general rewards
-    lastUpdate: uint256         # Last update block
-    precision: uint256          # Decimal precision for calculations
-```
-
-### BorrowPoints Struct
-Borrowing activity scoring:
-```vyper
-struct BorrowPoints:
-    lastPrincipal: uint256   # Principal amount at last update
-    points: uint256          # Accumulated principal × time
-    lastUpdate: uint256      # Last update block
-```
-
-### RewardsConfig Struct
-Protocol-wide reward configuration:
-```vyper
-struct RewardsConfig:
-    arePointsEnabled: bool             # Global points toggle
-    ripePerBlock: uint256              # Ripe emissions per block
-    borrowersAlloc: uint256            # % for borrowers
-    stakersAlloc: uint256              # % for stakers
-    votersAlloc: uint256               # % for voters
-    genDepositorsAlloc: uint256        # % for general deposits
-    stakersPointsAllocTotal: uint256   # Total staker points allocation
-    voterPointsAllocTotal: uint256     # Total voter points allocation
-```
-
-### ClaimLootConfig Struct
-User claiming configuration:
-```vyper
-struct ClaimLootConfig:
-    canClaimLoot: bool          # Global claiming enabled
-    canClaimLootForUser: bool   # Allow proxy claiming
-    autoStakeRatio: uint256     # Auto-stake percentage
-    rewardsLockDuration: uint256  # Lock duration for staked rewards
-```
-
-## State Variables
-
-### Constants
-- `EIGHTEEN_DECIMALS: uint256 = 10 ** 18` - Standard precision
-- `HUNDRED_PERCENT: uint256 = 100_00` - 100.00% in basis points
-- `MAX_ASSETS_TO_CLEAN: uint256 = 20` - Cleanup batch limit
-- `MAX_VAULTS_TO_CLEAN: uint256 = 10` - Vault cleanup limit
-- `MAX_CLAIM_USERS: uint256 = 25` - Batch claim limit
-- `RIPE_GOV_VAULT_ID: uint256 = 2` - Governance vault ID for staking
-- `UNDERSCORE_LOOT_DISTRIBUTOR_ID: uint256 = 6` - Underscore loot distributor registry ID
-- `ONE_DAY: uint256 = 43_200` - One day in blocks (on Base)
-
-### Storage Variables
-
-- `hasUnderscoreRewards: bool` - Whether underscore rewards distribution is enabled
-- `underscoreSendInterval: uint256` - Minimum blocks between underscore reward distributions
-- `lastUnderscoreSend: uint256` - Block number of last underscore reward distribution
-- `undyDepositRewardsAmount: uint256` - RIPE amount for underscore deposit rewards per distribution
-- `undyYieldBonusAmount: uint256` - RIPE amount for underscore yield bonus per distribution
-
-### Inherited State Variables
-From [DeptBasics](../core-modules/DeptBasics.md):
-- `isPaused: bool` - Department pause state
-- `canMintRipe: bool` - Set to `True` for reward distribution
-
-## Constructor
-
-### `__init__`
-
-Initializes Lootbox with Ripe minting capability for rewards and optional Underscore reward configuration.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _underscoreSendInterval: uint256,
-    _undyDepositRewardsAmount: uint256,
-    _undyYieldBonusAmount: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract address |
-| `_underscoreSendInterval` | `uint256` | Blocks between underscore distributions (0 to disable, min ONE_DAY) |
-| `_undyDepositRewardsAmount` | `uint256` | RIPE per distribution for deposits |
-| `_undyYieldBonusAmount` | `uint256` | RIPE per distribution for yield bonus |
-
-#### Returns
-
-*Constructor does not return any values*
-
-#### Access
-
-Called only during deployment
-
-#### Example Usage
-```python
-# Deploy Lootbox with underscore rewards enabled
-lootbox = boa.load(
-    "contracts/core/Lootbox.vy",
-    ripe_hq.address,
-    43_200,    # 1 day interval
-    1000e18,   # 1000 RIPE deposit rewards
-    500e18     # 500 RIPE yield bonus
-)
-
-# Deploy without underscore rewards
-lootbox = boa.load(
-    "contracts/core/Lootbox.vy",
-    ripe_hq.address,
-    0,   # Disabled
-    0,
-    0
-)
-```
-
-**Example Output**: Contract deployed with rewards distribution capability
-
-## Reward Claiming Functions
-
-### `claimLootForUser`
-
-Claims all accumulated rewards for a single user.
-
-```vyper
-@external
-def claimLootForUser(
-    _user: address,
-    _caller: address,
-    _shouldStake: bool,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to claim rewards for |
-| `_caller` | `address` | Transaction initiator |
-| `_shouldStake` | `bool` | Whether to auto-stake rewards |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total Ripe tokens claimed |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Events Emitted
-
-- `BorrowLootClaimed` - Borrowing rewards claimed
-- `DepositLootClaimed` - Deposit rewards claimed (per vault/asset)
-
-#### Example Usage
-```python
-# User claims their rewards
-total_ripe = lootbox.claimLootForUser(
-    user.address,
-    user.address,
-    True,  # Auto-stake rewards
-    sender=teller.address
-)
-```
-
-**Example Output**: Calculates and distributes accumulated rewards across all user positions
-
-### `claimLootForManyUsers`
-
-Claims rewards for multiple users in batch.
-
-```vyper
-@external
-def claimLootForManyUsers(
-    _users: DynArray[address, MAX_CLAIM_USERS],
-    _caller: address,
-    _shouldStake: bool,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_users` | `DynArray[address, 25]` | Users to claim for |
-| `_caller` | `address` | Transaction initiator |
-| `_shouldStake` | `bool` | Auto-stake all rewards |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total Ripe tokens claimed for all users |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Example Usage
-```python
-# Batch claim for multiple users
-users = [user1.address, user2.address, user3.address]
-total_claimed = lootbox.claimLootForManyUsers(
-    users,
-    reward_claimer.address,
-    False,  # Don't auto-stake
-    sender=rewards_bot.address
-)
-```
-
-### `getClaimableLoot`
-
-Previews total claimable rewards for a user.
-
-```vyper
-@view
-@external
-def getClaimableLoot(_user: address) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to check |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total claimable Ripe tokens |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check claimable rewards
-claimable = lootbox.getClaimableLoot(user.address)
-# Returns: Total Ripe tokens available to claim
-```
-
-## Granular Claiming Functions
-
-### `claimDepositLootForAsset`
-
-Claims rewards for a single deposit position rather than all positions.
-
-```vyper
-@external
-def claimDepositLootForAsset(
-    _user: address,
-    _vaultId: uint256,
-    _asset: address
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to claim rewards for |
-| `_vaultId` | `uint256` | Specific vault ID |
-| `_asset` | `address` | Specific asset to claim for |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Ripe tokens claimed for this position |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Events Emitted
-
-- `DepositLootClaimed` - Deposit rewards claimed for specific position
-
-#### Example Usage
-```python
-# Claim rewards for only USDC deposits in vault 1
-claimed = lootbox.claimDepositLootForAsset(
-    user.address,
-    1,  # Vault ID
-    usdc.address,
-    sender=teller.address
-)
-```
-
-**Example Output**: Claims and distributes rewards for a single deposit position
-
-### `claimBorrowLoot`
-
-Claims only borrowing-related rewards for a user.
-
-```vyper
-@external
-def claimBorrowLoot(_user: address) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to claim borrowing rewards for |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Ripe tokens claimed from borrowing |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Events Emitted
-
-- `BorrowLootClaimed` - Borrowing rewards claimed
-
-#### Example Usage
-```python
-# Claim only borrowing rewards
-borrow_rewards = lootbox.claimBorrowLoot(
-    user.address,
-    sender=teller.address
-)
-```
-
-**Example Output**: Claims rewards accumulated from borrowing activities only
-
-### `getClaimableDepositLootForAsset`
-
-Previews claimable rewards for a specific deposit position.
-
-```vyper
-@view
-@external
-def getClaimableDepositLootForAsset(
-    _user: address,
-    _vaultId: uint256,
-    _asset: address
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to check |
-| `_vaultId` | `uint256` | Vault ID |
-| `_asset` | `address` | Asset to check |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Claimable Ripe tokens for this position |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check rewards for specific position
-position_rewards = lootbox.getClaimableDepositLootForAsset(
-    user.address,
-    1,  # Vault ID
-    usdc.address
-)
-```
-
-### `getClaimableBorrowLoot`
-
-Previews claimable borrowing rewards.
-
-```vyper
-@view
-@external
-def getClaimableBorrowLoot(_user: address) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to check |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Claimable Ripe tokens from borrowing |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check borrowing rewards
-borrow_rewards = lootbox.getClaimableBorrowLoot(user.address)
-```
-
-## Points Update Functions
-
-### `updateDepositPoints`
-
-Updates deposit-related points for a user position.
-
-```vyper
-@external
-def updateDepositPoints(
-    _user: address,
-    _vaultId: uint256,
-    _vaultAddr: address,
-    _asset: address,
-    _a: addys.Addys = empty(addys.Addys),
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User whose points to update |
-| `_vaultId` | `uint256` | Vault ID |
-| `_vaultAddr` | `address` | Vault contract address |
-| `_asset` | `address` | Asset being deposited |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Example Usage
-```python
-# Update points after deposit
-lootbox.updateDepositPoints(
-    user.address,
-    1,  # Vault ID
-    vault.address,
-    usdc.address,
-    sender=teller.address
-)
-```
-
-### `updateBorrowPoints`
-
-Updates borrowing-related points for a user.
-
-```vyper
-@external
-def updateBorrowPoints(_user: address, _a: addys.Addys = empty(addys.Addys)):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User whose points to update |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Example Usage
-```python
-# Update points after borrow
-lootbox.updateBorrowPoints(
-    user.address,
-    sender=credit_engine.address
-)
-```
-
-### `resetUserBorrowPoints`
-
-Resets a user's borrowing points (used for liquidations).
-
-```vyper
-@external
-def resetUserBorrowPoints(_user: address):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User whose points to reset |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Example Usage
-```python
-# Reset points on liquidation
-lootbox.resetUserBorrowPoints(
-    liquidated_user.address,
-    sender=liquidation_manager.address
-)
-```
-
-## Administrative Reset Functions
-
-### `resetUserBalancePoints`
-
-Resets a single user's deposit points for one specific asset. Used for maintenance or correcting state.
-
-```vyper
-@external
-def resetUserBalancePoints(
-    _user: address,
-    _asset: address,
-    _vaultId: uint256
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User whose points to reset |
-| `_asset` | `address` | Specific asset to reset |
-| `_vaultId` | `uint256` | Vault ID for the position |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Example Usage
-```python
-# Reset user's USDC points in vault 1
-lootbox.resetUserBalancePoints(
-    user.address,
-    usdc.address,
-    1,  # Vault ID
-    sender=admin_contract.address
-)
-```
-
-**Example Output**: Resets the user's accumulated points for the specified position to zero
-
-### `resetAssetPoints`
-
-Resets the entire points cache for a specific asset within a vault. Affects all users holding this asset.
-
-```vyper
-@external
-def resetAssetPoints(
-    _asset: address,
-    _vaultId: uint256
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to reset points for |
-| `_vaultId` | `uint256` | Vault ID containing the asset |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Example Usage
-```python
-# Reset all USDC points in vault 1
-lootbox.resetAssetPoints(
-    usdc.address,
-    1,  # Vault ID
-    sender=admin_contract.address
-)
-```
-
-**Example Output**: Resets accumulated points for all users holding this asset in the specified vault
-
-## View Functions
-
-### `getLatestDepositPoints`
-
-Gets current deposit points for a user position.
-
-```vyper
-@view
-@external
-def getLatestDepositPoints(
-    _user: address,
-    _vaultId: uint256,
-    _asset: address,
-    _a: addys.Addys = empty(addys.Addys),
-) -> (UserDepositPoints, AssetDepositPoints, GlobalDepositPoints):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to check |
-| `_vaultId` | `uint256` | Vault ID |
-| `_asset` | `address` | Asset in vault |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(UserDepositPoints, AssetDepositPoints, GlobalDepositPoints)` | Current points data |
-
-#### Access
-
-Public view function
-
-### `getLatestBorrowPoints`
-
-Gets current borrowing points for a user.
-
-```vyper
-@view
-@external
-def getLatestBorrowPoints(
-    _user: address, 
-    _a: addys.Addys = empty(addys.Addys)
-) -> (BorrowPoints, BorrowPoints):
-```
+# Lootbox
 
-#### Parameters
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/core/Lootbox.vy)
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to check |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
+## Purpose
 
-#### Returns
+`Lootbox` checkpoints borrow and deposit participation, allocates RIPE rewards, settles claims, optionally stakes RIPE into the current core RipeGov vault, and can distribute a separately configured RIPE amount to Underscore.
 
-| Type | Description |
-|------|-------------|
-| `(BorrowPoints, BorrowPoints)` | (userPoints, globalPoints) |
+The main reward buckets are borrowers, RipeGov stakers, voters, and general depositors. MissionControl supplies whether points/rewards are enabled, per-block emissions, category allocations, user claim permissions, auto-stake ratio, and reward lock duration.
 
-#### Access
+## Claims
 
-Public view function
+Teller and other registered Ripe addresses call `claimLootForUser` or `claimLootForManyUsers` (up to 25 users). A caller claiming for another user needs the current user permission or Underscore-owner relationship, except for the explicitly privileged Switchboard route. `claimDepositLootForAsset` and `claimBorrowLoot` are likewise department-gated settlement helpers, not permissionless user mint functions.
 
-## Global Rewards Update Functions
+A full claim settles borrow loot and enumerated deposit loot before minting. The final RIPE may be sent to the user, staked through Teller, or split according to current claim configuration. Staked rewards use MissionControl's dynamic `coreRipeGovVaultId`; historical RipeGov vaults can still contribute deposit points, but there is no hardcoded current ID.
 
-### `updateRipeRewards`
+## Atomic deposit-category settlement
 
-Manually triggers an update of the global Ripe reward buckets based on block-based emissions. This function calculates new rewards and distributes them across the four reward categories.
+A user's deposit `balancePoints` are one shared ticket backing the staker, voter, and general-depositor categories. Lootbox does not consume that ticket after paying only some categories.
 
-```vyper
-@external
-def updateRipeRewards():
-```
+For each asset, every attributable category must either:
 
-#### Parameters
+- produce a payout; or
+- be terminally resolvable because its bucket cannot refill, or because the user exited and only funded rounding dust remains.
 
-*This function takes no parameters*
+If a nonzero category rounds to zero, the entire ticket is deferred. Points
+remain discoverable for a future claim. Asset/vault cleanup occurs only after
+the user has no balance and the entitlement has been fully paid or terminally
+resolved, preventing deregistration from hiding recoverable rewards.
 
-#### Access
+The implementation uses full-precision multiplication/division and guarantees point progress on a committed settlement, while preserving the public `calcSpecificLoot` basis-point-compatible interface.
 
-Only callable by valid Ripe addresses
+## Valuing vault positions
+
+Deposit checkpoints obtain supported balances and USD value from current vault/PriceDesk state. Stability vault totals use their total-balance accounting. Share/converter topology is validated; a missing or malformed converter, vault token, or underlying asset fails closed and cannot fabricate reward-bearing value.
+
+## Reward budget and minting
+
+Global reward updates allocate only available RIPE budget. Claims reduce the appropriate buckets before minting. Underscore distribution reserves its share in Ledger before minting or calling the external distributor so a callback cannot consume the same capacity.
 
-#### Example Usage
-```python
-# Manually update global rewards
-lootbox.updateRipeRewards(sender=rewards_updater.address)
-```
-
-**Example Output**: Updates global reward pools based on `ripePerBlock` emissions and allocation percentages
-
-### `getLatestGlobalRipeRewards`
-
-Previews the state of global reward buckets after accounting for block-based emissions. This is a view function that shows what the rewards would be if updated now.
-
-```vyper
-@view
-@external
-def getLatestGlobalRipeRewards() -> RipeRewards:
-```
-
-#### Parameters
-
-*This function takes no parameters*
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `RipeRewards` | Current global rewards state including borrowers, stakers, voters, and general depositors allocations |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check current global rewards state
-rewards = lootbox.getLatestGlobalRipeRewards()
-# Returns RipeRewards struct with:
-# - borrowers: Total rewards for borrowers
-# - stakers: Total rewards for stakers
-# - voters: Total rewards for voters
-# - genDepositors: Total rewards for general depositors
-# - newRipeRewards: New rewards since last update
-# - lastUpdate: Block number of last update
-```
-
-## Key Mathematical Functions
-
-### Time-Weighted Points
-
-Points accumulate based on balance × time:
-
-```
-points = balance × elapsed_blocks
-```
-
-This ensures users who hold larger positions for longer periods receive proportionally higher rewards.
-
-### Reward Share Calculation
-
-User's share of category rewards:
-
-```
-user_share = (user_points / total_category_points) × category_allocation
-```
-
-Categories are independent, so a user can earn from multiple categories simultaneously.
-
-### Auto-Stake Distribution
-
-When auto-staking is enabled:
-
-```
-stake_amount = total_rewards × auto_stake_ratio / 100%
-direct_amount = total_rewards - stake_amount
-```
-
-### USD Value Normalization
-
-To prevent overflow in calculations:
-
-```
-normalized_usd_value = raw_usd_value / 10^18
-```
-
-This reduces precision but prevents arithmetic overflow in long-running calculations.
-
-## Storage Optimization
-
-The contract implements automatic cleanup:
-
-1. **Asset Cleanup**: Removes user-asset associations when balance reaches zero
-2. **Vault Cleanup**: Removes user-vault associations when no assets remain
-3. **Batch Processing**: Limits cleanup operations to prevent gas issues
-
-## Underscore Rewards Functions
-
-### `distributeUnderscoreRewards`
-
-Distributes RIPE rewards to the Underscore protocol's loot distributor for deposit rewards and yield bonuses.
-
-```vyper
-@external
-def distributeUnderscoreRewards() -> (uint256, uint256):
-```
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(uint256, uint256)` | (deposit rewards amount, yield bonus amount) |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `UnderscoreRewardsDistributed` - Distribution details including amounts and block number
-
-#### Example Usage
-```python
-# Distribute underscore rewards (must wait for interval)
-deposit_rewards, yield_bonus = lootbox.distributeUnderscoreRewards(
-    sender=switchboard.address
-)
-```
-
-**Constraints**:
-- `hasUnderscoreRewards` must be true
-- Must wait at least `underscoreSendInterval` blocks since last distribution
-- Requires available RIPE rewards in Ledger
-
-### `setHasUnderscoreRewards`
-
-Enables or disables underscore rewards distribution.
-
-```vyper
-@external
-def setHasUnderscoreRewards(_hasRewards: bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_hasRewards` | `bool` | Whether to enable underscore rewards |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `HasUnderscoreRewardsUpdated` - New enabled state
-
-### `setUnderscoreSendInterval`
-
-Sets the minimum blocks between underscore reward distributions.
-
-```vyper
-@external
-def setUnderscoreSendInterval(_numBlocks: uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_numBlocks` | `uint256` | Minimum blocks between distributions (min: ONE_DAY) |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `UnderscoreSendIntervalUpdated` - New interval value
-
-### `setUndyDepositRewardsAmount`
-
-Sets the RIPE amount for underscore deposit rewards per distribution.
-
-```vyper
-@external
-def setUndyDepositRewardsAmount(_amount: uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_amount` | `uint256` | RIPE amount per distribution |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `UndyDepositRewardsAmountUpdated` - New amount
-
-### `setUndyYieldBonusAmount`
-
-Sets the RIPE amount for underscore yield bonus per distribution.
-
-```vyper
-@external
-def setUndyYieldBonusAmount(_amount: uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_amount` | `uint256` | RIPE amount per distribution |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `UndyYieldBonusAmountUpdated` - New amount
+## Underscore distribution
+
+`distributeUnderscoreRewards` is Switchboard-only, requires the contract to be unpaused and Underscore rewards enabled, and enforces a configurable block interval no lower than the constructor's immutable minimum. The current Underscore Loot Distributor is resolved dynamically. Deposit and yield portions are reduced proportionally if the remaining RIPE reward budget cannot cover the requested total.
+
+## Security and lifecycle notes
+
+- Claim and point mutation routes require registered protocol authority and current claim permissions.
+- Reward capacity is reconciled in Ledger before mint/external distribution.
+- Dynamic vault and Underscore resolution avoids stale hardcoded IDs/addresses.
+- Pausing blocks claim/accounting entry points; operators must consider accrued checkpoint behavior before a later unpause.
+- `getClaimableLoot` and category views are calculations at call time, not
+  reserved payouts.
+
+Principal events include `DepositLootClaimed`, `BorrowLootClaimed`, `UnderscoreRewardsDistributed`, and the Underscore configuration events.
+
+<!-- BEGIN GENERATED API REFERENCE: Lootbox -->
+## Exact API reference
+
+> Generated from `contracts/core/Lootbox.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, uint256 _minUnderscoreSendInterval, uint256 _underscoreSendInterval, uint256 _undyDepositRewardsAmount, uint256 _undyYieldBonusAmount)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake, Addys _a)` | `3–4` | `_a` |
+| `claimLootForUser(address _user, address _caller, bool _shouldStake, Addys _a)` | `3–4` | `_a` |
+| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset, Addys _a)` | `3–4` | `_a` |
+| `updateBorrowPoints(address _user, Addys _a)` | `1–2` | `_a` |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset, Addys _a)` | `4–5` | `_a` |
+| `updateRipeRewards(Addys _a)` | `0–1` | `_a` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `calcSpecificLoot(uint256 _userShareOfAsset, uint256 _assetPoints, uint256 _globalPoints, uint256 _rewardsAvailable)` | `view` | `(uint256, uint256, uint256, uint256)` |
+| `canMintGreen()` | `view` | `bool` |
+| `canMintRipe()` | `view` | `bool` |
+| `claimBorrowLoot(address _user)` | `nonpayable` | `uint256` |
+| `claimDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `nonpayable` | `uint256` |
+| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake)` | `nonpayable` | `uint256` |
+| `claimLootForManyUsers(address[] _users, address _caller, bool _shouldStake, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| `claimLootForUser(address _user, address _caller, bool _shouldStake)` | `nonpayable` | `uint256` |
+| `claimLootForUser(address _user, address _caller, bool _shouldStake, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| `distributeUnderscoreRewards()` | `nonpayable` | `(uint256, uint256)` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getClaimableBorrowLoot(address _user)` | `view` | `uint256` |
+| `getClaimableDepositLootForAsset(address _user, uint256 _vaultId, address _asset)` | `view` | `uint256` |
+| `getClaimableLoot(address _user)` | `view` | `uint256` |
+| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset)` | `view` | `((uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256))` |
+| `getLatestDepositPoints(address _user, uint256 _vaultId, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `((uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256), (uint256,uint256,uint256,uint256,uint256))` |
+| `getLatestGlobalRipeRewards()` | `view` | `(uint256,uint256,uint256,uint256,uint256,uint256)` |
+| `getRipeHq()` | `view` | `address` |
+| `hasUnderscoreRewards()` | `view` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `lastUnderscoreSend()` | `view` | `uint256` |
+| `minUnderscoreSendInterval()` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `resetAssetPoints(address _asset, uint256 _vaultId)` | `nonpayable` | — |
+| `resetUserBalancePoints(address _user, address _asset, uint256 _vaultId)` | `nonpayable` | — |
+| `resetUserBorrowPoints(address _user)` | `nonpayable` | — |
+| `setHasUnderscoreRewards(bool _hasRewards)` | `nonpayable` | — |
+| `setUnderscoreSendInterval(uint256 _numBlocks)` | `nonpayable` | — |
+| `setUndyDepositRewardsAmount(uint256 _amount)` | `nonpayable` | — |
+| `setUndyYieldBonusAmount(uint256 _amount)` | `nonpayable` | — |
+| `underscoreSendInterval()` | `view` | `uint256` |
+| `undyDepositRewardsAmount()` | `view` | `uint256` |
+| `undyYieldBonusAmount()` | `view` | `uint256` |
+| `updateBorrowPoints(address _user)` | `nonpayable` | — |
+| `updateBorrowPoints(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset)` | `nonpayable` | — |
+| `updateDepositPoints(address _user, uint256 _vaultId, address _vaultAddr, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
+| `updateRipeRewards()` | `nonpayable` | `(uint256,uint256,uint256,uint256,uint256,uint256)` |
+| `updateRipeRewards((address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256,uint256,uint256,uint256,uint256,uint256)` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `BorrowLootClaimed` | `address user indexed, uint256 ripeAmount` |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+| `DepositLootClaimed` | `address user indexed, uint256 vaultId, address asset indexed, uint256 ripeStakerLoot, uint256 ripeVoteLoot, uint256 ripeGenLoot` |
+| `HasUnderscoreRewardsUpdated` | `bool hasRewards` |
+| `UnderscoreRewardsDistributed` | `address underscoreAddr indexed, uint256 depositAmount, uint256 yieldAmount, uint256 blockNumber` |
+| `UnderscoreSendIntervalUpdated` | `uint256 numBlocks` |
+| `UndyDepositRewardsAmountUpdated` | `uint256 amount` |
+| `UndyYieldBonusAmountUpdated` | `uint256 amount` |
+
+### Structs declared by this source
+
+- `RipeRewards(borrowers: uint256, stakers: uint256, voters: uint256, genDepositors: uint256, newRipeRewards: uint256, lastUpdate: uint256)`
+- `GlobalDepositPoints(lastUsdValue: uint256, ripeStakerPoints: uint256, ripeVotePoints: uint256, ripeGenPoints: uint256, lastUpdate: uint256)`
+- `AssetDepositPoints(balancePoints: uint256, lastBalance: uint256, lastUsdValue: uint256, ripeStakerPoints: uint256, ripeVotePoints: uint256, ripeGenPoints: uint256, lastUpdate: uint256, precision: uint256)`
+- `UserDepositPoints(balancePoints: uint256, lastBalance: uint256, lastUpdate: uint256)`
+- `BorrowPoints(lastPrincipal: uint256, points: uint256, lastUpdate: uint256)`
+- `BorrowPointsBundle(userPoints: BorrowPoints, globalPoints: BorrowPoints, userDebtPrincipal: uint256)`
+- `DepositPointsBundle(userPoints: UserDepositPoints, assetPoints: AssetDepositPoints, globalPoints: GlobalDepositPoints)`
+- `RipeRewardsBundle(ripeRewards: RipeRewards, ripeAvailForRewards: uint256)`
+- `UserDepositLoot(ripeStakerLoot: uint256, ripeVoteLoot: uint256, ripeGenLoot: uint256)`
+- `RewardsConfig(arePointsEnabled: bool, ripePerBlock: uint256, borrowersAlloc: uint256, stakersAlloc: uint256, votersAlloc: uint256, genDepositorsAlloc: uint256, stakersPointsAllocTotal: uint256, voterPointsAllocTotal: uint256)`
+- `DepositPointsConfig(stakersPointsAlloc: uint256, voterPointsAlloc: uint256, isNft: bool)`
+- `ClaimLootConfig(canClaimLoot: bool, canClaimLootForUser: bool, autoStakeRatio: uint256, rewardsLockDuration: uint256)`
+
+<!-- END GENERATED API REFERENCE: Lootbox -->

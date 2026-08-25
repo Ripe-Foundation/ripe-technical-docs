@@ -1,419 +1,215 @@
-# UndyVaultPrices Technical Documentation
+# UndyVaultPrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/UndyVaultPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/UndyVaultPrices.vy)
 
 ## Overview
 
-UndyVaultPrices is a price source for Underscore Protocol vault tokens in Ripe Protocol. It provides manipulation-resistant pricing for yield-bearing vault tokens using time-weighted average price per share calculations with configurable parameters.
+`UndyVaultPrices` prices Underscore Earn Vault shares using the vault's underlying asset price plus a guarded, **time-weighted** price-per-share history. It is not supply weighted.
 
-**Core Features**:
-- **Multi-Vault Support**: Can price multiple Underscore vault tokens
-- **TWAP Mechanism**: Uses weighted average of price-per-share snapshots
-- **Total Supply Weighting**: Weights snapshots by vault total supply
-- **Manipulation Resistance**: Throttles upside movements and uses minimum of spot/TWAP
-- **Dynamic Feed Management**: Add, update, and disable price feeds with time locks
+## Admission and metadata binding
 
-## Architecture & Modules
+The source resolves MissionControl's current Underscore registry, then that registry's canonical vault-registry entry. A candidate must be recognized as an Earn Vault, implement the ERC-4626 metadata/read surface, and have an underlying asset with a nonzero PriceDesk price.
 
-UndyVaultPrices uses the standard price source architecture:
+Each configuration snapshots:
 
-### LocalGov Module
-
-- **Location**: `contracts/modules/LocalGov.vy`
-- **Purpose**: Provides governance functionality
-- **Documentation**: See [LocalGov Technical Documentation](../governance/LocalGov.md)
-- **Exported Interface**: Governance utilities via `gov.__interface__`
-
-### Addys Module
-
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### PriceSourceData Module
-
-- **Location**: `contracts/priceSources/modules/PriceSourceData.vy`
-- **Purpose**: Provides base price source functionality
-- **Documentation**: See [PriceSourceData Technical Documentation](./modules/PriceSourceData.md)
-- **Exported Interface**: Price source data via `priceData.__interface__`
-
-### TimeLock Module
-
-- **Location**: `contracts/modules/TimeLock.vy`
-- **Purpose**: Provides time-locked action management
-- **Documentation**: See [TimeLock Technical Documentation](../governance/TimeLock.md)
-- **Exported Interface**: Time lock utilities via `timeLock.__interface__`
-
-### Module Initialization
-
-```vyper
-initializes: gov
-initializes: addys
-initializes: priceData[addys := addys]
-initializes: timeLock[gov := gov]
+```text
+underlyingAsset
+underlyingDecimals
+vaultTokenDecimals
+minSnapshotDelay
+maxNumSnapshots
+maxUpsideDeviation
+staleTime
+lastSnapshot
+nextIndex
 ```
 
-## Data Structures
+At confirmation of a new feed or configuration update, the contract re-reads `asset()`, underlying decimals, and vault-token decimals. A metadata mismatch cancels/fails the pending action instead of installing a config based on changed assumptions.
 
-### PriceConfig
+Other bounds are:
 
-Configuration for each vault token's price feed:
+- `minSnapshotDelay <= 1 week`;
+- `1 <= maxNumSnapshots <= 25`;
+- `maxUpsideDeviation <= 100%`; and
+- both decimal values in the range 1 through 77.
 
-```vyper
-struct PriceConfig:
-    underlyingAsset: address      # Underlying token of the vault
-    underlyingDecimals: uint256   # Decimals of underlying
-    vaultTokenDecimals: uint256   # Decimals of vault token
-    minSnapshotDelay: uint256     # Min time between snapshots
-    maxNumSnapshots: uint256      # Max snapshots for TWAP
-    maxUpsideDeviation: uint256   # Max upside % per snapshot
-    staleTime: uint256            # Snapshot expiry time
-    lastSnapshot: PriceSnapshot   # Most recent snapshot
-    nextIndex: uint256            # Circular buffer index
+Governance manages add, update, and disable actions through the source's timelock while unpaused.
+
+## Time-weighted price per share
+
+`PriceSnapshot` records `totalSupply`, `pricePerShare`, and `lastUpdate`. Snapshots are kept in a circular ring.
+
+The weighted value is based on elapsed time:
+
+```text
+weightedPps = Σ(pricePerShare_i * duration_i) / Σ(duration_i)
 ```
 
-### PriceSnapshot
+Each observation applies from its timestamp until the next valid observation; the newest applies through the current timestamp. `totalSupply` is not a weight. It is retained as snapshot validity/observability data.
 
-Individual observation with supply weighting:
+Stale or empty observations are skipped. Non-monotonic timestamps, invalid ring state, future observations, or checked-arithmetic failures return zero. A single fresh observation with no elapsed duration may use the fresh `lastSnapshot` value; a stale observation cannot.
 
-```vyper
-struct PriceSnapshot:
-    totalSupply: uint256    # Vault total supply (normalized)
-    pricePerShare: uint256  # Assets per share
-    lastUpdate: uint256     # Block timestamp
+This source intentionally ignores the global stale-time argument forwarded through the shared price-source interface. Snapshot eligibility uses the configuration's own `staleTime`.
+
+## Snapshot updates
+
+Only a valid Ripe address may add a snapshot, and the source must be unpaused. A duplicate timestamp, unmet minimum delay, invalid vault conversion, or unconfigured asset returns false.
+
+The current price per share is `convertToAssets(10 ** vaultTokenDecimals)`. A new upward value is capped at the prior value plus `maxUpsideDeviation`; a downward move is not throttled. The snapshot ring then advances its next write index.
+
+Changing `maxNumSnapshots` resets the ring and seeds it with a new validated observation. An ordinary configuration update with the same ring size preserves snapshot progress made while the action was pending.
+
+## Final vault-share price
+
+The source reads the underlying USD price from PriceDesk and computes the guarded price-per-share as:
+
+```text
+selectedPps = min(timeWeightedPps, currentConvertToAssetsPps)
+vaultUsdPrice = underlyingUsdPrice * selectedPps / 10 ** underlyingDecimals
 ```
 
-### PendingPriceConfig
-
-Pending configuration change:
-
-```vyper
-struct PendingPriceConfig:
-    actionId: uint256    # Time lock action ID
-    config: PriceConfig  # Proposed configuration
-```
-
-## Events
-
-### NewPriceConfigPending / NewPriceConfigAdded / NewPriceConfigCancelled
-
-Track new feed lifecycle.
-
-### PriceConfigUpdatePending / PriceConfigUpdated / PriceConfigUpdateCancelled
-
-Track feed update lifecycle.
-
-### DisablePriceConfigPending / DisablePriceConfigConfirmed / DisablePriceConfigCancelled
-
-Track feed removal lifecycle.
-
-### PricePerShareSnapshotAdded
-
-Emitted when a snapshot is recorded:
-
-```vyper
-event PricePerShareSnapshotAdded:
-    asset: indexed(address)
-    underlyingAsset: indexed(address)
-    totalSupply: uint256
-    pricePerShare: uint256
-```
-
-## State Variables
-
-### Public Variables
-
-- `priceConfigs: HashMap[address, PriceConfig]` - Vault token configurations
-- `snapShots: HashMap[address, HashMap[uint256, PriceSnapshot]]` - Snapshots per vault
-- `pendingPriceConfigs: HashMap[address, PendingPriceConfig]` - Pending changes
-
-### Constants
-
-- `HUNDRED_PERCENT: constant(uint256) = 100_00` - 100% in basis points
-- `UNDERSCORE_VAULT_REGISTRY_ID: constant(uint256) = 10` - Registry ID for vault validation
-
-## Constructor
-
-### `__init__`
-
-Initializes UndyVaultPrices.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _minPriceChangeTimeLock: uint256,
-    _maxPriceChangeTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name                      | Type      | Description                           |
-| ------------------------- | --------- | ------------------------------------- |
-| `_ripeHq`                 | `address` | RipeHq contract address               |
-| `_tempGov`                | `address` | Temporary governance address          |
-| `_minPriceChangeTimeLock` | `uint256` | Minimum blocks for time-locked actions|
-| `_maxPriceChangeTimeLock` | `uint256` | Maximum blocks for time-locked actions|
-
-## Core Functions
-
-### `getPrice`
-
-Returns the vault token price.
-
-```vyper
-@view
-@external
-def getPrice(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> uint256:
-```
-
-#### Returns
-
-| Type      | Description                                        |
-| --------- | -------------------------------------------------- |
-| `uint256` | Price in 18-decimal USD (0 if no feed configured)  |
-
-#### Calculation
-
-```
-vaultPrice = underlyingPrice * min(weightedPricePerShare, currentPricePerShare) / 10^underlyingDecimals
-```
-
-### `getPriceAndHasFeed`
-
-Returns price and feed status.
-
-```vyper
-@view
-@external
-def getPriceAndHasFeed(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> (uint256, bool):
-```
-
-### `hasPriceFeed`
-
-Checks if vault has configured price feed.
-
-```vyper
-@view
-@external
-def hasPriceFeed(_asset: address) -> bool:
-```
-
-### `hasPendingPriceFeedUpdate`
-
-Checks for pending updates.
-
-```vyper
-@view
-@external
-def hasPendingPriceFeedUpdate(_asset: address) -> bool:
-```
-
-### `getWeightedPrice`
-
-Returns TWAP price per share.
-
-```vyper
-@view
-@external
-def getWeightedPrice(_asset: address) -> uint256:
-```
-
-## Feed Management Functions
-
-### `addNewPriceFeed`
-
-Initiates adding a new vault price feed (time-locked).
-
-```vyper
-@external
-def addNewPriceFeed(
-    _asset: address,
-    _minSnapshotDelay: uint256 = 60 * 5,  # 5 minutes
-    _maxNumSnapshots: uint256 = 20,
-    _maxUpsideDeviation: uint256 = 10_00, # 10%
-    _staleTime: uint256 = 0,
-) -> bool:
-```
-
-#### Access
-
-Only callable by governance
-
-#### Validation
-
-- Asset must be a registered Underscore earn vault
-- Underlying asset must have a price in PriceDesk
-- Vault must implement `convertToAssetsSafe` with valid return
-- Config parameters must be within bounds
-
-### `confirmNewPriceFeed`
-
-Confirms a pending new feed after time lock.
-
-```vyper
-@external
-def confirmNewPriceFeed(_asset: address) -> bool:
-```
-
-### `cancelNewPendingPriceFeed`
-
-Cancels a pending new feed.
-
-```vyper
-@external
-def cancelNewPendingPriceFeed(_asset: address) -> bool:
-```
-
-### `updatePriceConfig`
-
-Initiates config update for existing feed.
-
-```vyper
-@external
-def updatePriceConfig(
-    _asset: address,
-    _minSnapshotDelay: uint256 = 60 * 5,
-    _maxNumSnapshots: uint256 = 20,
-    _maxUpsideDeviation: uint256 = 10_00,
-    _staleTime: uint256 = 0,
-) -> bool:
-```
-
-### `confirmPriceFeedUpdate` / `cancelPriceFeedUpdate`
-
-Confirm or cancel pending config updates.
-
-### `disablePriceFeed`
-
-Initiates feed removal (time-locked).
-
-```vyper
-@external
-def disablePriceFeed(_asset: address) -> bool:
-```
-
-### `confirmDisablePriceFeed` / `cancelDisablePriceFeed`
-
-Confirm or cancel pending disable.
-
-## Snapshot Functions
-
-### `addPriceSnapshot`
-
-Adds a new price per share snapshot.
-
-```vyper
-@external
-def addPriceSnapshot(_asset: address) -> bool:
-```
-
-#### Access
-
-Only callable by valid Ripe protocol addresses
-
-#### Behavior
-
-1. Returns false if no config for asset
-2. Checks minimum delay since last snapshot
-3. Gets current `convertToAssetsSafe` value
-4. Throttles upside if exceeds max deviation
-5. Stores snapshot with normalized total supply
-6. Emits `PricePerShareSnapshotAdded` event
-
-### `getLatestSnapshot`
-
-Returns the most recent snapshot data.
-
-```vyper
-@view
-@external
-def getLatestSnapshot(_asset: address) -> PriceSnapshot:
-```
-
-## Price Calculation
-
-### Weighted Price Per Share (TWAP)
-
-```
-1. For each valid (non-stale) snapshot:
-   numerator += totalSupply * pricePerShare
-   denominator += totalSupply
-2. weightedPricePerShare = numerator / denominator
-3. If no valid snapshots, use lastSnapshot.pricePerShare
-```
-
-Total supply weighting gives more influence to snapshots taken when vault had more deposits.
-
-### Final Price
-
-```
-1. Get weighted price per share from TWAP
-2. Get current price per share from vault
-3. Use minimum (conservative approach)
-4. Multiply by underlying asset USD price
-5. Adjust for decimals
-```
-
-## Validation
-
-### `isValidNewFeed`
-
-Validates parameters for new feed.
-
-```vyper
-@view
-@external
-def isValidNewFeed(
-    _asset: address,
-    _minSnapshotDelay: uint256,
-    _maxNumSnapshots: uint256,
-    _maxUpsideDeviation: uint256,
-    _staleTime: uint256,
-) -> bool:
-```
-
-### `isValidUpdateConfig`
-
-Validates parameters for config update.
-
-```vyper
-@view
-@external
-def isValidUpdateConfig(_asset: address, _maxNumSnapshots: uint256, _staleTime: uint256) -> bool:
-```
-
-### `isValidDisablePriceFeed`
-
-Validates feed can be disabled.
-
-```vyper
-@view
-@external
-def isValidDisablePriceFeed(_asset: address) -> bool:
-```
-
-## Security Considerations
-
-1. **Vault Validation**: Only accepts registered Underscore earn vaults
-2. **Safe Price Function**: Uses `convertToAssetsSafe` which should handle edge cases
-3. **TWAP Protection**: Historical average smooths manipulation attempts
-4. **Supply Weighting**: Larger vault states have more influence
-5. **Upside Throttling**: Limits rapid price increases
-6. **Conservative Pricing**: Uses minimum of spot and TWAP
-7. **Time-Locked Changes**: All feed changes require time lock
-8. **Re-validation**: Validates again at confirmation time
-
-## Integration Points
-
-### Depends On:
-- **Underscore Registry**: To validate vault registration
-- **Underscore Vaults**: For `convertToAssetsSafe` function
-- **PriceDesk**: For underlying asset prices
-- **MissionControl**: For Underscore registry address
-
-### Used By:
-- **PriceDesk**: Registered as price source for vault tokens
+The current minimum exposes downside immediately. A zero underlying price, zero weighted value, zero current conversion, unsafe decimals, or arithmetic overflow returns zero.
+
+## Integration requirements
+
+- Do not describe or implement supply-weighted snapshot pricing.
+- Treat zero as unavailable.
+- Re-onboard rather than assuming safety if vault asset/decimal metadata changes.
+- Per-vault snapshot cadence, history, upside limit, and stale time are risk parameters, not universal defaults.
+
+<!-- BEGIN GENERATED API REFERENCE: UndyVaultPrices -->
+## Exact API reference
+
+> Generated from `contracts/priceSources/UndyVaultPrices.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, uint256 _minPriceChangeTimeLock, uint256 _maxPriceChangeTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `addNewPriceFeed(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `1–5` | `_minSnapshotDelay`, `_maxNumSnapshots`, `_maxUpsideDeviation`, `_staleTime` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `1–5` | `_minSnapshotDelay`, `_maxNumSnapshots`, `_maxUpsideDeviation`, `_staleTime` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `addNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _minSnapshotDelay)` | `nonpayable` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots)` | `nonpayable` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation)` | `nonpayable` | `bool` |
+| `addNewPriceFeed(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `nonpayable` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `expiration()` | `view` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getGovernors()` | `view` | `address[]` |
+| `getLatestSnapshot(address _asset)` | `view` | `(uint256,uint256,uint256)` |
+| `getPrice(address _asset)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` |
+| `getRipeHq()` | `view` | `address` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `getWeightedPrice(address _asset)` | `view` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidNewFeed(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `view` | `bool` |
+| `isValidUpdateConfig(address _asset, uint256 _maxNumSnapshots, uint256 _staleTime)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `numAssets()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `pendingPriceConfigs(address arg0)` | `view` | `(uint256,(address,uint256,uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256),uint256))` |
+| `priceConfigs(address arg0)` | `view` | `(address,uint256,uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256),uint256)` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `relinquishGov()` | `nonpayable` | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `snapShots(address arg0, uint256 arg1)` | `view` | `(uint256,uint256,uint256)` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| `updatePriceConfig(address _asset)` | `nonpayable` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay)` | `nonpayable` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots)` | `nonpayable` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation)` | `nonpayable` | `bool` |
+| `updatePriceConfig(address _asset, uint256 _minSnapshotDelay, uint256 _maxNumSnapshots, uint256 _maxUpsideDeviation, uint256 _staleTime)` | `nonpayable` | `bool` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `DisablePriceConfigCancelled` | `address asset indexed, address underlyingAsset indexed` |
+| `DisablePriceConfigConfirmed` | `address asset indexed, address underlyingAsset indexed` |
+| `DisablePriceConfigPending` | `address asset indexed, address underlyingAsset indexed, uint256 confirmationBlock, uint256 actionId` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `NewPriceConfigAdded` | `address asset indexed, address underlyingAsset indexed, uint256 minSnapshotDelay, uint256 maxNumSnapshots, uint256 maxUpsideDeviation, uint256 staleTime` |
+| `NewPriceConfigCancelled` | `address asset indexed, address underlyingAsset indexed` |
+| `NewPriceConfigPending` | `address asset indexed, address underlyingAsset indexed, uint256 minSnapshotDelay, uint256 maxNumSnapshots, uint256 maxUpsideDeviation, uint256 staleTime, uint256 confirmationBlock, uint256 actionId` |
+| `PriceConfigUpdateCancelled` | `address asset indexed, address underlyingAsset indexed` |
+| `PriceConfigUpdatePending` | `address asset indexed, address underlyingAsset indexed, uint256 minSnapshotDelay, uint256 maxNumSnapshots, uint256 maxUpsideDeviation, uint256 staleTime, uint256 confirmationBlock, uint256 actionId` |
+| `PriceConfigUpdated` | `address asset indexed, address underlyingAsset indexed, uint256 minSnapshotDelay, uint256 maxNumSnapshots, uint256 maxUpsideDeviation, uint256 staleTime` |
+| `PricePerShareSnapshotAdded` | `address asset indexed, address underlyingAsset indexed, uint256 totalSupply, uint256 pricePerShare` |
+| `PriceSourceFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `PriceSourcePauseModified` | `bool isPaused` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+
+### Structs declared by this source
+
+- `PriceConfig(underlyingAsset: address, underlyingDecimals: uint256, vaultTokenDecimals: uint256, minSnapshotDelay: uint256, maxNumSnapshots: uint256, maxUpsideDeviation: uint256, staleTime: uint256, lastSnapshot: PriceSnapshot, nextIndex: uint256)`
+- `PriceSnapshot(totalSupply: uint256, pricePerShare: uint256, lastUpdate: uint256)`
+- `PendingPriceConfig(actionId: uint256, config: PriceConfig)`
+
+<!-- END GENERATED API REFERENCE: UndyVaultPrices -->

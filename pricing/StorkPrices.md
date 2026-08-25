@@ -1,597 +1,209 @@
-# StorkPrices Technical Documentation
+# StorkPrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/StorkPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/StorkPrices.vy)
 
 ## Overview
 
-StorkPrices integrates Stork Network's decentralized oracle infrastructure for reliable asset pricing. It leverages Stork's temporal data system with nanosecond-precision timestamps and pre-normalized 18-decimal values.
+`StorkPrices` maps assets to Stork feed IDs, validates Stork temporal numeric values, and exposes authorized paid and prepaid typed batch-update routes.
 
-**Key Capabilities**:
-- **Temporal Pricing**: Nanosecond-precision timestamps for accurate staleness checks
-- **Pre-Normalized Values**: Native 18-decimal format eliminates conversion needs
-- **Pull-Based Updates**: On-demand price updates with automatic fee handling
-- **Batch Operations**: Update multiple feeds in single transaction for gas efficiency
+## Data types
 
-The module implements direct integration with Stork V1 API, automatic fee calculation and payment, time-locked feed management, and support for up to 20 simultaneous price updates.
+Each asset stores `StorkFeedConfig(feedId, staleTime)`. Stork price data and update input use the canonical nested structs:
 
-## Architecture & Dependencies
+```text
+TemporalNumericValue:
+  timestampNs: uint64
+  quantizedValue: int192
 
-StorkPrices is built using a modular architecture with direct Stork Network integration:
-
-### Core Module Dependencies
-- **LocalGov**: Provides governance functionality with access control
-- **Addys**: Address resolution for protocol contracts
-- **PriceSourceData**: Asset registration and pause state management
-- **TimeLock**: Time-locked changes for feed management
-
-### External Integration
-- **Stork Network**: Direct integration with Stork oracle contracts
-- **Pull Oracle Model**: Off-chain data brought on-chain as needed
-- **V1 API**: Uses Stork's first version temporal API
-
-### Module Initialization
-```vyper
-initializes: gov
-initializes: addys
-initializes: priceData[addys := addys]
-initializes: timeLock[gov := gov]
+TemporalNumericValueInput:
+  temporalNumericValue: TemporalNumericValue
+  id: bytes32
+  publisherMerkleRoot: bytes32
+  valueComputeAlgHash: bytes32
+  r: bytes32
+  s: bytes32
+  v: uint8
 ```
 
-### Immutable Configuration
-```vyper
-STORK: immutable(address)  # Stork Network contract address
-```
-
-## Data Structures
-
-### TemporalNumericValue Struct
-Stork's price data format:
-```vyper
-struct TemporalNumericValue:
-    timestampNs: uint64      # Timestamp in nanoseconds
-    quantizedValue: uint256  # Price in 18 decimals
-```
-
-### StorkFeedConfig Struct
-Configuration for each asset's price feed:
-```vyper
-struct StorkFeedConfig:
-    feedId: bytes32          # Stork feed identifier
-    staleTime: uint256       # Maximum age for price data in seconds
-```
-
-### PendingStorkFeed Struct
-Tracks pending feed changes:
-```vyper
-struct PendingStorkFeed:
-    actionId: uint256        # TimeLock action ID
-    config: StorkFeedConfig  # New configuration
-```
-
-## State Variables
-
-### Feed Configuration
-- `feedConfig: HashMap[address, StorkFeedConfig]` - Maps assets to Stork feed configurations
-- `pendingUpdates: HashMap[address, PendingStorkFeed]` - Pending changes
-
-### Constants
-- `MAX_PRICE_UPDATES: constant(uint256) = 20` - Maximum batch updates
-
-### Inherited State
-From modules:
-- Governance state (LocalGov)
-- Pause state and asset registry (PriceSourceData)
-- TimeLock configuration
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                         StorkPrices Contract                          |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Price Retrieval Flow                          |  |
-|  |                                                                  |  |
-|  |  getPrice(asset):                                                |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Load Stork feed ID for asset                            │ |  |
-|  |  │ 2. Call getTemporalNumericValueUnsafeV1()                  │ |  |
-|  |  │ 3. Validate temporal data:                                 │ |  |
-|  |  │    - quantizedValue != 0 (has price)                       │ |  |
-|  |  │    - Convert timestamp from nanoseconds                    │ |  |
-|  |  │    - Check staleness vs block.timestamp                    │ |  |
-|  |  │ 4. Return quantized value directly                         │ |  |
-|  |  │    (Already in 18 decimals - no conversion needed)         │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                 Temporal Data Representation                     |  |
-|  |                                                                  |  |
-|  |  Nanosecond Precision:                                          |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ timestampNs: 1,700,000,000,000,000,000                     │ |  |
-|  |  │                    ↓                                        │ |  |
-|  |  │ Unix timestamp: 1,700,000,000 (divide by 10^9)             │ |  |
-|  |  │                                                             │ |  |
-|  |  │ Benefits:                                                   │ |  |
-|  |  │ • Ultra-precise timing for HFT applications                │ |  |
-|  |  │ • Accurate ordering of rapid price updates                 │ |  |
-|  |  │ • Compatible with institutional systems                    │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Quantized Values:                                              |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ Price: $1,234.56789012345678                               │ |  |
-|  |  │ Quantized: 1234567890123456780000 (18 decimals)            │ |  |
-|  |  │                                                             │ |  |
-|  |  │ No conversion needed - direct use in protocol              │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Pull Oracle Update Flow                       |  |
-|  |                                                                  |  |
-|  |  updateStorkPrice(payload):                                      |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Query update fee from Stork (getUpdateFeeV1)            │ |  |
-|  |  │ 2. Verify contract ETH balance >= fee                      │ |  |
-|  |  │ 3. Call updateTemporalNumericValuesV1 with fee             │ |  |
-|  |  │ 4. Stork validates signatures and updates prices           │ |  |
-|  |  │ 5. Emit StorkPriceUpdated event                            │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Batch Updates:                                                  |  |
-|  |  • Process up to 20 updates in one transaction                  |  |
-|  |  • Stop on first failure to save gas                            |  |
-|  |  • Return count of successful updates                           |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-                                    ▼
-+------------------------------------------------------------------------+
-|                         Stork Network Oracle                          |
-+------------------------------------------------------------------------+
-| • Institutional-grade price feeds from professional providers         |
-| • Nanosecond timestamp precision for accurate timing                  |
-| • Pre-normalized 18-decimal quantized values                          |
-| • Pull-based architecture for cost efficiency                         |
-| • Cryptographic signatures ensure data authenticity                   |
-+------------------------------------------------------------------------+
-```
-
-## Constructor
-
-### `__init__`
-
-Initializes StorkPrices with governance settings and Stork Network address.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _stork: address,
-    _minPriceChangeTimeLock: uint256,
-    _maxPriceChangeTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract for protocol integration |
-| `_tempGov` | `address` | Initial temporary governance address |
-| `_stork` | `address` | Stork Network contract address |
-| `_minPriceChangeTimeLock` | `uint256` | Minimum timelock for feed changes |
-| `_maxPriceChangeTimeLock` | `uint256` | Maximum timelock for feed changes |
-
-#### Deployment Requirements
-- Stork Network address must not be empty
-- Contract requires ETH balance for update fees
-
-#### Example Usage
-```python
-stork_prices = boa.load(
-    "contracts/priceSources/StorkPrices.vy",
-    ripe_hq.address,
-    deployer.address,
-    stork_network.address,  # Chain-specific deployment
-    100,   # Min 100 blocks timelock
-    1000   # Max 1000 blocks timelock
-)
-
-# Fund contract for update fees
-deployer.transfer(stork_prices.address, eth_amount)
-```
-
-## Core Price Functions
-
-### `getPrice`
-
-Retrieves the current price for an asset from Stork Network.
-
-```vyper
-@view
-@external
-def getPrice(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to get price for |
-| `_staleTime` | `uint256` | Maximum age for price data in seconds. The caller is responsible for providing this value. A value of 0 disables the staleness check for this call. |
-| `_priceDesk` | `address` | Not used in Stork implementation |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Quantized price value (0 if invalid) |
-
-#### Process Flow
-1. **Feed Lookup**: Gets Stork feed ID for asset
-2. **Temporal Query**: Calls getTemporalNumericValueUnsafeV1
-3. **Validation**: Checks quantizedValue != 0
-4. **Time Conversion**: Nanoseconds to seconds
-5. **Staleness Check**: Compare with block timestamp
-
-#### Example Usage
-```python
-# Get ETH price
-eth_price = stork_prices.getPrice(eth.address)
-print(f"ETH: ${eth_price / 10**18}")
-
-# Get price with 1 minute staleness
-btc_price = stork_prices.getPrice(
-    btc.address,
-    60  # 1 minute maximum age
-)
-```
-
-### `getPriceAndHasFeed`
-
-Returns price and feed existence status.
-
-```vyper
-@view
-@external
-def getPriceAndHasFeed(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> (uint256, bool):
-```
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Current price (0 if no feed) |
-| `bool` | True if feed exists |
+The update batch is `DynArray[TemporalNumericValueInput, 20]`; integrations must ABI-encode that exact typed array.
 
-## Price Update Functions
-
-### `updateStorkPrice`
+## Price validation
 
-Brings fresh price data on-chain for configured feeds.
-
-```vyper
-@external
-def updateStorkPrice(_payload: Bytes[2048]) -> bool:
-```
+Stork quantized values are already 18-decimal prices. The source rejects a nonpositive signed value.
 
-#### Parameters
+`timestampNs` is converted to whole seconds by integer division by `1_000_000_000`. A zero or future whole-second timestamp is invalid. A sub-second value within the current second truncates to the current second and is accepted if it satisfies the effective freshness policy.
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_payload` | `Bytes[2048]` | Signed price update from Stork |
+`getPrice` returns zero for missing or invalid data. `getPriceAndHasFeed` returns `hasFeed = true` when a feed is configured even if the current value is unusable.
 
-#### Returns
+## Freshness policy
 
-| Type | Description |
-|------|-------------|
-| `bool` | True if update successful |
+Only the PriceDesk currently registered in RipeHq may forward a nonzero global policy, and it must identify itself in the third call argument.
 
-#### Process
-1. **Fee Query**: Gets required fee from Stork
-2. **Balance Check**: Ensures sufficient ETH
-3. **Update Call**: Submits payload with fee
-4. **Event Logging**: Records update details
-
-#### Example Usage
-```python
-# Get update from Stork API
-update_payload = fetch_stork_update(feed_ids)
-
-# Submit on-chain
-success = stork_prices.updateStorkPrice(update_payload)
-```
-
-### `updateManyStorkPrices`
-
-Updates multiple price feeds efficiently.
-
-```vyper
-@external
-def updateManyStorkPrices(_payloads: DynArray[Bytes[2048], MAX_PRICE_UPDATES]) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_payloads` | `DynArray[Bytes[2048], MAX_PRICE_UPDATES]` | Up to 20 updates |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Number of successful updates |
-
-Processes updates sequentially, stopping on first failure.
-
-## Feed Management Functions
-
-### `addNewPriceFeed`
-
-Initiates addition of a new Stork price feed.
-
-```vyper
-@external
-def addNewPriceFeed(_asset: address, _feedId: bytes32, _staleTime: uint256 = 0) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to add price feed for |
-| `_feedId` | `bytes32` | Stork Network feed identifier |
-| `_staleTime` | `uint256` | Maximum age for price data in seconds (0 uses MissionControl default) |
-
-#### Access
-
-Only callable by governance
-
-#### Validation
-- Asset must not have existing feed
-- Feed must return valid temporal data
-- Asset address must be valid
-
-#### Events Emitted
-
-- `NewStorkFeedPending` - Contains feed ID and timelock details
-
-### `confirmNewPriceFeed`
-
-Confirms pending feed addition after timelock.
-
-```vyper
-@external
-def confirmNewPriceFeed(_asset: address) -> bool:
-```
-
-#### Process Flow
-1. **Re-validation**: Ensures feed still valid
-2. **Timelock Check**: Verifies time elapsed
-3. **Configuration Save**: Stores feed mapping
-4. **Asset Registration**: Adds to PriceSourceData
-
-#### Events Emitted
-
-- `NewStorkFeedAdded` - Confirms feed activation
-
-### `updatePriceFeed`
-
-Updates existing feed to new Stork feed ID.
-
-```vyper
-@external
-def updatePriceFeed(_asset: address, _feedId: bytes32, _staleTime: uint256 = 0) -> bool:
-```
-
-Similar timelock process as additions.
-
-### `disablePriceFeed`
-
-Removes a price feed from the system.
-
-```vyper
-@external
-def disablePriceFeed(_asset: address) -> bool:
-```
-
-Also requires time-locked confirmation.
-
-## ETH Balance Management
-
-### `recoverEthBalance`
-
-Withdraws ETH from contract.
-
-```vyper
-@external
-def recoverEthBalance(_recipient: address) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_recipient` | `address` | Address to receive ETH |
-
-#### Access
-
-Only callable by governance
-
-Used to recover excess ETH from update fees.
-
-## Temporal Data Handling
-
-### Timestamp Conversion
-
-Stork uses nanosecond precision:
-```vyper
-# Convert nanoseconds to seconds
-publishTime = convert(data.timestampNs, uint256) // 1_000_000_000
-```
-
-Benefits:
-- Microsecond accuracy for HFT
-- Precise event ordering
-- Institutional compatibility
-
-### Staleness Validation
-
-```vyper
-if _staleTime != 0 and block.timestamp - publishTime > _staleTime:
-    return 0  # Price too stale
-```
-
-Uses publish time for accurate staleness checks.
-
-## Validation Functions
-
-### `isValidNewFeed`
-
-Validates new feed configuration.
-
-```vyper
-@view
-@external
-def isValidNewFeed(_asset: address, _feedId: bytes32, _staleTime: uint256) -> bool:
-```
-
-#### Validation Checks
-1. **No Existing Feed**: Asset must be new
-2. **Valid Address**: Non-empty asset
-3. **Feed Exists**: Returns temporal data
-4. **Has Timestamp**: timestampNs != 0
-
-### `isValidUpdateFeed`
-
-Additional checks for updates:
-- New feed must differ from current
-- Asset must have existing feed
-
-### `isValidDisablePriceFeed`
-
-Ensures:
-- Feed exists for asset
-- Asset registered in PriceSourceData
-
-## Events
-
-### Feed Management Events
-- `NewStorkFeedPending` - New feed initiated
-- `NewStorkFeedAdded` - Feed confirmed
-- `NewStorkFeedCancelled` - Addition cancelled
-- `StorkFeedUpdatePending` - Update initiated
-- `StorkFeedUpdated` - Update confirmed
-- `StorkFeedUpdateCancelled` - Update cancelled
-- `DisableStorkFeedPending` - Removal initiated
-- `StorkFeedDisabled` - Feed removed
-- `DisableStorkFeedCancelled` - Removal cancelled
-
-### Operational Events
-- `StorkPriceUpdated` - Price update submitted
-- `EthRecoveredFromStork` - ETH withdrawn
-
-All events include addresses, feed IDs, and action details.
-
-## Security Considerations
-
-### Access Control
-- **Governance Only**: Feed management restricted
-- **Public Updates**: Anyone can update (pays fee)
-- **Time-locked Changes**: Prevents hasty decisions
-
-### Data Integrity
-- **Temporal Validation**: Timestamp verification
-- **Zero Value Check**: Rejects invalid prices
-- **Signature Verification**: Handled by Stork
-- **Gas Efficiency**: Unsafe methods for views
-
-### Integration Safety
-- **Simple Decimals**: No conversion needed
-- **Fee Management**: Automatic calculation
-- **Balance Protection**: Checks before updates
-- **Batch Limits**: Maximum 20 updates
-
-## Common Integration Patterns
-
-### Automated Updates
-```python
-# Service to maintain fresh prices
-async def maintain_prices():
-    assets = get_tracked_assets()
-    feed_ids = [get_stork_feed_id(a) for a in assets]
-    
-    while True:
-        # Check staleness
-        for asset in assets:
-            price = stork_prices.getPrice(asset, 300)  # 5 min
-            if price == 0:
-                # Get fresh update
-                payload = await fetch_stork_update(feed_ids)
-                stork_prices.updateStorkPrice(payload)
-                break
-        
-        await asyncio.sleep(60)  # Check every minute
-```
-
-### Batch Processing
-```python
-# Update multiple feeds efficiently
-def update_all_feeds(feed_ids):
-    payloads = []
-    
-    # Get updates for each feed
-    for feed_id in feed_ids:
-        update = fetch_stork_update([feed_id])
-        payloads.append(update)
-    
-    # Submit batch (max 20)
-    if len(payloads) > 0:
-        count = stork_prices.updateManyStorkPrices(payloads[:20])
-        print(f"Updated {count} feeds")
-```
-
-### Feed Migration
-```python
-# Migrate to new Stork feed
-def migrate_feed(asset, old_feed_id, new_feed_id):
-    # 1. Initiate update
-    stork_prices.updatePriceFeed(
-        asset,
-        new_feed_id,
-        sender=governance
-    )
-    
-    # 2. Wait for timelock
-    wait_blocks(timelock_duration)
-    
-    # 3. Confirm update
-    stork_prices.confirmPriceFeedUpdate(
-        asset,
-        sender=governance
-    )
-```
-
-## Advantages of Stork Integration
-
-### Simplified Decimals
-- All values in 18 decimals
-- No conversion logic needed
-- Reduced complexity and gas costs
-
-### Nanosecond Precision
-- Ideal for high-frequency trading
-- Accurate event sequencing
-- Professional-grade timestamps
-
-### Efficient Updates
-- Pull-based model saves gas
-- Batch updates reduce costs
-- Pay only for what you use
+- a nonzero feed stale time is an absolute override;
+- zero inherits MissionControl's global value;
+- local overrides must be 5 minutes through 7 days; and
+- an effective/global nonzero value above 7 days is invalid.
+
+The source does not take the minimum of local and global values.
+
+## Typed batch updates
+
+### `updateStorkPrice(payload)`
+
+Requires a MissionControl-authorized lite-action caller, nonzero `msg.value`, and sufficient payment for `getUpdateFeeV1(payload)`. It calls `updateTemporalNumericValuesV1`, emits `StorkPriceUpdated` with the full typed payload, fee, and caller, and refunds excess ETH.
+
+### `updateStorkPriceNoPay(payload)`
+
+Uses the contract's existing ETH balance and does not refund the caller. Authorization and fee sufficiency are otherwise the same.
+
+Governance may withdraw the contract's full ETH balance to a nonzero recipient using `recoverEthBalance`.
+
+## Feed lifecycle
+
+Governance controls timelocked add, update, stale-time update, and disable actions. Admission requires a nonzero asset/feed ID and a currently valid positive price. Confirmation revalidates the pending candidate before installing it.
+
+An omitted stale-time argument to `updatePriceFeed` preserves the existing local value. `updateStaleTime` is the explicit policy change, including returning to inheritance with zero.
+
+`addPriceSnapshot` returns false because this source has no internal snapshot history.
+
+## Integration requirements
+
+- ABI-encode the exact nested tuple array; an opaque bytes blob is incompatible.
+- Use the canonical typed batch routes shown above.
+- Treat zero as unavailable and distinguish it from `hasPriceFeed`.
+
+<!-- BEGIN GENERATED API REFERENCE: StorkPrices -->
+## Exact API reference
+
+> Generated from `contracts/priceSources/StorkPrices.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, address _stork, uint256 _minPriceChangeTimeLock, uint256 _maxPriceChangeTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `addNewPriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `2–3` | `_staleTime` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
+| `updatePriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `2–3` | `_staleTime` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `STORK()` | `view` | `address` |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `addNewPriceFeed(address _asset, bytes32 _feedId)` | `nonpayable` | `bool` |
+| `addNewPriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `nonpayable` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `expiration()` | `view` | `uint256` |
+| `feedConfig(address arg0)` | `view` | `(bytes32,uint256)` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getGovernors()` | `view` | `address[]` |
+| `getPrice(address _asset)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` |
+| `getRipeHq()` | `view` | `address` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidNewFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `view` | `bool` |
+| `isValidStaleTimeUpdate(address _asset, uint256 _staleTime)` | `view` | `bool` |
+| `isValidUpdateFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `numAssets()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `pendingUpdates(address arg0)` | `view` | `(uint256,(bytes32,uint256))` |
+| `recoverEthBalance(address _recipient)` | `nonpayable` | `bool` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `relinquishGov()` | `nonpayable` | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| `updatePriceFeed(address _asset, bytes32 _feedId)` | `nonpayable` | `bool` |
+| `updatePriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `nonpayable` | `bool` |
+| `updateStaleTime(address _asset, uint256 _staleTime)` | `nonpayable` | `bool` |
+| `updateStorkPrice(((uint64,int192),bytes32,bytes32,bytes32,bytes32,bytes32,uint8)[] _payload)` | `payable` | `bool` |
+| `updateStorkPriceNoPay(((uint64,int192),bytes32,bytes32,bytes32,bytes32,bytes32,uint8)[] _payload)` | `nonpayable` | `bool` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `DisableStorkFeedCancelled` | `address asset indexed, bytes32 feedId` |
+| `DisableStorkFeedPending` | `address asset indexed, bytes32 feedId, uint256 confirmationBlock, uint256 actionId` |
+| `EthRecoveredFromStork` | `address recipient indexed, uint256 amount` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `NewStorkFeedAdded` | `address asset indexed, bytes32 feedId, uint256 staleTime` |
+| `NewStorkFeedCancelled` | `address asset indexed, bytes32 feedId` |
+| `NewStorkFeedPending` | `address asset indexed, bytes32 feedId, uint256 staleTime, uint256 confirmationBlock, uint256 actionId` |
+| `PriceSourceFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `PriceSourcePauseModified` | `bool isPaused` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+| `StorkFeedDisabled` | `address asset indexed, bytes32 feedId` |
+| `StorkFeedUpdateCancelled` | `address asset indexed, bytes32 feedId, bytes32 oldFeedId` |
+| `StorkFeedUpdatePending` | `address asset indexed, bytes32 feedId, uint256 staleTime, uint256 confirmationBlock, bytes32 oldFeedId, uint256 actionId` |
+| `StorkFeedUpdated` | `address asset indexed, bytes32 feedId, uint256 staleTime, bytes32 oldFeedId` |
+| `StorkPriceUpdated` | `((uint64,int192),bytes32,bytes32,bytes32,bytes32,bytes32,uint8)[] payload, uint256 feeAmount, address caller indexed` |
+
+### Structs declared by this source
+
+- `StorkFeedConfig(feedId: bytes32, staleTime: uint256)`
+- `PendingStorkFeed(actionId: uint256, config: StorkFeedConfig)`
+- `TemporalNumericValue(timestampNs: uint64, quantizedValue: int192)`
+- `TemporalNumericValueInput(temporalNumericValue: TemporalNumericValue, id: bytes32, publisherMerkleRoot: bytes32, valueComputeAlgHash: bytes32, r: bytes32, s: bytes32, v: uint8)`
+
+<!-- END GENERATED API REFERENCE: StorkPrices -->

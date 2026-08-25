@@ -1,845 +1,282 @@
-# RipeGov Vault Technical Documentation
+# RipeGov vault
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/RipeGov.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/vaults/RipeGov.vy)
 
 ## Overview
 
-RipeGov is the protocol's governance vault where users lock RIPE tokens or RIPE LP tokens to gain voting power. Lock duration determines governance points - longer locks earn exponentially more power, creating alignment between token holders and protocol success.
+`RipeGov` is a share-accounting vault for RIPE and configured ecosystem assets.
+It combines custody-based shares with block-based governance points and
+per-asset lock terms. It supports irreversible point-accrual shutdown and
+full-position migration that preserves points, unlock, and historical terms.
 
-**Core Mechanics**:
-- **Time-Locked Staking**: Lock RIPE for 3 months to 2 years for voting rights
-- **Governance Points**: Earn points based on amount × duration × asset weight
-- **Lock Management**: Extend locks for bonuses or exit early with penalties
-- **Real-Time Voting Power**: Automatic Boardroom integration updates governance weight
+## Position data
 
-Built on SharesVault with specialized governance calculations, RipeGov incentivizes long-term participation. Example: Lock 1000 RIPE for 2 years to get 50% more voting power than a 6-month lock. The vault also handles contributor token transfers and supports protocol-wide governance operations.
+Each user/asset has:
 
-## Architecture & Dependencies
-
-RipeGov is built using a sophisticated modular architecture with multiple external integrations:
-
-### Core Module Dependencies
-- **SharesVault**: Provides yield-bearing vault functionality with share-based accounting
-- **VaultData**: Manages user balances, asset registration, and vault state
-- **[Addys](../core-modules/Addys.md)**: Handles protocol address resolution and permission management
-
-### External Integrations
-- **MissionControl**: Configuration management for lock terms and asset weights
-- **BoardRoom**: Receives governance power updates for voting systems
-- **[Lootbox](../treasury/Lootbox.md)**: Integrates with reward distribution and points tracking
-- **VaultBook**: Provides vault registration and identification
-- **Ledger**: Checks bad debt status for withdrawal restrictions
-- **[HumanResources](../treasury/HumanResources.md)**: Manages contributor tokens and transfers
-
-### Module Initialization
-```vyper
-exports: addys.__interface__
-exports: vaultData.__interface__
-exports: sharesVault.__interface__
-
-initializes: addys
-initializes: vaultData[addys := addys]
-initializes: sharesVault[vaultData := vaultData]
+```text
+GovData:
+  govPoints
+  lastShares
+  lastPointsUpdate
+  unlock
+  lastTerms
 ```
 
-## Data Structures
+The vault also tracks per-user and global governance-point totals. Asset amounts use SharesVault's current custody-based conversion and `1e8` virtual-share offset.
 
-### GovData Struct
-Tracks comprehensive governance data for each user-asset combination:
-```vyper
-struct GovData:
-    govPoints: uint256          # Accumulated governance points
-    lastShares: uint256         # Last known share balance
-    lastPointsUpdate: uint256   # Block of last points update
-    unlock: uint256             # Block when position unlocks
-    lastTerms: cs.LockTerms     # Last known lock terms
+MissionControl supplies `RipeGovVaultConfig` for each asset: `LockTerms`, point weight, and whether withdrawals freeze during bad debt.
+
+## Deposits and locks
+
+Only Teller may call deposit routes. A configured asset must have nonzero `maxLockDuration`. Requested duration is clamped to the current minimum/maximum. When a user already holds shares, the new unlock is a full-precision share-weighted blend of the remaining old duration and new duration.
+
+Before updating the position, the vault accrues points through the current block and refreshes stored terms. A user/asset marked `positionMigratedOut` can never deposit into that same historical vault again.
+
+`depositTokensWithLockDuration` is the explicit-duration route. The ordinary deposit uses zero input and therefore receives at least the configured minimum.
+
+## Governance-point accrual
+
+New points are based on:
+
+```text
+base = (lastShares / 1e18) * elapsedBlocks
+weighted = base * assetWeight / 100%
+newPoints = weighted + remaining-lock bonus
 ```
 
-### Lock Terms Configuration (from MissionControl)
-```vyper
-struct LockTerms:
-    minLockDuration: uint256    # Minimum lock period in blocks
-    maxLockDuration: uint256    # Maximum lock period in blocks
-    maxLockBoost: uint256       # Maximum bonus percentage for max lock
-    exitFee: uint256           # Fee percentage for early exit
-    canExit: bool              # Whether early exit is allowed
+Asset weight is always applied. A configured zero weight produces zero points; it does not fall back to an unweighted 100% rate.
+
+The lock bonus scales from zero at/below `minLockDuration` to `maxLockBoost` at `maxLockDuration`, capped by the maximum remaining duration.
+
+`updateUserGovPoints` may be called only by a valid Ripe address and is unavailable while the vault is paused. It updates every registered user asset and, for an accrual-enabled user, notifies Boardroom with the canonical user/global totals.
+
+Boardroom is a minimal callback sink; point totals remain canonical in RipeGov.
+
+## Term refresh and courtesy unlock
+
+`refreshUnlock(previousUnlock, newTerms, previousTerms)` returns zero when the
+current configuration becomes adverse in any of these ways:
+
+- exit was available and is removed;
+- exit fee increases while exit was already available;
+- maximum lock boost decreases;
+- minimum lock duration increases; or
+- maximum lock duration increases.
+
+Any adverse change wins. The courtesy is lazy: a touch while the adverse
+configuration remains current persists the zero unlock. It does not override
+Teller pause or the asset's bad-debt freeze.
+
+## Withdrawals and forced transfers
+
+Teller, AuctionHouse, and CreditEngine may withdraw. The normal path requires the unlock block to be reached and, when configured, zero protocol bad debt. HumanResources has a contributor-burn route that bypasses those restrictions and sends all RIPE to HR for the cancellation workflow.
+
+Withdrawal burns custody-based shares and reduces accrued/saved points proportionally. A full per-asset exit clears that asset's remaining points.
+
+AuctionHouse and CreditEngine may transfer balances between users for
+liquidation/redemption without respecting the sender's lock. The recipient
+receives the current configured minimum lock and no transferred points. This
+forced-transfer path remains callable even if lock terms are temporarily
+absent.
+
+HumanResources may transfer a contributor's full RIPE position and its
+associated point value. The confirmed contributor duration is forwarded
+exactly and is not clamped to a later maximum; this preserves the agreement
+under a later parameter reduction.
+
+If a forced-transfer sender has point accrual disabled, the vault suppresses both Boardroom callbacks for that transaction while still updating canonical totals. This prevents an external callback from stranding an emergency exit; a later public update may retry the healthy recipient.
+
+## Lock adjustment and early release
+
+Teller may extend a nonzero position's lock while the vault is unpaused. The
+requested duration is clamped to stored current terms and the resulting unlock
+must be later than the existing unlock.
+
+Early `releaseLock` requires:
+
+- an unpaused vault and Teller caller;
+- an unlock still in the future;
+- stored terms with `canExit = true` and nonzero exit fee;
+- a nonzero position; and
+- another outstanding share holder, so the burned fee shares have someone to benefit.
+
+If bad debt exists and the asset would remain frozen anyway, release is rejected to avoid charging a fee that cannot enable withdrawal. The fee burns the precise number of shares needed to leave a floored post-fee claim. Lock state is cleared before Lootbox checkpointing so future rewards see the post-burn, unboosted position.
+
+## Irreversible governance-point shutdown
+
+Switchboard may call:
+
+- `disableGovPointAccrualForUser(user)`; or
+- `disableGovPointAccrualGlobally()`.
+
+Each records the current block and cannot be reversed. A global disable prevents adding a later user-specific disable. Governance reaches these sensitive calls through the timelocked Switchboard Echo workflow; direct source reachability does not make them permissionless.
+
+After disablement, no new governance points accrue. Stored points are preserved on a partial withdrawal and cleared for that asset on complete exit. Public point refresh skips accrual/Boardroom but may still refresh terms when the vault is active.
+
+`inheritUserGovPointAccrualDisableForMigration(user, disabledBlock)` is VaultMigrator-only, requires the target vault paused, and accepts a nonzero past/current block. It does not overwrite an existing marker.
+
+## Position migration
+
+### Migration payload
+
+```text
+RipeGovMigrationData:
+  amount
+  govPoints
+  unlock
+  lastTerms
 ```
 
-### RipeGovVaultConfig (from MissionControl)
-```vyper
-struct RipeGovVaultConfig:
-    lockTerms: LockTerms       # Lock configuration
-    assetWeight: uint256       # Asset weight for point calculations
-    shouldFreezeWhenBadDebt: bool # Whether to freeze withdrawals during bad debt
-```
-
-## State Variables
-
-### Governance Point Tracking
-- `userGovData: HashMap[address, HashMap[address, GovData]]` - User → asset → governance data
-- `totalUserGovPoints: HashMap[address, uint256]` - Total governance points per user
-- `totalGovPoints: uint256` - Global total governance points
-
-### Inherited State (from SharesVault/VaultData)
-- User share balances representing deposited assets
-- Total share balances per asset
-- Asset registration and enumeration
-- Pause state and configuration
-
-### Constants
-- `PRECISION: constant(uint256) = 10 ** 18` - Precision for share calculations
-- `HUNDRED_PERCENT: constant(uint256) = 100_00` - 100.00% for percentage calculations
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                         RipeGov Vault                                 |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Governance Point System                      |  |
-|  |                                                                  |  |
-|  |  Point Calculation Formula:                                      |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ Base Points = shares * blocks_elapsed * asset_weight         │ |  |
-|  |  │ Lock Bonus = base_points * lock_boost_ratio                  │ |  |
-|  |  │ Total Points = Base Points + Lock Bonus                     │ |  |
-|  |  │                                                             │ |  |
-|  |  │ Lock Boost Ratio Calculation:                               │ |  |
-|  |  │ remaining_duration = unlock_block - current_block           │ |  |
-|  |  │ duration_ratio = (remaining - min) / (max - min)            │ |  |
-|  |  │ lock_boost_ratio = max_lock_boost * duration_ratio          │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Points Update Triggers:                                         |  |
-|  |  • Every deposit (accumulate + add new lock)                     |  |
-|  |  • Every withdrawal (accumulate + penalty)                       |  |
-|  |  • Manual updates (accumulate + no change)                       |  |
-|  |  • Lock adjustments (accumulate + extend)                        |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Deposit Operations                          |  |
-|  |                                                                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ _depositTokensInRipeGovVault(user, asset, amount, lock)      │ |  |
-|  |  │ 1. Use SharesVault to handle token deposit and share mint   │ |  |
-|  |  │ 2. Get lock configuration from MissionControl               │ |  |
-|  |  │ 3. Calculate weighted lock duration:                        │ |  |
-|  |  │    new_unlock = weighted_average(old_lock, new_lock)        │ |  |
-|  |  │ 4. Accumulate pending governance points                     │ |  |
-|  |  │ 5. Update user governance data with new shares/lock        │ |  |
-|  |  │ 6. Update total governance points                           │ |  |
-|  |  │ 7. Notify Boardroom of governance power change             │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Weighted Lock Calculation:                                      |  |
-|  |  • First deposit: Use provided lock duration                     |  |
-|  |  • Additional deposits: Weight by share amounts                  |  |
-|  |  • Formula: ((old_shares * old_duration) + (new_shares * new_duration)) / total_shares |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                     Withdrawal Operations                        |  |
-|  |                                                                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ _withdrawTokensFromVault(user, asset, amount, recipient)     │ |  |
-|  |  │ 1. Validate unlock conditions:                              │ |  |
-|  |  │    - Check current_block >= unlock_block                    │ |  |
-|  |  │    - Check bad debt restrictions if configured              │ |  |
-|  |  │ 2. Use SharesVault to handle token withdrawal               │ |  |
-|  |  │ 3. Accumulate pending governance points                     │ |  |
-|  |  │ 4. Calculate governance point penalty:                      │ |  |
-|  |  │    penalty = total_points * shares_withdrawn / total_shares │ |  |
-|  |  │ 5. Reduce user governance points by penalty                 │ |  |
-|  |  │ 6. Update total governance points                           │ |  |
-|  |  │ 7. Notify Boardroom of governance power change             │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Special Withdrawal Types:                                       |  |
-|  |  • Regular withdrawal: Full restrictions + point penalty         |  |
-|  |  • Contributor burn: HR only, no restrictions, full withdrawal   |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Lock Management                            |  |
-|  |                                                                  |  |
-|  |  Lock Extension (adjustLock):                                    |  |
-|  |  • Can only extend lock duration, not reduce                     |  |
-|  |  • Updates Lootbox points for extended commitment               |  |
-|  |  • Immediately applies new lock duration                        |  |
-|  |                                                                  |  |
-|  |  Early Exit (releaseLock):                                       |  |
-|  |  • Requires canExit = true in lock terms                        |  |
-|  |  • Charges exit fee as share penalty                            |  |
-|  |  • Smart protection: prevents costly exit during bad debt       |  |
-|  |  • Immediately removes lock duration                            |  |
-|  |                                                                  |  |
-|  |  Lock Terms Refresh:                                             |  |
-|  |  • Automatically updates when terms change                       |  |
-|  |  • Resets lock if key terms become unfavorable                  |  |
-|  |  • Protects users from governance parameter attacks             |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-                                    |
-                                    v
-+------------------------------------------------------------------------+
-|                        External Integrations                          |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  SharesVault Module:              MissionControl:                      |
-|  • Token deposits/withdrawals     • Lock term configuration            |
-|  • Share minting/burning         • Asset weight settings               |
-|  • Yield accumulation            • Bad debt freeze settings            |
-|                                                                        |
-|  Boardroom Integration:           Lootbox Integration:                  |
-|  • Real-time governance updates  • Deposit points tracking             |
-|  • Voting power notifications    • Lock bonus point calculation        |
-|                                                                        |
-|  VaultData Foundation:            Human Resources:                      |
-|  • User balance tracking         • Contributor token management        |
-|  • Asset registration           • Token transfers and burning          |
-|  • State management                                                     |
-+------------------------------------------------------------------------+
-```
-
-## Core Functions
-
-### `depositTokensInVault`
-
-Standard deposit function for regular users through Teller.
-
-```vyper
-@nonreentrant
-@external
-def depositTokensInVault(
-    _user: address,
-    _asset: address,
-    _amount: uint256,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User making the deposit |
-| `_asset` | `address` | Asset to deposit (RIPE or RIPE LP) |
-| `_amount` | `uint256` | Amount to deposit |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount deposited |
-
-#### Access
-
-Only callable by [Teller](../core/Teller.md)
-
-#### Process Flow
-1. **SharesVault Deposit**: Uses SharesVault module for token handling and share minting
-2. **Configuration**: Gets lock terms and asset weight from MissionControl
-3. **Lock Duration**: Uses minimum lock duration from configuration (no custom lock)
-4. **Governance Update**: Calls `_handleGovDataOnDeposit` for point calculations
-5. **Boardroom Notification**: Updates governance power in voting system
-
-#### Events Emitted
-
-- `RipeGovVaultDeposit` - Contains user, asset, amount, shares, and lock duration
-
-### `depositTokensWithLockDuration`
-
-Advanced deposit function allowing custom lock durations for protocol contracts.
-
-```vyper
-@nonreentrant
-@external
-def depositTokensWithLockDuration(
-    _user: address,
-    _asset: address,
-    _amount: uint256,
-    _lockDuration: uint256,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User receiving the deposit |
-| `_asset` | `address` | Asset to deposit |
-| `_amount` | `uint256` | Amount to deposit |
-| `_lockDuration` | `uint256` | Lock duration in blocks |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Access
-
-Only callable by valid Ripe protocol addresses
-
-#### Lock Duration Handling
-- Clamps duration between configured min and max values
-- Uses weighted averaging with existing position lock
-- Longer locks provide higher governance point bonuses
-
-#### Example Usage
-```python
-# Deposit Ripe rewards with 1 year lock
-deposit_amount = ripe_gov.depositTokensWithLockDuration(
-    user.address,
-    ripe_token.address,
-    1000_000000000000000000,  # 1000 RIPE
-    BLOCKS_PER_YEAR,          # 1 year lock
-    empty(addys.Addys),       # Use default addresses
-    sender=stability_pool.address  # Valid Ripe address
-)
-```
-
-### `withdrawTokensFromVault`
-
-Withdraws tokens from governance vault with lock period and bad debt checks.
-
-```vyper
-@nonreentrant
-@external
-def withdrawTokensFromVault(
-    _user: address,
-    _asset: address,
-    _amount: uint256,
-    _recipient: address,
-    _a: addys.Addys = empty(addys.Addys),
-) -> (uint256, bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User making withdrawal |
-| `_asset` | `address` | Asset to withdraw |
-| `_amount` | `uint256` | Amount to withdraw |
-| `_recipient` | `address` | Address to receive tokens |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount withdrawn |
-| `bool` | True if user's position is depleted |
-
-#### Access
-
-Only callable by [Teller](../core/Teller.md), AuctionHouse, or CreditEngine
-
-#### Withdrawal Restrictions
-1. **Lock Period**: Must wait until `unlock` block is reached
-2. **Bad Debt**: If `shouldFreezeWhenBadDebt` is true, no withdrawals during bad debt
-3. **Governance Points**: Withdrawal reduces points proportionally
-
-#### Process Flow
-1. **SharesVault Withdrawal**: Handles token transfer and share burning
-2. **Restriction Validation**: Checks unlock time and bad debt conditions
-3. **Governance Penalty**: Reduces governance points proportionally:
-   ```
-   points_penalty = user_points * shares_withdrawn / total_user_shares
-   ```
-4. **State Updates**: Updates user and total governance points
-5. **Boardroom Notification**: Updates voting power
-
-### `transferBalanceWithinVault`
-
-Transfers governance positions between users (used for liquidations).
-
-```vyper
-@nonreentrant
-@external
-def transferBalanceWithinVault(
-    _asset: address,
-    _fromUser: address,
-    _toUser: address,
-    _transferAmount: uint256,
-    _a: addys.Addys = empty(addys.Addys),
-) -> (uint256, bool):
-```
-
-#### Access
-
-Only callable by [AuctionHouse](../core/AuctionHouse.md) or CreditEngine (for liquidations)
-
-#### Process Flow
-1. **SharesVault Transfer**: Moves shares between users
-2. **From User**: Loses governance points proportionally (no point transfer)
-3. **To User**: Gains shares with minimum lock duration
-4. **Boardroom Updates**: Updates governance power for both users
-
-#### Example Integration
-```python
-# Called during liquidation to transfer collateral
-transferred, is_depleted = ripe_gov.transferBalanceWithinVault(
-    ripe_token.address,
-    borrower.address,
-    liquidator.address,
-    collateral_amount,
-    empty(addys.Addys),
-    sender=credit_engine.address
-)
-```
-
-## Contributor Management Functions
-
-### `withdrawContributorTokensToBurn`
-
-Special withdrawal function for burning contributor tokens.
-
-```vyper
-@nonreentrant
-@external
-def withdrawContributorTokensToBurn(_user: address, _a: addys.Addys = empty(addys.Addys)) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | Contributor to withdraw from |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Access
-
-Only callable by Human Resources contract
-
-#### Special Behaviors
-- **No Restrictions**: Bypasses lock periods and bad debt freezes
-- **Full Withdrawal**: Withdraws entire RIPE token position
-- **HR Recipient**: Tokens sent to HR contract for burning
-- **Governance Impact**: Removes all governance points for position
-
-### `transferContributorRipeTokens`
-
-Transfers RIPE tokens from contributor to another user.
-
-```vyper
-@nonreentrant
-@external
-def transferContributorRipeTokens(
-    _contributor: address,
-    _toUser: address,
-    _lockDuration: uint256,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_contributor` | `address` | Contributor transferring tokens |
-| `_toUser` | `address` | Recipient of transferred tokens |
-| `_lockDuration` | `uint256` | Lock duration for recipient |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Access
-
-Only callable by Human Resources contract
-
-#### Special Behaviors
-- **Point Transfer**: Unlike regular transfers, governance points move with tokens
-- **Full Transfer**: Transfers entire RIPE token position
-- **Lock Assignment**: Recipient gets specified lock duration
-- **HR Events**: Emits special contributor transfer event
-
-## Lock Management Functions
-
-### `adjustLock`
-
-Extends lock duration for additional governance point bonuses.
-
-```vyper
-@external
-def adjustLock(
-    _user: address,
-    _asset: address,
-    _newLockDuration: uint256,
-    _a: addys.Addys = empty(addys.Addys),
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User adjusting lock |
-| `_asset` | `address` | Asset to adjust lock for |
-| `_newLockDuration` | `uint256` | New lock duration in blocks |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Access
-
-Only callable by valid Ripe protocol addresses
-
-#### Restrictions
-- **Extension Only**: New unlock time must be later than current
-- **Position Required**: User must have non-zero share balance
-- **Terms Required**: Asset must have configured lock terms
-
-#### Process Flow
-1. **Full Update**: Accumulates all pending governance points
-2. **Lootbox Update**: Updates deposit points for extended commitment
-3. **Lock Extension**: Sets new unlock block (current + new duration)
-4. **Event Emission**: Logs lock modification
-
-#### Events Emitted
-
-- `LockModified` - Contains user, asset, and new lock duration
-
-#### Example Usage
-```python
-# Extend lock for maximum governance bonus
-ripe_gov.adjustLock(
-    user.address,
-    ripe_token.address,
-    BLOCKS_PER_TWO_YEARS,  # Extend to 2 years
-    empty(addys.Addys),
-    sender=user.address    # User extending their own lock
-)
-```
-
-### `releaseLock`
-
-Allows early exit from lock period with penalty fee.
-
-```vyper
-@external
-def releaseLock(
-    _user: address,
-    _asset: address,
-    _a: addys.Addys = empty(addys.Addys),
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User releasing lock |
-| `_asset` | `address` | Asset to release lock for |
-| `_a` | `addys.Addys` | Protocol addresses struct |
-
-#### Access
-
-Only callable by valid Ripe protocol addresses
-
-#### Smart Protection Logic
-```vyper
-# Protect users from costly exit during bad debt when they couldn't withdraw anyway
-if staticcall Ledger(a.ledger).badDebt() != 0:
-    assert not config.shouldFreezeWhenBadDebt # dev: saving user money
-```
-
-#### Exit Fee Calculation
-```vyper
-# Remove shares as penalty for early exit
-sharesToRemove = userShares * exitFee / HUNDRED_PERCENT
-```
-
-#### Process Flow
-1. **Protection Check**: Prevents costly exit when withdrawal would fail anyway
-2. **Full Update**: Accumulates all pending governance points  
-3. **Validation**: Ensures position is locked and exit is allowed
-4. **Lootbox Update**: Updates points for lock release
-5. **Fee Payment**: Burns shares equal to exit fee percentage
-6. **Lock Removal**: Sets unlock time to 0 (immediately unlocked)
-
-#### Events Emitted
-
-- `LockReleased` - Contains user, asset, and exit fee charged
-
-## Governance Point Functions
-
-### `getLatestGovPoints`
-
-Calculates accumulated governance points for a position.
-
-```vyper
-@view
-@external
-def getLatestGovPoints(
-    _lastShares: uint256,
-    _lastPointsUpdate: uint256,
-    _unlock: uint256,
-    _terms: cs.LockTerms,
-    _weight: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_lastShares` | `uint256` | Share balance at last update |
-| `_lastPointsUpdate` | `uint256` | Block of last points update |
-| `_unlock` | `uint256` | Unlock block number |
-| `_terms` | `cs.LockTerms` | Lock term configuration |
-| `_weight` | `uint256` | Asset weight percentage |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | New governance points earned since last update |
-
-#### Calculation Formula
-```vyper
-# Base points = shares * time * weight
-base_points = (shares / PRECISION) * (blocks_elapsed) * (weight / HUNDRED_PERCENT)
-
-# Lock bonus points = base_points * lock_bonus_ratio  
-lock_bonus = base_points * getLockBonusPoints(base_points, unlock, terms) / HUNDRED_PERCENT
-
-# Total new points
-total_points = base_points + lock_bonus
-```
-
-### `getLockBonusPoints`
-
-Calculates additional points awarded for locked positions.
-
-```vyper
-@view
-@external
-def getLockBonusPoints(
-    _points: uint256,
-    _unlock: uint256,
-    _terms: cs.LockTerms,
-) -> uint256:
-```
-
-#### Lock Bonus Formula
-```vyper
-remaining_lock = unlock - current_block
-effective_duration = min(remaining_lock, max_lock_duration)
-
-if effective_duration > min_lock_duration:
-    duration_ratio = (effective_duration - min_lock_duration) / (max_lock_duration - min_lock_duration)
-    lock_bonus_ratio = max_lock_boost * duration_ratio
-    bonus_points = base_points * lock_bonus_ratio / HUNDRED_PERCENT
-```
-
-#### Example Calculation
-```python
-# User has 1000 shares locked for 1 year with 50% max bonus
-shares = 1000 * 10**18
-blocks_elapsed = 100
-unlock_block = current_block + BLOCKS_PER_YEAR
-terms = LockTerms(
-    minLockDuration=BLOCKS_PER_MONTH,
-    maxLockDuration=BLOCKS_PER_TWO_YEARS,
-    maxLockBoost=5000,  # 50.00%
-    exitFee=500,        # 5.00%
-    canExit=True
-)
-
-base_points = (shares // PRECISION) * blocks_elapsed  # = 1000 * 100 = 100,000
-remaining_duration = BLOCKS_PER_YEAR
-duration_ratio = (BLOCKS_PER_YEAR - BLOCKS_PER_MONTH) / (BLOCKS_PER_TWO_YEARS - BLOCKS_PER_MONTH)
-# Approximately 0.48 for 1 year lock in 2 year range
-lock_bonus_ratio = 5000 * 0.48 = 2400  # 24.00%
-bonus_points = 100,000 * 2400 / 10000 = 24,000
-
-total_new_points = 100,000 + 24,000 = 124,000
-```
-
-### `getWeightedLockOnTokenDeposit`
-
-Calculates weighted lock duration when adding to existing position.
-
-```vyper
-@view
-@external
-def getWeightedLockOnTokenDeposit(
-    _newShares: uint256,
-    _newLockDuration: uint256,
-    _lockTerms: cs.LockTerms,
-    _prevShares: uint256,
-    _prevUnlock: uint256,
-) -> uint256:
-```
-
-#### Weighted Average Formula
-```vyper
-# Convert to normalized values
-prev_normalized = prev_shares // PRECISION
-new_normalized = new_shares // PRECISION
-
-# Calculate previous remaining duration
-prev_duration = prev_unlock - current_block (capped by max)
-
-# Weighted average
-weighted_duration = ((prev_normalized * prev_duration) + (new_normalized * new_lock_duration)) / (prev_normalized + new_normalized)
-
-new_unlock = current_block + weighted_duration
-```
-
-### `updateUserGovPoints`
-
-Manually updates governance points for a user across all assets.
-
-```vyper
-@external
-def updateUserGovPoints(_user: address, _a: addys.Addys = empty(addys.Addys)):
-```
-
-#### Access
-
-Only callable by valid Ripe protocol addresses
-
-#### Process Flow
-1. **Asset Iteration**: Loops through all user's assets in vault
-2. **Points Update**: Accumulates pending points for each asset
-3. **State Update**: Updates stored governance points
-4. **Boardroom Notification**: Updates voting power
-
-## Integration Support Functions
-
-### `getVaultDataOnDeposit`
-
-Provides vault data needed by Teller for deposit operations.
-
-```vyper
-@view
-@external
-def getVaultDataOnDeposit(_user: address, _asset: address) -> Vault.VaultDataOnDeposit:
-```
-
-Delegates to SharesVault for consistent vault data.
-
-### `getUserLootBoxShare`
-
-Returns governance point-based share for Lootbox reward calculations.
-
-```vyper
-@view
-@external
-def getUserLootBoxShare(_user: address, _asset: address) -> uint256:
-```
-
-#### Calculation
-```vyper
-# Base points from shares
-base_points = last_shares // PRECISION
-
-# Add lock bonus if applicable
-if lock_terms_configured:
-    lock_bonus = getLockBonusPoints(base_points, unlock, terms)
-    return base_points + lock_bonus
-
-return base_points
-```
-
-This ensures Lootbox rewards account for both deposit size and lock commitment.
-
-### `getUserAssetAndAmountAtIndex`
-
-Returns asset and amount at specific index for CreditEngine collateral calculations.
-
-```vyper
-@view
-@external
-def getUserAssetAndAmountAtIndex(_user: address, _index: uint256) -> (address, uint256):
-```
-
-Delegates to SharesVault for consistent asset valuation.
-
-## Lock Terms Management
-
-### `refreshUnlock`
-
-Updates unlock time when lock terms change to protect users.
-
-```vyper
-@view
-@external
-def refreshUnlock(_prevUnlock: uint256, _newTerms: cs.LockTerms, _prevTerms: cs.LockTerms) -> uint256:
-```
-
-#### Protection Logic
-```vyper
-# Reset lock if key terms become unfavorable
-if not areKeyTermsSame(new_terms, prev_terms):
-    unlock = 0  # Immediately unlock to protect user
-
-# Cap unlock by new max duration
-return min(unlock, current_block + new_terms.maxLockDuration)
-```
-
-### `areKeyTermsSame`
-
-Determines if lock terms changes are favorable or unfavorable to users.
-
-```vyper
-@view
-@external
-def areKeyTermsSame(_newTerms: cs.LockTerms, _prevTerms: cs.LockTerms) -> bool:
-```
-
-#### Unfavorable Changes (returns False)
-- **Exit Removal**: `canExit` changes from True to False
-- **Bonus Reduction**: `maxLockBoost` decreases
-- **Duration Increase**: `minLockDuration` increases  
-- **Fee Increase**: `exitFee` increases
-
-#### User Protection
-When terms become unfavorable, users' locks are automatically released to prevent being trapped by governance parameter changes.
-
-## Events
-
-### `RipeGovVaultDeposit`
-Emitted on successful deposits with lock information.
-
-### `RipeGovVaultWithdrawal`  
-Emitted on withdrawals with depletion status.
-
-### `RipeGovVaultBurnContributorTokens`
-Emitted when HR burns contributor tokens.
-
-### `RipeGovVaultTransfer`
-Emitted on internal transfers (liquidations).
-
-### `RipeTokensTransferred`
-Emitted when HR transfers contributor tokens.
-
-### `LockModified`
-Emitted when user extends lock duration.
-
-### `LockReleased`
-Emitted when user exits early with fee.
-
-## Security Considerations
-
-### Access Controls
-- **Teller Only**: Regular deposits restricted to Teller
-- **HR Only**: Contributor management restricted to Human Resources
-- **Valid Ripe Addresses**: Advanced functions restricted to protocol contracts
-- **Liquidation Contracts**: Transfers restricted to AuctionHouse and CreditEngine
-
-### Lock Period Enforcement
-- **Withdrawal Blocking**: Strict enforcement of lock periods for regular withdrawals
-- **Bad Debt Protection**: Additional freeze during protocol bad debt if configured
-- **Smart Exit Protection**: Prevents costly early exits when withdrawal would fail anyway
-
-### Governance Point Integrity
-- **Proportional Penalties**: Point reduction proportional to share withdrawal
-- **Time-Based Accrual**: Points only accumulate over time, not instantly
-- **Lock Bonus Validation**: Lock bonuses based on remaining time, not initial lock
-- **Terms Protection**: Automatic unlock when terms become unfavorable
-
-### Economic Incentives
-- **Long-Term Alignment**: Higher rewards for longer commitments
-- **Exit Costs**: Economic penalty for early exit discourages gaming
-- **Weighted Averaging**: Fair blending of multiple deposits with different locks
+### Export
+
+`exportPositionForMigration` is Teller-only, nonreentrant, and requires the source vault paused. The target must be a distinct registered vault contract. Export:
+
+1. requires a nonzero full position and no prior tombstone;
+2. accrues through the export block using the position's stored pre-wind-down lock terms rather than refreshing to temporary wind-down terms;
+3. requires exact consistency between stored and actual shares/point totals;
+4. removes the complete position and its points from source totals;
+5. permanently sets `positionMigratedOut[user][asset]`;
+6. transfers the underlying amount to the target vault; and
+7. returns the preserved amount, points, unlock, and terms.
+
+The permanent tombstone prevents migration back into that source user/asset position.
+
+### Import
+
+`importPositionForMigration` is Teller-only, nonreentrant, and requires the target vault paused. The source must be a distinct registered vault. The target user/asset must have no balance, no existing governance data, and no target tombstone.
+
+The target must already have received at least `migration.amount`. Shares are calculated against custody immediately before that incoming amount and must be nonzero. Import restores governance points, unlock, and `lastTerms` exactly, while setting `lastPointsUpdate` to the import block.
+
+VaultMigrator separately propagates a user-specific point-disable block when required. It also verifies exact source debit, target receipt, no Teller residue, target shares/terms/points, and Ledger participation around the Teller-mediated calls.
+
+## Migration and pause authority
+
+The RipeGov contract enforces its local Teller/paused/registered-vault conditions. VaultMigrator and Switchboard add the broader policy: historical source classification, current target pointer, Teller pause, source/target pause state, batch limits, and legacy-chain rules. Do not treat the local functions as a complete migration authorization specification.
+
+## Integration requirements
+
+- Resolve the current core vault pointer and historical classification from MissionControl.
+- Preserve `RipeGovMigrationData` field order and the source tombstone.
+- Do not refresh migration positions into temporary wind-down terms.
+- Treat point-disable state as irreversible and migrate it explicitly.
+- Interpret raw `userBalances` as shares, not token amounts.
+
+<!-- BEGIN GENERATED API REFERENCE: RipeGov -->
+## Exact API reference
+
+> Generated from `contracts/vaults/RipeGov.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `adjustLock(address _user, address _asset, uint256 _newLockDuration, Addys _a)` | `3–4` | `_a` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, Addys _a)` | `3–4` | `_a` |
+| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration, Addys _a)` | `4–5` | `_a` |
+| `exportPositionForMigration(address _user, address _asset, address _targetVault, Addys _a)` | `3–4` | `_a` |
+| `releaseLock(address _user, address _asset, Addys _a)` | `2–3` | `_a` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, Addys _a)` | `4–5` | `_a` |
+| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration, Addys _a)` | `3–4` | `_a` |
+| `updateUserGovPoints(address _user, Addys _a)` | `1–2` | `_a` |
+| `withdrawContributorTokensToBurn(address _user, Addys _a)` | `1–2` | `_a` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, Addys _a)` | `4–5` | `_a` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `adjustLock(address _user, address _asset, uint256 _newLockDuration)` | `nonpayable` | — |
+| `adjustLock(address _user, address _asset, uint256 _newLockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
+| `amountToShares(address _asset, uint256 _amount, bool _shouldRoundUp)` | `view` | `uint256` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount)` | `nonpayable` | `uint256` |
+| `depositTokensInVault(address _user, address _asset, uint256 _amount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `uint256` |
+| `depositTokensWithLockDuration(address _user, address _asset, uint256 _amount, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| `deregisterUserAsset(address _user, address _asset)` | `nonpayable` | `bool` |
+| `deregisterVaultAsset(address _asset)` | `nonpayable` | `bool` |
+| `disableGovPointAccrualForUser(address _user)` | `nonpayable` | — |
+| `disableGovPointAccrualGlobally()` | `nonpayable` | — |
+| `doesUserHaveBalance(address _user, address _asset)` | `view` | `bool` |
+| `doesVaultHaveAnyFunds()` | `view` | `bool` |
+| `exportPositionForMigration(address _user, address _asset, address _targetVault)` | `nonpayable` | `(uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256))` |
+| `exportPositionForMigration(address _user, address _asset, address _targetVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256))` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getLatestGovPoints(uint256 _lastShares, uint256 _lastPointsUpdate, uint256 _unlock, (uint256,uint256,uint256,bool,uint256) _terms, uint256 _weight)` | `view` | `uint256` |
+| `getLockBonusPoints(uint256 _points, uint256 _unlock, (uint256,uint256,uint256,bool,uint256) _terms)` | `view` | `uint256` |
+| `getNumUserAssets(address _user)` | `view` | `uint256` |
+| `getNumVaultAssets()` | `view` | `uint256` |
+| `getRipeHq()` | `view` | `address` |
+| `getTotalAmountForUser(address _user, address _asset)` | `view` | `uint256` |
+| `getTotalAmountForVault(address _asset)` | `view` | `uint256` |
+| `getUserAssetAndAmountAtIndex(address _user, uint256 _index)` | `view` | `(address, uint256)` |
+| `getUserAssetAtIndexAndHasBalance(address _user, uint256 _index)` | `view` | `(address, bool)` |
+| `getUserLootBoxShare(address _user, address _asset)` | `view` | `uint256` |
+| `getVaultDataOnDeposit(address _user, address _asset)` | `view` | `(bool,uint256,uint256,uint256)` |
+| `getWeightedLockOnTokenDeposit(uint256 _newShares, uint256 _newLockDuration, (uint256,uint256,uint256,bool,uint256) _lockTerms, uint256 _prevShares, uint256 _prevUnlock)` | `view` | `uint256` |
+| `govPointAccrualDisabledBlock()` | `view` | `uint256` |
+| `importPositionForMigration(address _user, address _asset, address _sourceVault, (uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256)) _migration)` | `nonpayable` | `uint256` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` |
+| `indexOfUserAsset(address arg0, address arg1)` | `view` | `uint256` |
+| `inheritUserGovPointAccrualDisableForMigration(address _user, uint256 _disabledBlock)` | `nonpayable` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `isSupportedVaultAsset(address _asset)` | `view` | `bool` |
+| `isUserInVaultAsset(address _user, address _asset)` | `view` | `bool` |
+| `numAssets()` | `view` | `uint256` |
+| `numUserAssets(address arg0)` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `positionMigratedOut(address arg0, address arg1)` | `view` | `bool` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `refreshUnlock(uint256 _prevUnlock, (uint256,uint256,uint256,bool,uint256) _newTerms, (uint256,uint256,uint256,bool,uint256) _prevTerms)` | `view` | `uint256` |
+| `releaseLock(address _user, address _asset)` | `nonpayable` | — |
+| `releaseLock(address _user, address _asset, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
+| `sharesToAmount(address _asset, uint256 _shares, bool _shouldRoundUp)` | `view` | `uint256` |
+| `totalBalances(address arg0)` | `view` | `uint256` |
+| `totalGovPoints()` | `view` | `uint256` |
+| `totalUserGovPoints(address arg0)` | `view` | `uint256` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount)` | `nonpayable` | `(uint256, bool)` |
+| `transferBalanceWithinVault(address _asset, address _fromUser, address _toUser, uint256 _transferAmount, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
+| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration)` | `nonpayable` | `uint256` |
+| `transferContributorRipeTokens(address _contributor, address _toUser, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| `updateUserGovPoints(address _user)` | `nonpayable` | — |
+| `updateUserGovPoints(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — |
+| `userAssets(address arg0, uint256 arg1)` | `view` | `address` |
+| `userBalances(address arg0, address arg1)` | `view` | `uint256` |
+| `userGovData(address arg0, address arg1)` | `view` | `(uint256,uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256))` |
+| `userGovPointAccrualDisabledBlock(address arg0)` | `view` | `uint256` |
+| `vaultAssets(uint256 arg0)` | `view` | `address` |
+| `withdrawContributorTokensToBurn(address _user)` | `nonpayable` | `uint256` |
+| `withdrawContributorTokensToBurn(address _user, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient)` | `nonpayable` | `(uint256, bool)` |
+| `withdrawTokensFromVault(address _user, address _asset, uint256 _amount, address _recipient, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `GovPointAccrualDisabledForUser` | `address user indexed, uint256 disabledBlock, address caller indexed` |
+| `GovPointAccrualDisabledGlobally` | `uint256 disabledBlock, address caller indexed` |
+| `LockModified` | `address user indexed, address asset indexed, uint256 newLockDuration` |
+| `LockReleased` | `address user indexed, address asset indexed, uint256 exitFee` |
+| `RipeGovPositionExported` | `address user indexed, address asset indexed, address targetVault indexed, uint256 amount, uint256 sourceShares, uint256 govPoints, uint256 unlock` |
+| `RipeGovPositionImported` | `address user indexed, address asset indexed, address sourceVault indexed, uint256 amount, uint256 targetShares, uint256 govPoints, uint256 unlock` |
+| `RipeGovVaultBurnContributorTokens` | `address user indexed, address asset indexed, uint256 amount, uint256 shares` |
+| `RipeGovVaultDeposit` | `address user indexed, address asset indexed, uint256 amount, uint256 shares, uint256 lockDuration` |
+| `RipeGovVaultTransfer` | `address fromUser indexed, address toUser indexed, address asset indexed, uint256 transferAmount, bool isFromUserDepleted, uint256 transferShares` |
+| `RipeGovVaultWithdrawal` | `address user indexed, address asset indexed, uint256 amount, bool isDepleted, uint256 shares` |
+| `RipeTokensTransferred` | `address fromUser indexed, address toUser indexed, uint256 amount` |
+| `VaultFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `VaultPauseModified` | `bool isPaused` |
+
+### Structs declared by this source
+
+- `GovData(govPoints: uint256, lastShares: uint256, lastPointsUpdate: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
+- `RipeGovMigrationData(amount: uint256, govPoints: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
+
+<!-- END GENERATED API REFERENCE: RipeGov -->

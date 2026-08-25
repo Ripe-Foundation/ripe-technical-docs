@@ -1,851 +1,297 @@
-# PriceDesk Technical Documentation
+# PriceDesk
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/registries/PriceDesk.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/registries/PriceDesk.vy)
 
 ## Overview
 
-PriceDesk is the centralized oracle registry that aggregates multiple price sources to provide reliable USD valuations across Ripe Protocol. It intelligently routes price requests through prioritized oracles, ensuring accurate pricing even when individual sources fail.
+PriceDesk is the protocol's price-source registry and aggregation boundary. It resolves price sources in MissionControl priority order, falls back through the remaining registered sources, converts between token amounts and 18-decimal USD values, and coordinates price snapshots.
 
-**Core Functions**:
-- **Oracle Registry**: Manages approved price sources with unique IDs and descriptions
-- **Smart Aggregation**: Checks priority sources first, then falls back to all registered oracles
-- **Value Conversions**: Automatic USD/asset conversions with decimal normalization
+PriceDesk is also a fault-containment boundary. Calls into a registered source are isolated with bounded gas and strict ABI validation so a reverting, out-of-gas, or malformed source cannot automatically break all later sources.
 
-Built on LocalGov and AddressRegistry modules, PriceDesk implements resilient price discovery through priority-based oracle selection. It handles diverse token decimals automatically and provides specialized ETH conversion utilities, ensuring protocol-wide access to accurate pricing data. It integrates with price sources like [ChainlinkPrices](../pricing/ChainlinkPrices.md), [CurvePrices](../pricing/CurvePrices.md), and [PythPrices](../pricing/PythPrices.md), with configuration managed through [MissionControl](../governance/MissionControl.md).
+## Constructor and inherited controls
 
-## Architecture & Modules
-
-PriceDesk is built using a modular architecture that inherits functionality from multiple base modules:
-
-### LocalGov Module
-
-- **Location**: `contracts/modules/LocalGov.vy`
-- **Purpose**: Provides governance functionality with time-locked changes
-- **Documentation**: See [LocalGov Technical Documentation](../governance/LocalGov.md)
-- **Key Features**:
-  - Governance address management
-  - Time-locked transitions
-  - Access control for administrative functions
-- **Exported Interface**: All governance functions via `gov.__interface__`
-
-### AddressRegistry Module
-
-- **Location**: `contracts/registries/modules/AddressRegistry.vy`
-- **Purpose**: Manages the registry of price source addresses
-- **Documentation**: See [AddressRegistry Technical Documentation](../core-modules/AddressRegistry.md)
-- **Key Features**:
-  - Sequential registry ID assignment for price sources
-  - Time-locked address additions, updates, and disabling
-  - Descriptive labels for each price source
-- **Exported Interface**: All registry functions via `registry.__interface__`
-
-### Addys Module
-
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides RipeHq integration for address lookups
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Key Features**:
-  - Access to MissionControl address
-  - Validation of Ripe protocol addresses
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### DeptBasics Module
-
-- **Location**: `contracts/modules/DeptBasics.vy`
-- **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
-- **Key Features**:
-  - Pause mechanism
-  - Department interface compliance
-  - No minting capabilities (disabled for PriceDesk)
-- **Exported Interface**: Department basics via `deptBasics.__interface__`
-
-### Module Initialization
-
-```vyper
-initializes: gov
-initializes: registry[gov := gov]
-initializes: addys
-initializes: deptBasics[addys := addys]
+```text
+__init__(ripeHq, tempGov, ethAddr, minRegistryTimeLock, maxRegistryTimeLock)
 ```
 
-## System Architecture Diagram
+`ethAddr` is the chain's ETH sentinel and must be nonzero. PriceDesk initializes LocalGov, the timelocked AddressRegistry, Addys, and a non-minting Department configuration. Registry add, update, and disable operations are governance-controlled and unavailable while PriceDesk is paused.
 
-```
-+------------------------------------------------------------------------+
-|                          PriceDesk Contract                            |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Price Discovery Flow                        |  |
-|  |                                                                  |  |
-|  |  1. getPrice(_asset) called                                      |  |
-|  |     |                                                            |  |
-|  |     v                                                            |  |
-|  |  2. Fetch PriceConfig from MissionControl                        |  |
-|  |     - staleTime threshold                                        |  |
-|  |     - priorityPriceSourceIds list                                |  |
-|  |     |                                                            |  |
-|  |     v                                                            |  |
-|  |  3. Check Priority Sources (in order)                            |  |
-|  |     - Query each priority oracle                                 |  |
-|  |     - Return first valid price found                             |  |
-|  |     |                                                            |  |
-|  |     v (if no price found)                                        |  |
-|  |  4. Check All Registered Sources                                 |  |
-|  |     - Iterate through registry (skip already checked)            |  |
-|  |     - Return first valid price found                             |  |
-|  |     |                                                            |  |
-|  |     v                                                            |  |
-|  |  5. Return price or 0 (optionally raise if feed exists)          |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Module Components                             |  |
-|  |                                                                  |  |
-|  |  +----------------+   +------------------+  +-----------------+  |  |
-|  |  | LocalGov       |  | AddressRegistry   |  | Addys           |  |  |
-|  |  | * Governance   |  | * Oracle registry |  | * RipeHq lookup |  |  |
-|  |  | * Time-locks   |  | * ID management   |  | * MC address    |  |  |
-|  |  +----------------+  +-------------------+  +-----------------+  |  |
-|  |                                                                  |  |
-|  |  +----------------+                                              |  |
-|  |  | DeptBasics     |                                              |  |
-|  |  | * Pause state  |                                              |  |
-|  |  | * No minting   |                                              |  |
-|  |  +----------------+                                              |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+----------------+       +------------------+       +-------------------+
-| MissionControl |       | Priority Oracles |       | Standard Oracles  |
-| * PriceConfig  |       | * Chainlink      |       | * Backup sources  |
-| * Priority IDs |       | * Primary feeds  |       | * Alternative     |
-+----------------+       +------------------+       |   providers       |
-                                                    +-------------------+
+PriceDesk does not itself choose a global freshness policy. It obtains `staleTime` and `priorityPriceSourceIds` from MissionControl's current price configuration.
+
+## Price aggregation
+
+### Source order
+
+For each read, PriceDesk:
+
+1. reads the current MissionControl price configuration;
+2. tries each configured priority source ID in order;
+3. if none returns a usable price, tries every other active registry ID in numeric order; and
+4. returns the first nonzero usable price.
+
+Duplicate priority IDs are not queried again during fallback.
+
+### Isolated source calls
+
+The aggregate read calls each candidate's canonical function:
+
+```text
+getPriceAndHasFeed(asset, globalStaleTime, priceDesk)
 ```
 
-## Data Structures
+The call is static, does not bubble a source revert, and is limited to 250,000 gas. The response must be exactly two ABI words. PriceDesk rejects malformed Boolean values and the inconsistent combination `price != 0` with `hasFeed == false`.
 
-### PriceConfig Struct
+Source status is interpreted as:
 
-Configuration for price discovery (fetched from MissionControl):
+| Status | Meaning |
+| --- | --- |
+| `0` | call succeeded and source reports no feed |
+| `1` | call succeeded and source reports a feed; price may still be zero because it is stale or otherwise unusable |
+| `2` | call failed or returned malformed data |
 
-```vyper
-struct PriceConfig:
-    staleTime: uint256                                              # Maximum age for valid prices
-    priorityPriceSourceIds: DynArray[uint256, MAX_PRIORITY_PRICE_SOURCES]  # Priority oracle IDs
+An unhealthy source does not prevent a later healthy source from supplying the price. If every candidate returns zero and any source either reports feed coverage or fails/malforms, a strict read reverts with `has price config, no price`. This fail-closed rule prevents a failed source from being misclassified as proof that no configured feed exists. A non-strict read returns zero.
+
+### Caller stale-time parameter
+
+The public selector is:
+
+```text
+getPrice(asset, shouldRaise = false, staleTime = 0)
 ```
 
-## State Variables
+For a real asset, the caller-side `staleTime` argument must be zero. A nonzero
+value returns zero in non-strict mode and reverts with
+`caller stale time unsupported` in strict mode. Source freshness is governed by
+MissionControl plus each source's feed configuration.
 
-### Constants
+`qualifyCallerPriceSource(asset, staleTime = 0)` is an admission helper used by
+a candidate source itself. It tests that caller directly under the 250,000-gas
+stipend, avoiding aggregate fallback that could mask an unexecutable source. A
+nonzero caller stale time returns `(0, 2)`.
 
-- `MAX_PRIORITY_PRICE_SOURCES: uint256 = 10` - Maximum priority sources in config
-- `UNDERSCORE_APPRAISER_ID: uint256 = 7` - Registry ID for underscore appraiser
+## Global and feed-specific freshness
 
-### Immutable Variables
+PriceDesk forwards MissionControl's global stale time only through the canonical three-argument source call and identifies itself as the forwarding registry. Supported oracle sources accept a nonzero global value only from the currently registered PriceDesk.
 
-- `ETH: address` - Address representing ETH for pricing
+Within those sources:
 
-### Inherited State Variables
+- a feed-specific nonzero stale time is an **absolute override**;
+- a feed-specific zero inherits the MissionControl global value; and
+- the implementation does not take the minimum of the two.
 
-From [LocalGov](../governance/LocalGov.md):
+Feed configuration and protocol-wide stale-time governance remain separate
+controls. Oracle-source code constrains local overrides to five minutes through
+seven days and rejects an effective or global nonzero value above seven days.
 
-- `governance: address` - Current governance address
-- `govChangeTimeLock: uint256` - Timelock for governance changes
+## Token scale cache
 
-From [AddressRegistry](../core-modules/AddressRegistry.md):
+PriceDesk uses a stored `tokenScale[asset]` instead of calling `decimals()`
+during each valuation:
 
-- `registryChangeTimeLock: uint256` - Timelock for registry changes
-- Registry mappings for oracle management
+- `0` means unset;
+- `1` is a valid scale for a zero-decimal token; and
+- `10 ** decimals` is stored for all other supported tokens.
 
-From Addys:
+`syncTokenScale(asset)` rejects the zero address and the ETH sentinel. Governance and Switchboard callers may initialize or refresh a scale. Any other caller may initialize it only when PriceDesk can find a feed for the asset and the scale is still unset. Permissionless callers cannot overwrite an existing value.
 
-- RipeHq address reference
+The token must return decimals no greater than 77. Successful synchronization emits:
 
-From [DeptBasics](../core-modules/DeptBasics.md):
-
-- `isPaused: bool` - Department pause state
-
-## Constructor
-
-### `__init__`
-
-Initializes PriceDesk with governance settings and ETH address configuration.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _ethAddr: address,
-    _minRegistryTimeLock: uint256,
-    _maxRegistryTimeLock: uint256,
-):
+```text
+TokenScaleSet(asset, decimals, scale)
 ```
 
-#### Parameters
+For non-ETH assets, a missing scale returns zero in non-strict conversion calls and reverts with `missing token scale` in strict calls. ETH always uses `1e18`.
 
-| Name                   | Type      | Description                            |
-| ---------------------- | --------- | -------------------------------------- |
-| `_ripeHq`              | `address` | RipeHq contract address                |
-| `_tempGov`             | `address` | Initial temporary governance address   |
-| `_ethAddr`             | `address` | Address representing ETH for pricing   |
-| `_minRegistryTimeLock` | `uint256` | Minimum time-lock for registry changes |
-| `_maxRegistryTimeLock` | `uint256` | Maximum time-lock for registry changes |
+Feed registration and token-scale synchronization are independent. A usable
+valuation route requires both.
 
-#### Returns
+## Amount conversion
 
-_Constructor does not return any values_
+### `getUsdValue(asset, amount, shouldRaise = false)`
 
-#### Access
+Returns:
 
-Called only during deployment
-
-#### Example Usage
-
-```python
-# Deploy PriceDesk
-price_desk = boa.load(
-    "contracts/registries/PriceDesk.vy",
-    ripe_hq.address,
-    deployer.address,     # Temp governance
-    weth_token.address,   # ETH representation
-    100,                  # Min registry timelock
-    1000                  # Max registry timelock
-)
+```text
+price * amount / tokenScale
 ```
 
-**Example Output**: Contract deployed with oracle registry ready, no minting capabilities
+Zero amount, zero asset, missing scale, or unavailable price returns zero in non-strict mode. If a nonzero amount and price produce a positive numerator smaller than the scale, PriceDesk returns **1 USD wei** instead of rounding to zero. This floor is intentional: downstream Stability Pool accounting must not mistake positive dust for no value.
 
-## Price Query Functions
+### `getAssetAmount(asset, usdValue, shouldRaise = false)`
 
-### `getPrice`
+Returns:
 
-Gets the current USD price for an asset by checking registered oracles.
-
-```vyper
-@view
-@external
-def getPrice(_asset: address, _shouldRaise: bool = False) -> uint256:
+```text
+usdValue * tokenScale / price
 ```
 
-#### Parameters
-
-| Name           | Type      | Description                                            |
-| -------------- | --------- | ------------------------------------------------------ |
-| `_asset`       | `address` | The asset to price                                     |
-| `_shouldRaise` | `bool`    | Whether to raise exception if feed exists but no price |
-
-#### Returns
-
-| Type      | Description                                 |
-| --------- | ------------------------------------------- |
-| `uint256` | USD price with 18 decimals (0 if not found) |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-
-```python
-# Get USDC price
-usdc_price = price_desk.getPrice(usdc.address)
-# Returns: 1000000000000000000 (1e18 = $1.00)
-
-# Get price with exception on stale
-btc_price = price_desk.getPrice(
-    wbtc.address,
-    True  # Raise if feed exists but price is stale
-)
-```
-
-**Example Output**: Returns price in 18 decimal format or 0 if not found
-
-### `getUsdValue`
-
-Converts an asset amount to its USD value.
-
-```vyper
-@view
-@external
-def getUsdValue(_asset: address, _amount: uint256, _shouldRaise: bool = False) -> uint256:
-```
-
-#### Parameters
-
-| Name           | Type      | Description                       |
-| -------------- | --------- | --------------------------------- |
-| `_asset`       | `address` | The asset address                 |
-| `_amount`      | `uint256` | Amount in asset's native decimals |
-| `_shouldRaise` | `bool`    | Whether to raise on stale price   |
-
-#### Returns
-
-| Type      | Description                |
-| --------- | -------------------------- |
-| `uint256` | USD value with 18 decimals |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-
-```python
-# Get USD value of 100 USDC (6 decimals)
-usd_value = price_desk.getUsdValue(
-    usdc.address,
-    100_000000  # 100 USDC
-)
-# Returns: 100000000000000000000 (100e18 = $100)
-
-# Get USD value of 2 WBTC (8 decimals)
-btc_value = price_desk.getUsdValue(
-    wbtc.address,
-    2_00000000  # 2 BTC
-)
-# Returns: 60000000000000000000000 (if BTC = $30,000)
-```
-
-### `getAssetAmount`
-
-Converts a USD value to the equivalent asset amount.
-
-```vyper
-@view
-@external
-def getAssetAmount(_asset: address, _usdValue: uint256, _shouldRaise: bool = False) -> uint256:
-```
-
-#### Parameters
-
-| Name           | Type      | Description                     |
-| -------------- | --------- | ------------------------------- |
-| `_asset`       | `address` | The asset address               |
-| `_usdValue`    | `uint256` | USD value with 18 decimals      |
-| `_shouldRaise` | `bool`    | Whether to raise on stale price |
-
-#### Returns
-
-| Type      | Description                     |
-| --------- | ------------------------------- |
-| `uint256` | Asset amount in native decimals |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-
-```python
-# Get USDC amount for $500
-usdc_amount = price_desk.getAssetAmount(
-    usdc.address,
-    500_000000000000000000  # $500
-)
-# Returns: 500_000000 (500 USDC with 6 decimals)
-
-# Get WBTC amount for $15,000
-btc_amount = price_desk.getAssetAmount(
-    wbtc.address,
-    15000_000000000000000000  # $15,000
-)
-# Returns: 50000000 (0.5 BTC with 8 decimals if BTC = $30,000)
-```
-
-### `hasPriceFeed`
-
-Checks if any registered oracle has a price feed for an asset.
-
-```vyper
-@view
-@external
-def hasPriceFeed(_asset: address) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description        |
-| -------- | --------- | ------------------ |
-| `_asset` | `address` | The asset to check |
-
-#### Returns
-
-| Type   | Description                   |
-| ------ | ----------------------------- |
-| `bool` | True if any oracle has a feed |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-
-```python
-# Check if USDC has a price feed
-has_feed = price_desk.hasPriceFeed(usdc.address)
-# Returns: True
-
-# Check if random token has feed
-has_feed = price_desk.hasPriceFeed(unknown_token.address)
-# Returns: False
-```
-
-## ETH-Specific Functions
-
-### `getEthUsdValue`
-
-Converts ETH amount to USD value.
-
-```vyper
-@view
-@external
-def getEthUsdValue(_amount: uint256, _shouldRaise: bool = False) -> uint256:
-```
-
-#### Parameters
-
-| Name           | Type      | Description                     |
-| -------------- | --------- | ------------------------------- |
-| `_amount`      | `uint256` | ETH amount in wei (18 decimals) |
-| `_shouldRaise` | `bool`    | Whether to raise on stale price |
-
-#### Returns
-
-| Type      | Description                |
-| --------- | -------------------------- |
-| `uint256` | USD value with 18 decimals |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-
-```python
-# Get USD value of 1.5 ETH
-usd_value = price_desk.getEthUsdValue(
-    1_500000000000000000  # 1.5 ETH
-)
-# Returns: 2250000000000000000000 (if ETH = $1,500)
-```
-
-### `getEthAmount`
-
-Converts USD value to ETH amount.
-
-```vyper
-@view
-@external
-def getEthAmount(_usdValue: uint256, _shouldRaise: bool = False) -> uint256:
-```
-
-#### Parameters
-
-| Name           | Type      | Description                     |
-| -------------- | --------- | ------------------------------- |
-| `_usdValue`    | `uint256` | USD value with 18 decimals      |
-| `_shouldRaise` | `bool`    | Whether to raise on stale price |
-
-#### Returns
-
-| Type      | Description       |
-| --------- | ----------------- |
-| `uint256` | ETH amount in wei |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-
-```python
-# Get ETH amount for $3,000
-eth_amount = price_desk.getEthAmount(
-    3000_000000000000000000  # $3,000
-)
-# Returns: 2000000000000000000 (2 ETH if ETH = $1,500)
-```
-
-## Registry Management Functions
-
-### `startAddNewAddressToRegistry`
-
-Initiates adding a new price source to the registry.
-
-```vyper
-@external
-def startAddNewAddressToRegistry(_addr: address, _description: String[64]) -> bool:
-```
-
-#### Parameters
-
-| Name           | Type         | Description                       |
-| -------------- | ------------ | --------------------------------- |
-| `_addr`        | `address`    | The price source contract address |
-| `_description` | `String[64]` | Description of the price source   |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully initiated |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused (see [LocalGov](../governance/LocalGov.md) for governance details)
-
-#### Events Emitted
-
-- `NewAddressPending` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains address, description, and confirmation block
-
-#### Example Usage
-
-```python
-# Add Chainlink oracle
-success = price_desk.startAddNewAddressToRegistry(
-    chainlink_oracle.address,
-    "Chainlink Price Oracle",
-    sender=governance.address
-)
-```
-
-**Example Output**: Returns `True`, emits event with timelock confirmation block
-
-### `confirmNewAddressToRegistry`
-
-Confirms adding a new price source after timelock.
-
-```vyper
-@external
-def confirmNewAddressToRegistry(_addr: address) -> uint256:
-```
-
-#### Parameters
-
-| Name    | Type      | Description                         |
-| ------- | --------- | ----------------------------------- |
-| `_addr` | `address` | The price source address to confirm |
-
-#### Returns
-
-| Type      | Description              |
-| --------- | ------------------------ |
-| `uint256` | The assigned registry ID |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `NewAddressConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md)) - Contains registry ID, address, description
-
-#### Example Usage
-
-```python
-# Confirm after timelock
-boa.env.time_travel(blocks=time_lock)
-oracle_id = price_desk.confirmNewAddressToRegistry(
-    chainlink_oracle.address,
-    sender=governance.address
-)
-# Returns: 1 (first oracle registered)
-```
-
-### `cancelNewAddressToRegistry`
-
-Cancels a pending price source addition.
-
-```vyper
-@external
-def cancelNewAddressToRegistry(_addr: address) -> bool:
-```
-
-#### Parameters
-
-| Name    | Type      | Description                        |
-| ------- | --------- | ---------------------------------- |
-| `_addr` | `address` | The price source address to cancel |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully cancelled |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `NewAddressCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-#### Example Usage
-
-```python
-success = price_desk.cancelNewAddressToRegistry(
-    chainlink_oracle.address,
-    sender=governance.address
-)
-```
-
-### `startAddressUpdateToRegistry`
-
-Initiates updating a price source address.
-
-```vyper
-@external
-def startAddressUpdateToRegistry(_regId: uint256, _newAddr: address) -> bool:
-```
-
-#### Parameters
-
-| Name       | Type      | Description              |
-| ---------- | --------- | ------------------------ |
-| `_regId`   | `uint256` | Registry ID to update    |
-| `_newAddr` | `address` | New price source address |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully initiated |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `AddressUpdatePending` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-#### Example Usage
-
-```python
-# Update oracle to new version
-success = price_desk.startAddressUpdateToRegistry(
-    1,  # Chainlink oracle ID
-    chainlink_v2.address,
-    sender=governance.address
-)
-```
-
-### `confirmAddressUpdateToRegistry`
-
-Confirms a price source update after timelock.
-
-```vyper
-@external
-def confirmAddressUpdateToRegistry(_regId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description               |
-| -------- | --------- | ------------------------- |
-| `_regId` | `uint256` | Registry ID being updated |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully confirmed |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `AddressUpdateConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-#### Example Usage
-
-```python
-# Confirm update after timelock
-boa.env.time_travel(blocks=time_lock)
-success = price_desk.confirmAddressUpdateToRegistry(
-    1,
-    sender=governance.address
-)
-```
-
-### `cancelAddressUpdateToRegistry`
-
-Cancels a pending price source update.
-
-```vyper
-@external
-def cancelAddressUpdateToRegistry(_regId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description                  |
-| -------- | --------- | ---------------------------- |
-| `_regId` | `uint256` | Registry ID to cancel update |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully cancelled |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `AddressUpdateCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-### `startAddressDisableInRegistry`
-
-Initiates disabling a price source.
-
-```vyper
-@external
-def startAddressDisableInRegistry(_regId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description            |
-| -------- | --------- | ---------------------- |
-| `_regId` | `uint256` | Registry ID to disable |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully initiated |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `AddressDisablePending` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-#### Example Usage
-
-```python
-# Start disabling compromised oracle
-success = price_desk.startAddressDisableInRegistry(
-    3,  # Compromised oracle ID
-    sender=governance.address
-)
-```
-
-### `confirmAddressDisableInRegistry`
-
-Confirms disabling a price source after timelock.
-
-```vyper
-@external
-def confirmAddressDisableInRegistry(_regId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description            |
-| -------- | --------- | ---------------------- |
-| `_regId` | `uint256` | Registry ID to disable |
-
-#### Returns
-
-| Type   | Description                   |
-| ------ | ----------------------------- |
-| `bool` | True if successfully disabled |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `AddressDisableConfirmed` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-### `cancelAddressDisableInRegistry`
-
-Cancels a pending disable operation.
-
-```vyper
-@external
-def cancelAddressDisableInRegistry(_regId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description                   |
-| -------- | --------- | ----------------------------- |
-| `_regId` | `uint256` | Registry ID to cancel disable |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if successfully cancelled |
-
-#### Access
-
-Only callable by governance AND only when the contract is not paused
-
-#### Events Emitted
-
-- `AddressDisableCancelled` (from [AddressRegistry](../core-modules/AddressRegistry.md))
-
-## Price Snapshot Functions
-
-### `addPriceSnapshot`
-
-Triggers price snapshots across all oracles that have a feed for the asset.
-
-```vyper
-@external
-def addPriceSnapshot(_asset: address) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description                  |
-| -------- | --------- | ---------------------------- |
-| `_asset` | `address` | Asset to snapshot prices for |
-
-#### Returns
-
-| Type   | Description                                                                                                                                         |
-| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bool` | Returns `True` if a snapshot was successfully triggered on at least one price source. Returns `False` if no price sources had a feed for the asset. |
-
-#### Access
-
-Only callable by valid Ripe addresses or the underscore appraiser
-
-#### Example Usage
-
-```python
-# Trigger price snapshot for USDC
-updated = price_desk.addPriceSnapshot(
-    usdc.address,
-    sender=credit_engine.address  # Valid Ripe address
-)
-# Returns: True if any oracle updated
-
-# Underscore appraiser triggers snapshot
-updated = price_desk.addPriceSnapshot(
-    wbtc.address,
-    sender=underscore_appraiser.address
-)
-```
-
-**Example Output**: Calls `addPriceSnapshot` on all oracles with the asset feed
+The result rounds down. Zero input or unavailable scale/price returns zero in non-strict mode.
+
+### ETH helpers
+
+`getEthUsdValue` and `getEthAmount` use the immutable ETH sentinel and an 18-decimal ETH scale. They share the same strict/non-strict aggregate-price behavior.
+
+## Feed discovery and snapshots
+
+`hasPriceFeed(asset)` probes every registered source with 75,000 gas. Only an exact, canonical Boolean response counts. A failed or malformed source is ignored for this discovery view.
+
+`addPriceSnapshot(asset)` may be called by a valid Ripe address or the Underscore Appraiser resolved from MissionControl's current Underscore registry. It first isolates `hasPriceFeed`, then calls `addPriceSnapshot` on qualifying sources with 150,000 gas. Reverts and malformed responses are contained per source; the function returns true if at least one source reports a successful snapshot.
+
+Snapshot permission does not imply permission to change feed configuration.
+
+## Registry lifecycle
+
+Price-source addresses use the inherited timelocked registry lifecycle:
+
+- start, confirm, or cancel a new address;
+- start, confirm, or cancel an address replacement; and
+- start, confirm, or cancel an address disable.
+
+Only an unpaused governance caller can initiate or execute these operations. Consumers should resolve active registry addresses and MissionControl priority IDs at runtime; numeric membership is configuration, not a permanent protocol guarantee.
+
+## Security and integration requirements
+
+- Use strict reads for safety-critical protocol decisions and handle the documented revert paths.
+- Treat zero from non-strict reads as unavailable, never as evidence of a zero-dollar asset.
+- Synchronize token scale during onboarding and after any intentional token implementation/decimal change.
+- A successful `hasPriceFeed` probe does not guarantee a current nonzero price.
+- A failed source may make coverage uncertain; strict aggregation therefore fails closed only if no later healthy source succeeds.
+- Source gas stipends are part of the compatibility boundary. A source that succeeds with unlimited gas can still be unusable through PriceDesk.
+
+<!-- BEGIN GENERATED API REFERENCE: PriceDesk -->
+## Exact API reference
+
+> Generated from `contracts/registries/PriceDesk.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, address _ethAddr, uint256 _minRegistryTimeLock, uint256 _maxRegistryTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `getAssetAmount(address _asset, uint256 _usdValue, bool _shouldRaise)` | `2–3` | `_shouldRaise` |
+| `getEthAmount(uint256 _usdValue, bool _shouldRaise)` | `1–2` | `_shouldRaise` |
+| `getEthUsdValue(uint256 _amount, bool _shouldRaise)` | `1–2` | `_shouldRaise` |
+| `getPrice(address _asset, bool _shouldRaise, uint256 _staleTime)` | `1–3` | `_shouldRaise`, `_staleTime` |
+| `getUsdValue(address _asset, uint256 _amount, bool _shouldRaise)` | `2–3` | `_shouldRaise` |
+| `qualifyCallerPriceSource(address _asset, uint256 _staleTime)` | `1–2` | `_staleTime` |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `0–1` | `_numBlocks` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `ETH()` | `view` | `address` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
+| `addrInfo(uint256 arg0)` | `view` | `(address,uint256,uint256,string)` |
+| `addrToRegId(address arg0)` | `view` | `uint256` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `canMintGreen()` | `view` | `bool` |
+| `canMintRipe()` | `view` | `bool` |
+| `cancelAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
+| `cancelAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelNewAddressToRegistry(address _addr)` | `nonpayable` | `bool` |
+| `confirmAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
+| `confirmAddressUpdateToRegistry(uint256 _regId)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `confirmNewAddressToRegistry(address _addr)` | `nonpayable` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `getAddr(uint256 _regId)` | `view` | `address` |
+| `getAddrDescription(uint256 _regId)` | `view` | `string` |
+| `getAddrInfo(uint256 _regId)` | `view` | `(address,uint256,uint256,string)` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getAssetAmount(address _asset, uint256 _usdValue)` | `view` | `uint256` |
+| `getAssetAmount(address _asset, uint256 _usdValue, bool _shouldRaise)` | `view` | `uint256` |
+| `getEthAmount(uint256 _usdValue)` | `view` | `uint256` |
+| `getEthAmount(uint256 _usdValue, bool _shouldRaise)` | `view` | `uint256` |
+| `getEthUsdValue(uint256 _amount)` | `view` | `uint256` |
+| `getEthUsdValue(uint256 _amount, bool _shouldRaise)` | `view` | `uint256` |
+| `getGovernors()` | `view` | `address[]` |
+| `getLastAddr()` | `view` | `address` |
+| `getLastRegId()` | `view` | `uint256` |
+| `getNumAddrs()` | `view` | `uint256` |
+| `getPrice(address _asset)` | `view` | `uint256` |
+| `getPrice(address _asset, bool _shouldRaise)` | `view` | `uint256` |
+| `getPrice(address _asset, bool _shouldRaise, uint256 _staleTime)` | `view` | `uint256` |
+| `getRegId(address _addr)` | `view` | `uint256` |
+| `getRegistryDescription()` | `view` | `string` |
+| `getRipeHq()` | `view` | `address` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `getUsdValue(address _asset, uint256 _amount)` | `view` | `uint256` |
+| `getUsdValue(address _asset, uint256 _amount, bool _shouldRaise)` | `view` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `isValidAddr(address _addr)` | `view` | `bool` |
+| `isValidAddressDisable(uint256 _regId)` | `view` | `bool` |
+| `isValidAddressUpdate(uint256 _regId, address _newAddr)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidNewAddress(address _addr)` | `view` | `bool` |
+| `isValidRegId(uint256 _regId)` | `view` | `bool` |
+| `isValidRegistryTimeLock(uint256 _numBlocks)` | `view` | `bool` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `maxRegistryTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `minRegistryTimeLock()` | `view` | `uint256` |
+| `numAddrs()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `pendingAddrDisable(uint256 arg0)` | `view` | `(uint256,uint256)` |
+| `pendingAddrUpdate(uint256 arg0)` | `view` | `(address,uint256,uint256)` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `pendingNewAddr(address arg0)` | `view` | `(string,uint256,uint256)` |
+| `qualifyCallerPriceSource(address _asset)` | `view` | `(uint256, uint256)` |
+| `qualifyCallerPriceSource(address _asset, uint256 _staleTime)` | `view` | `(uint256, uint256)` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `registryChangeTimeLock()` | `view` | `uint256` |
+| `relinquishGov()` | `nonpayable` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `setRegistryTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `setRegistryTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setRegistryTimeLockAfterSetup(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `startAddNewAddressToRegistry(address _addr, string _description)` | `nonpayable` | `bool` |
+| `startAddressDisableInRegistry(uint256 _regId)` | `nonpayable` | `bool` |
+| `startAddressUpdateToRegistry(uint256 _regId, address _newAddr)` | `nonpayable` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| `syncTokenScale(address _asset)` | `nonpayable` | — |
+| `tokenScale(address arg0)` | `view` | `uint256` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `AddressDisableCancelled` | `uint256 regId, string description, address addr indexed, uint256 initiatedBlock, uint256 confirmBlock, string registry` |
+| `AddressDisableConfirmed` | `uint256 regId, string description, address addr indexed, uint256 version, string registry` |
+| `AddressDisablePending` | `uint256 regId, string description, address addr indexed, uint256 version, uint256 confirmBlock, string registry` |
+| `AddressUpdateCancelled` | `uint256 regId, string description, address newAddr indexed, address prevAddr indexed, uint256 initiatedBlock, uint256 confirmBlock, string registry` |
+| `AddressUpdateConfirmed` | `uint256 regId, string description, address newAddr indexed, address prevAddr indexed, uint256 version, string registry` |
+| `AddressUpdatePending` | `uint256 regId, string description, address newAddr indexed, address prevAddr indexed, uint256 version, uint256 confirmBlock, string registry` |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `NewAddressCancelled` | `string description, address addr indexed, uint256 initiatedBlock, uint256 confirmBlock, string registry` |
+| `NewAddressConfirmed` | `address addr indexed, uint256 regId, string description, string registry` |
+| `NewAddressPending` | `address addr indexed, string description, uint256 confirmBlock, string registry` |
+| `RegistryTimeLockModified` | `uint256 newTimeLock, uint256 prevTimeLock, string registry` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+| `TokenScaleSet` | `address asset indexed, uint256 decimals indexed, uint256 scale indexed` |
+
+### Structs declared by this source
+
+- `PriceConfig(staleTime: uint256, priorityPriceSourceIds: DynArray[uint256, MAX_PRIORITY_PRICE_SOURCES])`
+
+<!-- END GENERATED API REFERENCE: PriceDesk -->

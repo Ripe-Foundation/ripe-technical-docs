@@ -1,240 +1,171 @@
-# wsuperOETHbPrices Technical Documentation
+# wsuperOETHbPrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/wsuperOETHbPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/wsuperOETHbPrices.vy)
 
 ## Overview
 
-wsuperOETHbPrices is a specialized price source for wrapped superOETHb tokens in Ripe Protocol. It calculates the price of wsuperOETHb by combining the underlying superOETH price with the vault's share-to-asset conversion rate.
+`wsuperOETHbPrices` is a fixed-purpose adapter for the configured wrapped Super OETH token. It composes the Super OETH USD price from PriceDesk with the wrapper's ERC-4626 conversion rate.
 
-**Core Features**:
-- **Wrapped Token Pricing**: Prices wsuperOETHb based on underlying superOETH value
-- **ERC4626 Integration**: Uses `convertToAssets` for share price calculation
-- **PriceDesk Integration**: Fetches underlying asset prices from protocol price oracle
-- **Standard Price Source Interface**: Implements the PriceSource interface
-
-## Architecture & Modules
-
-wsuperOETHbPrices uses the standard price source architecture:
-
-### LocalGov Module
-
-- **Location**: `contracts/modules/LocalGov.vy`
-- **Purpose**: Provides governance functionality
-- **Documentation**: See [LocalGov Technical Documentation](../governance/LocalGov.md)
-- **Exported Interface**: Governance utilities via `gov.__interface__`
-
-### Addys Module
-
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### PriceSourceData Module
-
-- **Location**: `contracts/priceSources/modules/PriceSourceData.vy`
-- **Purpose**: Provides base price source functionality
-- **Documentation**: See [PriceSourceData Technical Documentation](./modules/PriceSourceData.md)
-- **Exported Interface**: Price source data via `priceData.__interface__`
-
-### TimeLock Module
-
-- **Location**: `contracts/modules/TimeLock.vy`
-- **Purpose**: Provides time-locked action management
-- **Documentation**: See [TimeLock Technical Documentation](../governance/TimeLock.md)
-- **Exported Interface**: Time lock utilities via `timeLock.__interface__`
-
-### Module Initialization
-
-```vyper
-initializes: gov
-initializes: addys
-initializes: priceData[addys := addys]
-initializes: timeLock[gov := gov]
-```
-
-## State Variables
-
-### Immutable Variables
-
-- `SUPER_OETH: immutable(address)` - The superOETH token address
-- `WRAPPED_SUPER_OETH: immutable(address)` - The wrapped superOETHb token address
+The contract stores `MCBETH` and `VVV` immutable constructor addresses but does
+**not** price either asset.
 
 ## Constructor
 
-### `__init__`
-
-Initializes wsuperOETHbPrices with token addresses and time lock parameters.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _superOETH: address,
-    _wrappedSuperOETH: address,
-    _minPriceChangeTimeLock: uint256,
-    _maxPriceChangeTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name                      | Type      | Description                         |
-| ------------------------- | --------- | ----------------------------------- |
-| `_ripeHq`                 | `address` | RipeHq contract address             |
-| `_superOETH`              | `address` | superOETH token address             |
-| `_wrappedSuperOETH`       | `address` | wsuperOETHb token address           |
-| `_minPriceChangeTimeLock` | `uint256` | Minimum blocks for time-locked actions |
-| `_maxPriceChangeTimeLock` | `uint256` | Maximum blocks for time-locked actions |
-
-#### Example Usage
-
-```python
-# Deploy wsuperOETHbPrices
-prices = boa.load(
-    "contracts/priceSources/wsuperOETHbPrices.vy",
-    ripe_hq.address,
-    super_oeth.address,
-    wsuperOETHb.address,
-    100,  # min time lock blocks
-    1000  # max time lock blocks
+```text
+__init__(
+  ripeHq,
+  mcbeth,
+  superOETH,
+  wrappedSuperOETH,
+  vvv,
+  minPriceChangeTimeLock,
+  maxPriceChangeTimeLock
 )
 ```
 
-## Core Functions
+`superOETH` and `wrappedSuperOETH` must be nonzero. They are stored as `SUPER_OETH` and `WRAPPED_SUPER_OETH`, and the wrapped token is added to the source's priced-asset list during construction.
 
-### `getPrice`
+`mcbeth` and `vvv` are stored as public immutables but are not required to be nonzero and do not create feed coverage.
 
-Returns the price of wsuperOETHb in 18-decimal USD.
+## Price behavior
 
-```vyper
-@view
-@external
-def getPrice(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> uint256:
+Only `WRAPPED_SUPER_OETH` has a feed:
+
+```text
+wrappedPrice = PriceDesk.getPrice(SUPER_OETH, true)
+             * wrapped.convertToAssets(1e18)
+             / 1e18
 ```
 
-#### Parameters
+The Super OETH read is strict. A PriceDesk failure may therefore revert rather than returning a fallback zero. If the strict call returns zero, the adapter returns zero.
 
-| Name         | Type      | Description                                      |
-| ------------ | --------- | ------------------------------------------------ |
-| `_asset`     | `address` | Asset to get price for (must be wsuperOETHb)     |
-| `_staleTime` | `uint256` | Stale time (unused in this implementation)       |
-| `_priceDesk` | `address` | Optional PriceDesk address (uses default if empty)|
+For every other asset, including `MCBETH`, `VVV`, and unwrapped `SUPER_OETH`:
 
-#### Returns
+- `getPrice` returns zero;
+- `getPriceAndHasFeed` returns `(0, false)`; and
+- `hasPriceFeed` returns false.
 
-| Type      | Description                                  |
-| --------- | -------------------------------------------- |
-| `uint256` | Price in 18-decimal USD (0 if not wsuperOETHb) |
+The shared `staleTime` argument is ignored by this adapter. Freshness is determined by the Super OETH source selected through PriceDesk.
 
-#### Behavior
+## Fixed configuration surface
 
-1. Returns 0 if asset is not wsuperOETHb
-2. Fetches superOETH price from PriceDesk
-3. Gets share-to-asset conversion rate from vault
-4. Returns: `superOethPrice * pricePerShare / 1e18`
+This contract has no mutable feed lifecycle:
 
-### `getPriceAndHasFeed`
+- `hasPendingPriceFeedUpdate` is always false;
+- `addPriceSnapshot` and `disablePriceFeed` return false; and
+- the interface-required confirm/cancel feed methods return true without changing state.
 
-Returns the price and whether a feed exists for the asset.
+Those interface-required return values do not indicate that a feed action
+occurred.
 
-```vyper
-@view
-@external
-def getPriceAndHasFeed(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> (uint256, bool):
-```
+## Integration requirements
 
-#### Parameters
+- Register coverage only for `WRAPPED_SUPER_OETH`.
+- Do not infer coverage from the `MCBETH` or `VVV` immutable getters.
+- Ensure PriceDesk has a strict, usable `SUPER_OETH` feed.
+- Verify the target wrapper implements the expected 18-decimal `convertToAssets(1e18)` behavior.
 
-| Name         | Type      | Description                                      |
-| ------------ | --------- | ------------------------------------------------ |
-| `_asset`     | `address` | Asset to get price for                           |
-| `_staleTime` | `uint256` | Stale time (unused)                              |
-| `_priceDesk` | `address` | Optional PriceDesk address                       |
+<!-- BEGIN GENERATED API REFERENCE: wsuperOETHbPrices -->
+## Exact API reference
 
-#### Returns
+> Generated from `contracts/priceSources/wsuperOETHbPrices.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
 
-| Type      | Description                                  |
-| --------- | -------------------------------------------- |
-| `uint256` | Price in 18-decimal USD                      |
-| `bool`    | True if asset has a price feed               |
+### Constructor
 
-### `hasPriceFeed`
+- `constructor(address _ripeHq, address _mcbeth, address _superOETH, address _wrappedSuperOETH, address _vvv, uint256 _minPriceChangeTimeLock, uint256 _maxPriceChangeTimeLock)`
 
-Checks if the asset has a price feed configured.
+### Optional-argument call guide
 
-```vyper
-@view
-@external
-def hasPriceFeed(_asset: address) -> bool:
-```
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
 
-#### Parameters
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
 
-| Name     | Type      | Description           |
-| -------- | --------- | --------------------- |
-| `_asset` | `address` | Asset to check        |
+### Functions
 
-#### Returns
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `MCBETH()` | `view` | `address` |
+| `SUPER_OETH()` | `view` | `address` |
+| `VVV()` | `view` | `address` |
+| `WRAPPED_SUPER_OETH()` | `view` | `address` |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `expiration()` | `view` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getGovernors()` | `view` | `address[]` |
+| `getPrice(address _asset)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` |
+| `getRipeHq()` | `view` | `address` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `numAssets()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `relinquishGov()` | `nonpayable` | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
 
-| Type   | Description                                  |
-| ------ | -------------------------------------------- |
-| `bool` | True if asset equals WRAPPED_SUPER_OETH      |
+### Events
 
-### `hasPendingPriceFeedUpdate`
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `PriceSourceFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `PriceSourcePauseModified` | `bool isPaused` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
 
-Checks if there's a pending price feed update.
-
-```vyper
-@view
-@external
-def hasPendingPriceFeedUpdate(_asset: address) -> bool:
-```
-
-#### Returns
-
-| Type   | Description       |
-| ------ | ----------------- |
-| `bool` | Always returns False (no pending updates supported) |
-
-## Price Calculation
-
-The price is calculated as:
-
-```
-wsuperOETHb_price = superOETH_price * (convertToAssets(1e18) / 1e18)
-```
-
-Where:
-- `superOETH_price` is fetched from PriceDesk
-- `convertToAssets(1e18)` returns how many underlying tokens 1 share is worth
-
-## Interface Functions (No-op)
-
-These functions are implemented to satisfy the PriceSource interface but have no effect:
-
-- `confirmNewPriceFeed` - Returns `True`
-- `cancelNewPendingPriceFeed` - Returns `True`
-- `confirmPriceFeedUpdate` - Returns `True`
-- `cancelPriceFeedUpdate` - Returns `True`
-- `confirmDisablePriceFeed` - Returns `True`
-- `cancelDisablePriceFeed` - Returns `True`
-- `addPriceSnapshot` - Returns `False`
-- `disablePriceFeed` - Returns `False`
-
-## Security Considerations
-
-1. **Single Asset**: Only prices the specific wsuperOETHb token
-2. **Immutable Addresses**: Token addresses cannot be changed after deployment
-3. **PriceDesk Dependency**: Relies on underlying superOETH price from PriceDesk
-4. **No State Manipulation**: No complex state that could be exploited
-5. **ERC4626 Trust**: Trusts the vault's `convertToAssets` implementation
-
-## Integration Points
-
-### Depends On:
-- **PriceDesk**: For underlying superOETH price
-- **wsuperOETHb Vault**: For share-to-asset conversion
-
-### Used By:
-- **PriceDesk**: Registered as price source for wsuperOETHb
+<!-- END GENERATED API REFERENCE: wsuperOETHbPrices -->

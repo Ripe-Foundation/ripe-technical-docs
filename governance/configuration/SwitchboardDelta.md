@@ -1,652 +1,318 @@
-# SwitchboardDelta Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/config/SwitchboardDelta.vy)
-
-## Overview
-
-SwitchboardDelta specializes in HR operations and Ripe bond mechanics for the Ripe Protocol, managing contributor compensation, bond sales parameters, and reward system maintenance as a dedicated control panel for human capital
-and tokenomics.
-
-**Management Areas**:
-- **HR Configuration**: Controls contributor compensation templates, limits, vesting schedules, cliff periods, and start delays to ensure fair treatment while preventing exploitation
-- **Contributor Operations**: Manages individual settings including manager assignments, paycheck cancellations, ownership transfers, and account freezing with both governance and lite action permissions
-- **Bond Configuration**: Controls bond sale mechanics including asset selection, epoch parameters, pricing curves, lock bonuses, and auto-restart settings for sustainable token distribution
-- **Reward Maintenance**: Provides cleanup and reset functions for the loot distribution system to correct errors or prepare for upgrades
-
-The contract implements time-locked HR/bond configurations, immediate emergency actions, bond booster integration, comprehensive validation, and batch operations to ensure proper incentive alignment with operational flexibility.
-
-## Architecture & Modules
-
-SwitchboardDelta is built using a modular architecture with the following components:
-
-### LocalGov Module
-- **Location**: `contracts/modules/LocalGov.vy`
-- **Purpose**: Provides governance functionality
-- **Documentation**: See [LocalGov Technical Documentation](../LocalGov.md)
-- **Key Features**:
-  - Governance address management
-  - Permission validation
-  - RipeHq integration
-- **Exported Interface**: All governance functions via `gov.__interface__`
-
-### TimeLock Module
-- **Location**: `contracts/modules/TimeLock.vy`
-- **Purpose**: Manages time-locked configuration changes
-- **Documentation**: See [TimeLock Technical Documentation](../TimeLock.md)
-- **Key Features**:
-  - Action ID generation
-  - Time-lock enforcement
-  - Action confirmation/cancellation
-- **Exported Interface**: All timelock functions via `timeLock.__interface__`
-
-### Module Initialization
-```vyper
-initializes: gov
-initializes: timeLock[gov := gov]
-```
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                       SwitchboardDelta Contract                        |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    HR Configuration Layer                        |  |
-|  |                                                                  |  |
-|  |  Template Management:          Compensation Limits:              |  |
-|  |  - Contributor contract        - Max compensation amount         |  |
-|  |  - Deployment template         - Min cliff period                |  |
-|  |                                - Max start delay                 |  |
-|  |                                - Vesting boundaries              |  |
-|  |                                                                  |  |
-|  |  Validation Rules:                                               |  |
-|  |  - Cliff > 1 week minimum                                        |  |
-|  |  - Vesting > 1 month minimum                                     |  |
-|  |  - Max comp < 20M RIPE                                           |  |
-|  |  - Start delay < 3 months                                        |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                  Contributor Operations Layer                    |  |
-|  |                                                                  |  |
-|  |  Time-locked Operations:       Immediate Operations:             |  |
-|  |  - Set manager                - Cash Ripe check                 |  |
-|  |  - Cancel paycheck            - Cancel transfers                |  |
-|  |                                - Cancel ownership                |  |
-|  |                                - Freeze/unfreeze                 |  |
-|  |                                                                  |  |
-|  |  Permission Model:                                               |  |
-|  |  - Time-locked: Governance only                                  |  |
-|  |  - Immediate: Governance OR lite action users                    |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                   Bond Configuration Layer                       |  |
-|  |                                                                  |  |
-|  |  Bond Parameters:             Epoch Management:                  |  |
-|  |  - Asset selection            - Epoch length                     |  |
-|  |  - Amount per epoch           - Start block                      |  |
-|  |  - Min/max Ripe per unit      - Auto-restart                     |  |
-|  |  - Lock bonus multiplier      - Restart delay                    |  |
-|  |                                                                  |  |
-|  |  Booster Integration:         Controls:                          |  |
-|  |  - Set booster contract       - Enable/disable bonding           |  |
-|  |  - Configure boost ratios     - Restart running epoch            |  |
-|  |  - Set max units              - Set bad debt amount              |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                   Loot System Maintenance                        |  |
-|  |                                                                  |  |
-|  |  Reset Functions:                                                |  |
-|  |  - User balance points (per asset/vault)                         |  |
-|  |  - Asset points (global per asset/vault)                         |  |
-|  |  - User borrow points                                            |  |
-|  |                                                                  |  |
-|  |  Use Cases:                                                      |  |
-|  |  - Correct calculation errors                                    |  |
-|  |  - Prepare for system upgrades                                   |  |
-|  |  - Handle edge cases                                             |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| HrContributor    |    | BondRoom          |    | Lootbox          |
-| * Manage vesting |    | * Execute bonds   |    | * Track rewards  |
-| * Process checks |    | * Apply boosts    |    | * Calculate pts  |
-| * Transfer RIPE  |    | * Manage epochs   |    | * Distribute     |
-+------------------+    +-------------------+    +------------------+
-```
-
-## Data Structures
-
-### ActionType Flag
-Categorizes pending configuration changes:
-```vyper
-flag ActionType:
-    HR_CONFIG_TEMPLATE         # Contributor contract template
-    HR_CONFIG_MAX_COMP         # Maximum compensation
-    HR_CONFIG_MIN_CLIFF        # Minimum cliff period
-    HR_CONFIG_MAX_START_DELAY  # Maximum start delay
-    HR_CONFIG_VESTING          # Vesting length boundaries
-    HR_MANAGER                 # Set contributor manager
-    HR_CANCEL_PAYCHECK         # Cancel contributor paycheck
-    RIPE_BOND_CONFIG           # Main bond configuration
-    RIPE_BOND_EPOCH_LENGTH     # Epoch duration
-    RIPE_BOND_START_EPOCH      # Start epoch at block
-    RIPE_BAD_DEBT              # Set bad debt amount
-    RIPE_BOND_BOOSTER          # Set booster contract
-    BOND_BOOSTER_ADD           # Add boost configs
-    BOND_BOOSTER_BOUNDARIES    # Set boost limits
-    LOOT_USER_BALANCE_RESET    # Reset user points
-    LOOT_ASSET_RESET           # Reset asset points
-    LOOT_USER_BORROW_RESET     # Reset borrow points
-```
-
-### Key Configuration Structures
-
-```vyper
-struct PendingManager:
-    contributor: address
-    pendingManager: address
-
-struct BoosterConfig:
-    user: address
-    boostRatio: uint256
-    maxUnitsAllowed: uint256
-    expireBlock: uint256
-
-struct UserBalanceReset:
-    user: address
-    asset: address
-    vaultId: uint256
-
-struct AssetReset:
-    asset: address
-    vaultId: uint256
-
-struct BoosterBoundaries:
-    maxBoostRatio: uint256
-    maxUnits: uint256
-```
-
-## State Variables
-
-### Public State Variables
-- `actionType: HashMap[uint256, ActionType]` - Maps action IDs to types
-- `pendingHrConfig: HashMap[uint256, cs.HrConfig]` - Pending HR configurations
-- `pendingManager: HashMap[uint256, PendingManager]` - Pending manager assignments
-- `pendingCancelPaycheck: HashMap[uint256, address]` - Pending paycheck cancellations
-- `pendingRipeBondConfig: HashMap[uint256, cs.RipeBondConfig]` - Pending bond configs
-- `pendingRipeBondConfigValue: HashMap[uint256, uint256]` - Pending numeric values
-- `pendingBondBooster: HashMap[uint256, address]` - Pending booster contracts
-- `pendingBoosterConfigs: HashMap[uint256, DynArray[BoosterConfig, 50]]` - Pending boosts
-- `pendingUserBalanceReset: HashMap[uint256, DynArray[UserBalanceReset, 40]]` - User resets
-- `pendingAssetReset: HashMap[uint256, DynArray[AssetReset, 20]]` - Asset resets
-
-### Constants
-- `HUNDRED_PERCENT: uint256 = 100_00` - 100.00% in basis points
-- `MAX_BOOSTERS: uint256 = 50` - Maximum boost configurations
-- `MAX_USERS: uint256 = 40` - Maximum users per reset
-- `MAX_ASSETS: uint256 = 20` - Maximum assets per reset
-- `DAY_IN_SECONDS: uint256 = 86400` - Time constants
-- `WEEK_IN_SECONDS: uint256 = 604800`
-- `MONTH_IN_SECONDS: uint256 = 2592000`
-- `YEAR_IN_SECONDS: uint256 = 31536000`
-
-## Constructor
-
-### `__init__`
-
-Initializes SwitchboardDelta with governance and time-lock settings.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _minConfigTimeLock: uint256,
-    _maxConfigTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq registry address |
-| `_tempGov` | `address` | Initial governance address |
-| `_minConfigTimeLock` | `uint256` | Minimum time-lock duration |
-| `_maxConfigTimeLock` | `uint256` | Maximum time-lock duration |
-
-## HR Configuration Functions
-
-### `setContributorTemplate`
-
-Sets the template contract for new contributors.
-
-```vyper
-@external
-def setContributorTemplate(_contribTemplate: address) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_contribTemplate` | `address` | Template contract address |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Action ID for tracking |
-
-#### Access
-
-Only callable by governance
-
-#### Validation
-
-- Must be a deployed contract
-- Cannot be empty address
-
-### `setMaxCompensation`
+# SwitchboardDelta
 
-Sets maximum allowed compensation per contributor.
-
-```vyper
-@external
-def setMaxCompensation(_maxComp: uint256) -> uint256:
-```
+`SwitchboardDelta` governs deleveraging, Human Resources, RIPE bonds, reward
+budgets, bond boosters, Lootbox resets, and Underscore integration settings.
+It combines immediate direction-limited operations with timelocked policy
+changes.
 
-#### Parameters
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/SwitchboardDelta.vy)
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_maxComp` | `uint256` | Maximum RIPE compensation |
+## Deleveraging
 
-#### Validation
+Governance or a lite signer may call the bounded `deleverageManyUsers` and
+`deleverageWithSpecificAssets` Teller routes. The volatile-asset route is
+governance-only and calls Deleverage directly. Delta has no single-user
+`deleverageUser` selector.
 
-- Must be > 0 and ≤ 20 million RIPE
-
-### `setMinCliffLength`
-
-Sets minimum cliff period for vesting.
-
-```vyper
-@external
-def setMinCliffLength(_minCliffLength: uint256) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_minCliffLength` | `uint256` | Minimum cliff in seconds |
-
-#### Validation
-
-- Must be > 1 week
-
-### `setMaxStartDelay`
-
-Sets maximum delay before vesting starts.
-
-```vyper
-@external
-def setMaxStartDelay(_maxStartDelay: uint256) -> uint256:
-```
-
-#### Validation
-
-- Must be ≤ 3 months
-
-### `setVestingLengthBoundaries`
-
-Sets minimum and maximum vesting periods.
-
-```vyper
-@external
-def setVestingLengthBoundaries(
-    _minVestingLength: uint256,
-    _maxVestingLength: uint256
-) -> uint256:
-```
-
-#### Validation
-
-- Min > 1 month
-- Max ≤ 5 years
-- Min < Max
-
-## Contributor Operation Functions
-
-### Time-locked Operations
-
-#### `setManagerForContributor`
-
-Assigns a manager to a contributor.
-
-```vyper
-@external
-def setManagerForContributor(
-    _contributor: address,
-    _manager: address
-) -> uint256:
-```
-
-#### `cancelPaycheckForContributor`
-
-Cancels a contributor's paycheck.
-
-```vyper
-@external
-def cancelPaycheckForContributor(_contributor: address) -> uint256:
-```
-
-### Immediate Operations
-
-#### `cashRipeCheckForContributor`
-
-Immediately cashes a contributor's Ripe check.
-
-```vyper
-@external
-def cashRipeCheckForContributor(_contributor: address) -> bool:
-```
-
-#### Access
-
-Governance OR lite action users
-
-#### `cancelRipeTransferForContributor`
-
-Cancels pending Ripe transfer.
-
-```vyper
-@external
-def cancelRipeTransferForContributor(_contributor: address) -> bool:
-```
-
-#### `cancelOwnershipChangeForContributor`
-
-Cancels pending ownership change.
-
-```vyper
-@external
-def cancelOwnershipChangeForContributor(_contributor: address) -> bool:
-```
-
-#### `freezeContributor`
-
-Freezes or unfreezes a contributor account.
-
-```vyper
-@external
-def freezeContributor(_contributor: address, _shouldFreeze: bool) -> bool:
-```
-
-#### Access
-
-- **To Freeze**: Governance OR lite action users
-- **To Unfreeze**: Only governance
-
-## Ripe Bond Configuration Functions
-
-### `setRipeBondConfig`
-
-Sets comprehensive bond sale parameters.
-
-```vyper
-@external
-def setRipeBondConfig(
-    _asset: address,
-    _amountPerEpoch: uint256,
-    _minRipePerUnit: uint256,
-    _maxRipePerUnit: uint256,
-    _maxRipePerUnitLockBonus: uint256,
-    _shouldAutoRestart: bool,
-    _restartDelayBlocks: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset accepted for bonds |
-| `_amountPerEpoch` | `uint256` | Asset amount per epoch |
-| `_minRipePerUnit` | `uint256` | Minimum Ripe per asset |
-| `_maxRipePerUnit` | `uint256` | Maximum Ripe per asset |
-| `_maxRipePerUnitLockBonus` | `uint256` | Max lock bonus (1000% max) |
-| `_shouldAutoRestart` | `bool` | Auto-restart epochs |
-| `_restartDelayBlocks` | `uint256` | Blocks between epochs |
-
-#### Access
-
-Only callable by governance
-
-#### Side Effects
-
-Resets current epoch when executed
-
-### `setRipeBondEpochLength`
-
-Sets duration of bond epochs.
-
-```vyper
-@external
-def setRipeBondEpochLength(_epochLength: uint256) -> uint256:
-```
-
-### `restartBondEpoch`
-
-Immediately restarts the current epoch.
-
-```vyper
-@external
-def restartBondEpoch() -> bool:
-```
-
-#### Validation
-
-- Epoch must be in progress
-- Current block must be within epoch range
-
-### `setStartEpochAtBlock`
-
-Schedules epoch start at specific block.
-
-```vyper
-@external
-def setStartEpochAtBlock(_block: uint256 = 0) -> uint256:
-```
-
-### `setCanPurchaseRipeBond`
-
-Enables or disables bond purchases.
-
-```vyper
-@external
-def setCanPurchaseRipeBond(_canBond: bool) -> bool:
-```
-
-#### Access
-
-- **To Disable**: Governance OR lite action users
-- **To Enable**: Only governance
-
-### `setBadDebt`
-
-Sets protocol bad debt amount.
-
-```vyper
-@external
-def setBadDebt(_amount: uint256) -> uint256:
-```
-
-## Bond Booster Functions
-
-### `setRipeBondBooster`
-
-Sets the bond booster contract.
-
-```vyper
-@external
-def setRipeBondBooster(_bondBooster: address) -> uint256:
-```
-
-#### Validation
-
-Contract must implement booster interface
-
-### `setManyBondBoosters`
-
-Configures multiple boost settings.
-
-```vyper
-@external
-def setManyBondBoosters(
-    _boosters: DynArray[BoosterConfig, MAX_BOOSTERS]
-) -> uint256:
-```
-
-### `removeManyBondBoosters`
-
-Removes boost configurations.
-
-```vyper
-@external
-def removeManyBondBoosters(
-    _users: DynArray[address, MAX_BOOSTERS]
-) -> bool:
-```
-
-#### Access
-
-Governance OR lite action users
-
-### `setBoosterBoundaries`
-
-Sets global boost limits.
-
-```vyper
-@external
-def setBoosterBoundaries(
-    _maxBoostRatio: uint256,
-    _maxUnits: uint256
-) -> uint256:
-```
-
-## Loot Cleanup Functions
-
-### `resetManyUserBalancePoints`
-
-Resets user balance points for specific assets/vaults.
-
-```vyper
-@external
-def resetManyUserBalancePoints(
-    _users: DynArray[UserBalanceReset, MAX_USERS]
-) -> uint256:
-```
-
-### `resetManyAssetPoints`
-
-Resets global asset points.
-
-```vyper
-@external
-def resetManyAssetPoints(
-    _assets: DynArray[AssetReset, MAX_ASSETS]
-) -> uint256:
-```
-
-### `resetManyUserBorrowPoints`
-
-Resets user borrowing points.
-
-```vyper
-@external
-def resetManyUserBorrowPoints(
-    _users: DynArray[address, MAX_USERS]
-) -> uint256:
-```
-
-#### Access
-
-All reset functions require governance
-
-## Execution Functions
-
-### `executePendingAction`
-
-Executes a pending action after time-lock.
-
-```vyper
-@external
-def executePendingAction(_aid: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_aid` | `uint256` | Action ID to execute |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if executed successfully |
-
-#### Access
-
-Only callable by governance
-
-### `cancelPendingAction`
-
-Cancels a pending action.
-
-```vyper
-@external
-def cancelPendingAction(_aid: uint256) -> bool:
-```
-
-## Key Validation Logic
-
-### HR Validation
-
-1. **Compensation**: 0 < amount ≤ 20M RIPE
-2. **Cliff Period**: > 1 week minimum
-3. **Start Delay**: ≤ 3 months maximum
-4. **Vesting Period**: 1 month < period ≤ 5 years
-
-### Bond Configuration Validation
-
-1. **Asset**: Must not be empty address
-2. **Amounts**: Must be non-zero
-3. **Price Range**: min < max
-4. **Lock Bonus**: ≤ 1000% (10x)
-5. **Epoch**: Must be in valid state for operations
-
-### Booster Validation
-
-1. **Contract**: Must implement interface
-2. **Users**: Valid addresses
-3. **Ratios**: Within protocol limits
-
-## Security Considerations
-
-1. **Time-lock Protection**: Critical HR and bond changes require time-locks
-2. **Emergency Controls**: Lite actions for freezing and disabling
-3. **Parameter Validation**: Comprehensive checks prevent exploitation
-4. **Access Hierarchy**: Clear separation of governance vs operational permissions
-5. **Contributor Protection**: Multiple safeguards for vesting contracts
-6. **Economic Guards**: Limits on compensation and bond parameters
+Those Delta helpers are governance conveniences, not exclusive Teller
+authority. Any caller can enter Teller's general batch, where an untrusted
+request succeeds only for a non-liquidating near-redemption target and is
+repayment-capped. Teller's specific-asset route separately requires self,
+registered-Ripe, or `canBorrow` authority.
+
+All deleverage policy changes are timelocked:
+
+- minimum deleverage basis points and general buffer;
+- cooldown;
+- Underscore safe-spread basis points;
+- full-payoff buffer;
+- overage basis points; and
+- dust threshold and dust basis points.
+
+Hard ceilings include 7,200 blocks for cooldown, 500 bps for safe spread,
+overage, and dust ratio, `1e18` for the full-payoff USD buffer, and `1e16` for
+the dust USD threshold. These are raw on-chain units; block wall time depends on
+the target chain.
+
+## Human Resources
+
+Timelocked HR configuration covers contributor template, maximum compensation,
+minimum cliff, maximum start delay, and vesting boundaries. Execution re-reads
+the target MissionControl configuration and rejects an infeasible cliff above
+the effective maximum vesting length. MissionControl-targeted proposals bind
+their resolved target.
+
+Contributor-specific manager and paycheck cancellation changes are timelocked.
+Cash-check, RIPE-transfer cancellation, and ownership-change cancellation are
+immediate actions available to governance or a MissionControl lite signer.
+Freezing is likewise lite-safe, while unfreezing requires governance.
+
+## RIPE bonds and budgets
+
+Timelocked bond policy includes the payment asset, epoch amount, price bounds,
+lock bonus, automatic-restart flag/delay, epoch length, bad debt, and BondBooster
+contract/configuration. `setStartEpochAtBlock` is an immediate governance call
+that starts no earlier than the current block. Delta does not expose a
+`restartBondEpoch` selector.
+
+Disabling bond purchases is lite-safe; enabling them requires governance.
+Changes to Ledger's RIPE budgets for rewards, HR, and bonds are timelocked.
+
+## Booster and Lootbox maintenance
+
+Booster additions and boundary changes are timelocked. Governance or a lite
+signer may immediately remove one or many boosters; changing the minimum lock
+duration is immediate but governance-only. User-balance, asset-point, and
+user-borrow-point reset batches are timelocked and bounded.
+
+## Underscore integration
+
+Changing MissionControl's Underscore registry or `shouldCheckLastTouch` policy
+is timelocked. A nonzero Underscore registry must be a contract and pass Ledger,
+root-registry, optional vault-registry, and optional LegoBook interface probes;
+the zero address is an allowed explicit disable.
+
+## Execution model
+
+Expired actions are cancelled. Delta re-reads the latest target configuration
+at execution so each action changes only its intended fields, and it applies
+execution-time HR feasibility checks before committing state.
+
+<!-- BEGIN GENERATED API REFERENCE: SwitchboardDelta -->
+## Exact API reference
+
+> Generated from `contracts/config/SwitchboardDelta.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, uint256 _minConfigTimeLock, uint256 _maxConfigTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
+| `setCanPurchaseRipeBond(bool _canBond, address _missionControl)` | `1–2` | `_missionControl` |
+| `setContributorTemplate(address _contribTemplate, address _missionControl)` | `1–2` | `_missionControl` |
+| `setMaxCompensation(uint256 _maxComp, address _missionControl)` | `1–2` | `_missionControl` |
+| `setMaxStartDelay(uint256 _maxStartDelay, address _missionControl)` | `1–2` | `_missionControl` |
+| `setMinCliffLength(uint256 _minCliffLength, address _missionControl)` | `1–2` | `_missionControl` |
+| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks, address _missionControl)` | `7–8` | `_missionControl` |
+| `setRipeBondEpochLength(uint256 _epochLength, address _missionControl)` | `1–2` | `_missionControl` |
+| `setShouldCheckLastTouch(bool _shouldCheck, address _missionControl)` | `1–2` | `_missionControl` |
+| `setStartEpochAtBlock(uint256 _block)` | `0–1` | `_block` |
+| `setUnderscoreRegistry(address _underscoreRegistry, address _missionControl)` | `1–2` | `_missionControl` |
+| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength, address _missionControl)` | `2–3` | `_missionControl` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `actionType(uint256 arg0)` | `view` | `uint256` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelOwnershipChangeForContributor(address _contributor)` | `nonpayable` | `bool` |
+| `cancelPaycheckForContributor(address _contributor)` | `nonpayable` | `uint256` |
+| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` |
+| `cancelRipeTransferForContributor(address _contributor)` | `nonpayable` | `bool` |
+| `cashRipeCheckForContributor(address _contributor)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `deleverageManyUsers((address,uint256)[] _users)` | `nonpayable` | `uint256` |
+| `deleverageWithSpecificAssets((uint256,address,uint256)[] _assets, address _user)` | `nonpayable` | `uint256` |
+| `deleverageWithVolAssets(address _user, (uint256,address,uint256)[] _assets)` | `nonpayable` | `uint256` |
+| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` |
+| `expiration()` | `view` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `freezeContributor(address _contributor, bool _shouldFreeze)` | `nonpayable` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `getGovernors()` | `view` | `address[]` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
+| `pendingAssetReset(uint256 arg0, uint256 arg1)` | `view` | `(address,uint256)` |
+| `pendingBondBooster(uint256 arg0)` | `view` | `address` |
+| `pendingBoosterBoundaries(uint256 arg0)` | `view` | `(uint256,uint256)` |
+| `pendingBoosterConfigs(uint256 arg0, uint256 arg1)` | `view` | `(address,uint256,uint256,uint256)` |
+| `pendingCancelPaycheck(uint256 arg0)` | `view` | `address` |
+| `pendingDeleverageBuffer(uint256 arg0)` | `view` | `uint256` |
+| `pendingDeleverageCooldown(uint256 arg0)` | `view` | `uint256` |
+| `pendingDeleverageDustBps(uint256 arg0)` | `view` | `uint256` |
+| `pendingDeleverageDustThreshold(uint256 arg0)` | `view` | `uint256` |
+| `pendingDeleverageFullPayoffBuffer(uint256 arg0)` | `view` | `uint256` |
+| `pendingDeleverageOverageBps(uint256 arg0)` | `view` | `uint256` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `pendingHrConfig(uint256 arg0)` | `view` | `(address,uint256,uint256,uint256,uint256,uint256)` |
+| `pendingManager(uint256 arg0)` | `view` | `(address,address)` |
+| `pendingMinDeleverageBps(uint256 arg0)` | `view` | `uint256` |
+| `pendingMissionControl(uint256 arg0)` | `view` | `address` |
+| `pendingRipeAvailable(uint256 arg0)` | `view` | `uint256` |
+| `pendingRipeBondConfig(uint256 arg0)` | `view` | `(address,uint256,bool,uint256,uint256,uint256,uint256,bool,uint256)` |
+| `pendingRipeBondConfigValue(uint256 arg0)` | `view` | `uint256` |
+| `pendingShouldCheckLastTouch(uint256 arg0)` | `view` | `bool` |
+| `pendingUnderscoreRegistry(uint256 arg0)` | `view` | `address` |
+| `pendingUnderscoreSafeSpreadBps(uint256 arg0)` | `view` | `uint256` |
+| `pendingUserBalanceReset(uint256 arg0, uint256 arg1)` | `view` | `(address,address,uint256)` |
+| `pendingUserBorrowReset(uint256 arg0, uint256 arg1)` | `view` | `address` |
+| `relinquishGov()` | `nonpayable` | — |
+| `removeBondBooster(address _user)` | `nonpayable` | `bool` |
+| `removeManyBondBoosters(address[] _users)` | `nonpayable` | `bool` |
+| `resetManyAssetPoints((address,uint256)[] _assets)` | `nonpayable` | `uint256` |
+| `resetManyUserBalancePoints((address,address,uint256)[] _users)` | `nonpayable` | `uint256` |
+| `resetManyUserBorrowPoints(address[] _users)` | `nonpayable` | `uint256` |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setBadDebt(uint256 _amount)` | `nonpayable` | `uint256` |
+| `setBondBooster((address,uint256,uint256,uint256) _config)` | `nonpayable` | `uint256` |
+| `setBoosterBoundaries(uint256 _maxBoostRatio, uint256 _maxUnits)` | `nonpayable` | `uint256` |
+| `setBoosterMinLockDuration(uint256 _minLockDuration)` | `nonpayable` | `bool` |
+| `setCanPurchaseRipeBond(bool _canBond)` | `nonpayable` | `bool` |
+| `setCanPurchaseRipeBond(bool _canBond, address _missionControl)` | `nonpayable` | `bool` |
+| `setContributorTemplate(address _contribTemplate)` | `nonpayable` | `uint256` |
+| `setContributorTemplate(address _contribTemplate, address _missionControl)` | `nonpayable` | `uint256` |
+| `setDeleverageBuffer(uint256 _bps)` | `nonpayable` | `uint256` |
+| `setDeleverageCooldown(uint256 _blocks)` | `nonpayable` | `uint256` |
+| `setDeleverageDustBps(uint256 _bps)` | `nonpayable` | `uint256` |
+| `setDeleverageDustThreshold(uint256 _usdAmount)` | `nonpayable` | `uint256` |
+| `setDeleverageFullPayoffBuffer(uint256 _usdAmount)` | `nonpayable` | `uint256` |
+| `setDeleverageOverageBps(uint256 _bps)` | `nonpayable` | `uint256` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `setManagerForContributor(address _contributor, address _manager)` | `nonpayable` | `uint256` |
+| `setManyBondBoosters((address,uint256,uint256,uint256)[] _boosters)` | `nonpayable` | `uint256` |
+| `setMaxCompensation(uint256 _maxComp)` | `nonpayable` | `uint256` |
+| `setMaxCompensation(uint256 _maxComp, address _missionControl)` | `nonpayable` | `uint256` |
+| `setMaxStartDelay(uint256 _maxStartDelay)` | `nonpayable` | `uint256` |
+| `setMaxStartDelay(uint256 _maxStartDelay, address _missionControl)` | `nonpayable` | `uint256` |
+| `setMinCliffLength(uint256 _minCliffLength)` | `nonpayable` | `uint256` |
+| `setMinCliffLength(uint256 _minCliffLength, address _missionControl)` | `nonpayable` | `uint256` |
+| `setMinDeleverageBps(uint256 _bps)` | `nonpayable` | `uint256` |
+| `setRipeAvailableForBonds(uint256 _amount)` | `nonpayable` | `uint256` |
+| `setRipeAvailableForHr(uint256 _amount)` | `nonpayable` | `uint256` |
+| `setRipeAvailableForRewards(uint256 _amount)` | `nonpayable` | `uint256` |
+| `setRipeBondBooster(address _bondBooster)` | `nonpayable` | `uint256` |
+| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks)` | `nonpayable` | `uint256` |
+| `setRipeBondConfig(address _asset, uint256 _amountPerEpoch, uint256 _minRipePerUnit, uint256 _maxRipePerUnit, uint256 _maxRipePerUnitLockBonus, bool _shouldAutoRestart, uint256 _restartDelayBlocks, address _missionControl)` | `nonpayable` | `uint256` |
+| `setRipeBondEpochLength(uint256 _epochLength)` | `nonpayable` | `uint256` |
+| `setRipeBondEpochLength(uint256 _epochLength, address _missionControl)` | `nonpayable` | `uint256` |
+| `setShouldCheckLastTouch(bool _shouldCheck)` | `nonpayable` | `uint256` |
+| `setShouldCheckLastTouch(bool _shouldCheck, address _missionControl)` | `nonpayable` | `uint256` |
+| `setStartEpochAtBlock()` | `nonpayable` | — |
+| `setStartEpochAtBlock(uint256 _block)` | `nonpayable` | — |
+| `setUnderscoreRegistry(address _underscoreRegistry)` | `nonpayable` | `uint256` |
+| `setUnderscoreRegistry(address _underscoreRegistry, address _missionControl)` | `nonpayable` | `uint256` |
+| `setUnderscoreSafeSpreadBps(uint256 _bps)` | `nonpayable` | `uint256` |
+| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength)` | `nonpayable` | `uint256` |
+| `setVestingLengthBoundaries(uint256 _minVestingLength, uint256 _maxVestingLength, address _missionControl)` | `nonpayable` | `uint256` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `AssetResetExecuted` | `uint256 numResets` |
+| `BadDebtSet` | `uint256 badDebt` |
+| `BondBoosterRemoved` | `address user indexed` |
+| `BoosterBoundariesSet` | `uint256 maxBoostRatio, uint256 maxUnits` |
+| `BoosterMinLockDurationSet` | `uint256 minLockDuration` |
+| `CanPurchaseRipeBondModified` | `bool canPurchaseRipeBond, address modifier indexed` |
+| `ContributorFrozenFromSwitchboard` | `address contributor indexed, address frozenBy indexed, bool shouldFreeze` |
+| `DeleverageBufferSet` | `uint256 bps` |
+| `DeleverageCooldownSet` | `uint256 blocks` |
+| `DeleverageDustBpsSet` | `uint256 bps` |
+| `DeleverageDustThresholdSet` | `uint256 usdAmount` |
+| `DeleverageFullPayoffBufferSet` | `uint256 usdAmount` |
+| `DeleverageOverageBpsSet` | `uint256 bps` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `HrContribTemplateSet` | `address contribTemplate indexed` |
+| `HrContributorCancelPaycheckSet` | `address contributor indexed` |
+| `HrContributorManagerSet` | `address contributor indexed, address manager indexed` |
+| `HrMaxCompensationSet` | `uint256 maxCompensation` |
+| `HrMaxStartDelaySet` | `uint256 maxStartDelay` |
+| `HrMinCliffLengthSet` | `uint256 minCliffLength` |
+| `HrVestingLengthBoundariesSet` | `uint256 minVestingLength, uint256 maxVestingLength` |
+| `ManyBondBoostersRemoved` | `uint256 numUsers` |
+| `ManyBondBoostersSet` | `uint256 numBoosters` |
+| `MinDeleverageBpsSet` | `uint256 bps` |
+| `OwnershipChangeCancelledFromSwitchboard` | `address contributor indexed, address cancelledBy indexed` |
+| `PendingAssetResetSet` | `uint256 numResets, uint256 confirmationBlock, uint256 actionId` |
+| `PendingBadDebtSet` | `uint256 badDebt, uint256 confirmationBlock, uint256 actionId` |
+| `PendingBondBoosterSet` | `address bondBooster indexed, uint256 confirmationBlock, uint256 actionId` |
+| `PendingBoosterBoundariesSet` | `uint256 maxBoostRatio, uint256 maxUnits, uint256 confirmationBlock, uint256 actionId` |
+| `PendingBoosterConfigSet` | `address user indexed, uint256 confirmationBlock, uint256 actionId` |
+| `PendingBoosterConfigsSet` | `uint256 numBoosters, uint256 confirmationBlock, uint256 actionId` |
+| `PendingCancelPaycheckSet` | `address contributor indexed, uint256 confirmationBlock, uint256 actionId` |
+| `PendingDeleverageBufferChange` | `uint256 bps, uint256 confirmationBlock, uint256 actionId` |
+| `PendingDeleverageCooldownChange` | `uint256 blocks, uint256 confirmationBlock, uint256 actionId` |
+| `PendingDeleverageDustBpsChange` | `uint256 bps, uint256 confirmationBlock, uint256 actionId` |
+| `PendingDeleverageDustThresholdChange` | `uint256 usdAmount, uint256 confirmationBlock, uint256 actionId` |
+| `PendingDeleverageFullPayoffBufferChange` | `uint256 usdAmount, uint256 confirmationBlock, uint256 actionId` |
+| `PendingDeleverageOverageBpsChange` | `uint256 bps, uint256 confirmationBlock, uint256 actionId` |
+| `PendingHrContribTemplateChange` | `address contribTemplate indexed, uint256 confirmationBlock, uint256 actionId` |
+| `PendingHrMaxCompensationChange` | `uint256 maxCompensation, uint256 confirmationBlock, uint256 actionId` |
+| `PendingHrMaxStartDelayChange` | `uint256 maxStartDelay, uint256 confirmationBlock, uint256 actionId` |
+| `PendingHrMinCliffLengthChange` | `uint256 minCliffLength, uint256 confirmationBlock, uint256 actionId` |
+| `PendingHrVestingLengthBoundariesChange` | `uint256 minVestingLength, uint256 maxVestingLength, uint256 confirmationBlock, uint256 actionId` |
+| `PendingManagerSet` | `address contributor indexed, address manager indexed, uint256 confirmationBlock, uint256 actionId` |
+| `PendingMinDeleverageBpsChange` | `uint256 bps, uint256 confirmationBlock, uint256 actionId` |
+| `PendingRipeAvailableForBondsChange` | `uint256 amount, uint256 confirmationBlock, uint256 actionId` |
+| `PendingRipeAvailableForHrChange` | `uint256 amount, uint256 confirmationBlock, uint256 actionId` |
+| `PendingRipeAvailableForRewardsChange` | `uint256 amount, uint256 confirmationBlock, uint256 actionId` |
+| `PendingRipeBondConfigSet` | `address asset indexed, uint256 amountPerEpoch, uint256 minRipePerUnit, uint256 maxRipePerUnit, uint256 maxRipePerUnitLockBonus, bool shouldAutoRestart, uint256 restartDelayBlocks, uint256 confirmationBlock, uint256 actionId` |
+| `PendingRipeBondEpochLengthSet` | `uint256 epochLength, uint256 confirmationBlock, uint256 actionId` |
+| `PendingShouldCheckLastTouchChange` | `bool shouldCheck, uint256 confirmationBlock, uint256 actionId` |
+| `PendingUnderscoreRegistryChange` | `address underscoreRegistry, uint256 confirmationBlock, uint256 actionId` |
+| `PendingUnderscoreSafeSpreadBpsChange` | `uint256 bps, uint256 confirmationBlock, uint256 actionId` |
+| `PendingUserBalanceResetSet` | `uint256 numResets, uint256 confirmationBlock, uint256 actionId` |
+| `PendingUserBorrowResetSet` | `uint256 numResets, uint256 confirmationBlock, uint256 actionId` |
+| `RipeAvailableForBondsSet` | `uint256 amount` |
+| `RipeAvailableForHrSet` | `uint256 amount` |
+| `RipeAvailableForRewardsSet` | `uint256 amount` |
+| `RipeBondBoosterSet` | `address bondBooster indexed` |
+| `RipeBondConfigSet` | `address asset indexed, uint256 amountPerEpoch, uint256 minRipePerUnit, uint256 maxRipePerUnit, uint256 maxRipePerUnitLockBonus, bool shouldAutoRestart` |
+| `RipeBondEpochLengthSet` | `uint256 epochLength` |
+| `RipeBondStartEpochAtBlockSet` | `uint256 startBlock` |
+| `RipeCheckCashedFromSwitchboard` | `address contributor indexed, address cashedBy indexed, uint256 amount` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+| `RipeTransferCancelledFromSwitchboard` | `address contributor indexed, address cancelledBy indexed` |
+| `ShouldCheckLastTouchSet` | `bool shouldCheck` |
+| `UnderscoreRegistrySet` | `address addr indexed` |
+| `UnderscoreSafeSpreadBpsSet` | `uint256 bps` |
+| `UserBalanceResetExecuted` | `uint256 numResets` |
+| `UserBorrowResetExecuted` | `uint256 numResets` |
+
+### Structs declared by this source
+
+- `DeleverageUserRequest(user: address, targetRepayAmount: uint256)`
+- `DeleverageAsset(vaultId: uint256, asset: address, targetRepayAmount: uint256)`
+- `PendingManager(contributor: address, pendingManager: address)`
+- `BoosterConfig(user: address, boostRatio: uint256, maxUnitsAllowed: uint256, expireBlock: uint256)`
+- `UserBalanceReset(user: address, asset: address, vaultId: uint256)`
+- `AssetReset(asset: address, vaultId: uint256)`
+- `BoosterBoundaries(maxBoostRatio: uint256, maxUnits: uint256)`
+
+<!-- END GENERATED API REFERENCE: SwitchboardDelta -->

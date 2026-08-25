@@ -1,565 +1,203 @@
-# SwitchboardBravo Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/config/SwitchboardBravo.vy)
-
-## Overview
-
-SwitchboardBravo manages asset-specific configurations for the Ripe Protocol. While SwitchboardAlpha handles protocol-wide settings, SwitchboardBravo focuses exclusively on individual asset parameters through time-locked
-governance.
-
-**Core Functions**:
-- **Asset Onboarding**: Manages complete asset integration including vault assignments, point allocations, deposit limits, debt terms, and liquidation settings
-- **Parameter Updates**: Controls modifications to existing assets (deposit limits, liquidation settings, debt terms, whitelist changes) with independent time-locks
-- **Emergency Controls**: Provides rapid-response disabling of asset functions via lite action permissions
-- **Validation**: Enforces complex rules ensuring asset configurations are internally consistent and protocol-compatible
-
-The contract implements categorized time-locked changes, immediate emergency response, comprehensive validation, LTV deviation protection, and modular updates to ensure asset stability with operational flexibility.
-
-## Architecture & Modules
-
-SwitchboardBravo is built using a modular architecture with the following components:
-
-### LocalGov Module
-- **Location**: `contracts/modules/LocalGov.vy`
-- **Purpose**: Provides governance functionality
-- **Documentation**: See [LocalGov Technical Documentation](../LocalGov.md)
-- **Key Features**:
-  - Governance address management
-  - Permission validation
-  - RipeHq integration
-- **Exported Interface**: All governance functions via `gov.__interface__`
-
-### TimeLock Module
-- **Location**: `contracts/modules/TimeLock.vy`
-- **Purpose**: Manages time-locked configuration changes
-- **Documentation**: See [TimeLock Technical Documentation](../TimeLock.md)
-- **Key Features**:
-  - Action ID generation
-  - Time-lock enforcement
-  - Action confirmation/cancellation
-- **Exported Interface**: All timelock functions via `timeLock.__interface__`
-
-### Module Initialization
-```vyper
-initializes: gov
-initializes: timeLock[gov := gov]
-```
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                      SwitchboardBravo Contract                         |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Asset Onboarding Flow                         |  |
-|  |                                                                  |  |
-|  |  1. Governance proposes new asset                                |  |
-|  |     - Vault assignments                                          |  |
-|  |     - Point allocations                                          |  |
-|  |     - Deposit limits                                             |  |
-|  |     - Debt terms (LTV, liquidation)                              |  |
-|  |     - Liquidation configuration                                  |  |
-|  |     - Initial enable/disable flags                               |  |
-|  |                                                                  |  |
-|  |  2. Comprehensive validation                                     |  |
-|  |     - Vault registry checks                                      |  |
-|  |     - Parameter consistency                                       |  |
-|  |     - Special asset rules                                        |  |
-|  |                                                                  |  |
-|  |  3. Time-lock period enforced                                    |  |
-|  |     - Action ID generated                                        |  |
-|  |     - Pending configuration stored                               |  |
-|  |                                                                  |  |
-|  |  4. Governance executes after time-lock                          |  |
-|  |     - Final validation                                           |  |
-|  |     - Configuration written to MissionControl                    |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                 Configuration Update Categories                  |  |
-|  |                                                                  |  |
-|  |  Deposit Parameters:          Liquidation Config:               |  |
-|  |  - Vault assignments          - Burn vs transfer                |  |
-|  |  - Point allocations          - Stability pool swaps            |  |
-|  |  - User/global limits         - Auction parameters              |  |
-|  |                                                                  |  |
-|  |  Debt Terms:                  Whitelist:                        |  |
-|  |  - LTV ratios                 - Access control contract         |  |
-|  |  - Liquidation thresholds     - User permissions                |  |
-|  |  - Borrowing rates                                              |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Emergency Control Flow                        |  |
-|  |                                                                  |  |
-|  |  Enable Functions:                                                |  |
-|  |  - Only governance can enable                                     |  |
-|  |  - Immediate execution                                            |  |
-|  |                                                                  |  |
-|  |  Disable Functions:                                               |  |
-|  |  - Governance OR lite action users                               |  |
-|  |  - Immediate execution                                            |  |
-|  |  - Per-asset granularity:                                        |  |
-|  |    • canDeposit / canWithdraw                                    |  |
-|  |    • canRedeemCollateral / canRedeemInStabPool                   |  |
-|  |    • canBuyInAuction / canClaimInStabPool                        |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| MissionControl   |    | VaultBook         |    | SwitchboardAlpha |
-| * Stores configs |    | * Validates vaults|    | * Validates      |
-| * Enforces rules |    | * Registry data   |    |   auction params |
-| * Asset registry |    |                   |    |                  |
-+------------------+    +-------------------+    +------------------+
-```
-
-## Data Structures
-
-### ActionType Flag
-Categorizes pending asset configuration changes:
-```vyper
-flag ActionType:
-    ASSET_ADD_NEW               # Complete new asset configuration
-    ASSET_DEPOSIT_PARAMS        # Vault and deposit settings
-    ASSET_LIQ_CONFIG            # Liquidation behavior
-    ASSET_DEBT_TERMS            # LTV and borrowing parameters
-    ASSET_WHITELIST             # Access control updates
-```
-
-### AssetFlag Flag
-Asset-specific enable/disable switches:
-```vyper
-flag AssetFlag:
-    CAN_DEPOSIT                 # Allow deposits
-    CAN_WITHDRAW                # Allow withdrawals
-    CAN_REDEEM_IN_STAB_POOL     # Allow stability pool redemptions
-    CAN_BUY_IN_AUCTION          # Allow auction purchases
-    CAN_CLAIM_IN_STAB_POOL      # Allow stability pool claims
-    CAN_REDEEM_COLLATERAL       # Allow direct collateral redemption
-```
-
-### AssetUpdate Struct
-Pending asset configuration update:
-```vyper
-struct AssetUpdate:
-    asset: address              # Asset being configured
-    config: cs.AssetConfig      # Complete configuration
-```
-
-## State Variables
-
-### Public State Variables
-- `actionType: HashMap[uint256, ActionType]` - Maps action IDs to configuration types
-- `pendingAssetConfig: HashMap[uint256, AssetUpdate]` - Stores pending configurations
-
-### Constants
-- `MAX_VAULTS_PER_ASSET: uint256 = 10` - Maximum vaults per asset
-- `HUNDRED_PERCENT: uint256 = 100_00` - 100.00% in basis points
-- `GREEN_TOKEN_ID: uint256 = 1` - Green token registry ID
-- `SAVINGS_GREEN_ID: uint256 = 2` - Savings Green registry ID
-- `MISSION_CONTROL_ID: uint256 = 5` - MissionControl registry ID
-- `VAULT_BOOK_ID: uint256 = 8` - VaultBook registry ID
-- `SWITCHBOARD_ID: uint256 = 6` - Switchboard registry ID
-- `SWITCHBOARD_ALPHA_ID: uint256 = 1` - SwitchboardAlpha registry ID
-
-## Constructor
-
-### `__init__`
-
-Initializes SwitchboardBravo with governance and time-lock settings.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _minConfigTimeLock: uint256,
-    _maxConfigTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq registry address |
-| `_tempGov` | `address` | Initial governance address |
-| `_minConfigTimeLock` | `uint256` | Minimum time-lock for changes |
-| `_maxConfigTimeLock` | `uint256` | Maximum time-lock for changes |
-
-#### Returns
-
-*Constructor does not return any values*
-
-#### Access
-
-Called only during deployment
-
-#### Example Usage
-```python
-# Deploy SwitchboardBravo
-switchboard_bravo = boa.load(
-    "contracts/config/SwitchboardBravo.vy",
-    ripe_hq.address,
-    governance.address,
-    100,    # Min config timelock
-    10000   # Max config timelock
-)
-```
-
-## Asset Onboarding Functions
-
-### `addAsset`
-
-Adds a new asset to the protocol with complete configuration.
-
-```vyper
-@external
-def addAsset(
-    _asset: address,
-    _vaultIds: DynArray[uint256, MAX_VAULTS_PER_ASSET],
-    _stakersPointsAlloc: uint256,
-    _voterPointsAlloc: uint256,
-    _perUserDepositLimit: uint256,
-    _globalDepositLimit: uint256,
-    _minDepositBalance: uint256 = 0,
-    _debtTerms: cs.DebtTerms = empty(cs.DebtTerms),
-    _shouldBurnAsPayment: bool = False,
-    _shouldTransferToEndaoment: bool = False,
-    _shouldSwapInStabPools: bool = True,
-    _shouldAuctionInstantly: bool = True,
-    _canDeposit: bool = True,
-    _canWithdraw: bool = True,
-    _canRedeemCollateral: bool = True,
-    _canRedeemInStabPool: bool = True,
-    _canBuyInAuction: bool = True,
-    _canClaimInStabPool: bool = True,
-    _specialStabPoolId: uint256 = 0,
-    _customAuctionParams: cs.AuctionParams = empty(cs.AuctionParams),
-    _whitelist: address = empty(address),
-    _isNft: bool = False,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Token contract address |
-| `_vaultIds` | `DynArray[uint256, 10]` | Vault IDs for deposits |
-| `_stakersPointsAlloc` | `uint256` | Points allocation for stakers |
-| `_voterPointsAlloc` | `uint256` | Points allocation for voters |
-| `_perUserDepositLimit` | `uint256` | Maximum deposit per user |
-| `_globalDepositLimit` | `uint256` | Total protocol deposit limit |
-| `_minDepositBalance` | `uint256` | Minimum deposit amount |
-| `_debtTerms` | `cs.DebtTerms` | Borrowing and liquidation parameters |
-| `_shouldBurnAsPayment` | `bool` | Burn on liquidation (Green/sGreen only) |
-| `_shouldTransferToEndaoment` | `bool` | Transfer to Endaoment on liquidation |
-| `_shouldSwapInStabPools` | `bool` | Allow stability pool swaps |
-| `_shouldAuctionInstantly` | `bool` | Skip delay for auctions |
-| `_canDeposit` | `bool` | Initial deposit permission |
-| `_canWithdraw` | `bool` | Initial withdrawal permission |
-| `_canRedeemCollateral` | `bool` | Initial collateral redemption permission |
-| `_canRedeemInStabPool` | `bool` | Initial stability pool redemption permission |
-| `_canBuyInAuction` | `bool` | Initial auction purchase permission |
-| `_canClaimInStabPool` | `bool` | Initial stability pool claim permission |
-| `_specialStabPoolId` | `uint256` | Custom stability pool ID |
-| `_customAuctionParams` | `cs.AuctionParams` | Custom auction parameters |
-| `_whitelist` | `address` | Access control contract |
-| `_isNft` | `bool` | Whether asset is an NFT |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Action ID for tracking |
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `NewAssetPending` - Comprehensive event with all configuration details
-
-#### Example Usage
-```python
-# Add WETH as collateral
-debt_terms = DebtTerms(
-    ltv=8000,                    # 80% LTV
-    redemptionThreshold=8500,    # 85% redemption threshold
-    liqThreshold=9000,           # 90% liquidation threshold
-    liqFee=500,                  # 5% liquidation fee
-    borrowRate=200,              # 2% borrow rate
-    daowry=0                     # No daowry
-)
-
-action_id = switchboard_bravo.addAsset(
-    weth.address,
-    [1, 2],                      # Vault IDs
-    5000,                        # 50% to stakers
-    5000,                        # 50% to voters
-    1000 * 10**18,               # 1000 WETH per user limit
-    100000 * 10**18,             # 100k WETH global limit
-    0,                           # No minimum
-    debt_terms,
-    sender=governance.address
-)
-```
-
-## Asset Configuration Update Functions
-
-### `setAssetDepositParams`
-
-Updates deposit-related parameters for an existing asset.
-
-```vyper
-@external
-def setAssetDepositParams(
-    _asset: address,
-    _vaultIds: DynArray[uint256, MAX_VAULTS_PER_ASSET],
-    _stakersPointsAlloc: uint256,
-    _voterPointsAlloc: uint256,
-    _perUserDepositLimit: uint256,
-    _globalDepositLimit: uint256,
-    _minDepositBalance: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to update |
-| `_vaultIds` | `DynArray[uint256, 10]` | New vault assignments |
-| `_stakersPointsAlloc` | `uint256` | New staker allocation |
-| `_voterPointsAlloc` | `uint256` | New voter allocation |
-| `_perUserDepositLimit` | `uint256` | New per-user limit |
-| `_globalDepositLimit` | `uint256` | New global limit |
-| `_minDepositBalance` | `uint256` | New minimum deposit |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Action ID |
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `PendingAssetDepositParamsChange` - Contains new parameters and confirmation block
-
-### `setAssetLiqConfig`
-
-Updates liquidation configuration for an asset.
-
-```vyper
-@external
-def setAssetLiqConfig(
-    _asset: address,
-    _shouldBurnAsPayment: bool,
-    _shouldTransferToEndaoment: bool,
-    _shouldSwapInStabPools: bool,
-    _shouldAuctionInstantly: bool,
-    _specialStabPoolId: uint256 = 0,
-    _customAuctionParams: cs.AuctionParams = empty(cs.AuctionParams),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to update |
-| `_shouldBurnAsPayment` | `bool` | Burn on liquidation |
-| `_shouldTransferToEndaoment` | `bool` | Transfer to Endaoment |
-| `_shouldSwapInStabPools` | `bool` | Allow stability swaps |
-| `_shouldAuctionInstantly` | `bool` | Skip auction delay |
-| `_specialStabPoolId` | `uint256` | Custom pool ID |
-| `_customAuctionParams` | `cs.AuctionParams` | Custom auction settings |
-
-#### Access
-
-Only callable by governance
-
-### `setAssetDebtTerms`
-
-Updates borrowing and liquidation parameters.
-
-```vyper
-@external
-def setAssetDebtTerms(
-    _asset: address,
-    _ltv: uint256,
-    _redemptionThreshold: uint256,
-    _liqThreshold: uint256,
-    _liqFee: uint256,
-    _borrowRate: uint256,
-    _daowry: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to update |
-| `_ltv` | `uint256` | Loan-to-value ratio |
-| `_redemptionThreshold` | `uint256` | Redemption trigger |
-| `_liqThreshold` | `uint256` | Liquidation trigger |
-| `_liqFee` | `uint256` | Liquidation bonus |
-| `_borrowRate` | `uint256` | Interest rate |
-| `_daowry` | `uint256` | Protocol fee |
-
-#### Access
-
-Only callable by governance
-
-#### Validation
-
-- Enforces LTV deviation limits to prevent market manipulation
-- Ensures threshold ordering: LTV < redemption < liquidation
-
-### `setWhitelistForAsset`
-
-Updates access control whitelist.
-
-```vyper
-@external
-def setWhitelistForAsset(_asset: address, _whitelist: address) -> uint256:
-```
-
-## Asset Enable/Disable Functions
-
-Multiple functions control asset operations:
-- `setCanDepositAsset(_asset: address, _shouldEnable: bool)` - Control deposits
-- `setCanWithdrawAsset(_asset: address, _shouldEnable: bool)` - Control withdrawals
-- `setCanRedeemCollateralAsset(_asset: address, _shouldEnable: bool)` - Control redemptions
-- `setCanRedeemInStabPoolAsset(_asset: address, _shouldEnable: bool)` - Control stability redemptions
-- `setCanBuyInAuctionAsset(_asset: address, _shouldEnable: bool)` - Control auction participation
-- `setCanClaimInStabPoolAsset(_asset: address, _shouldEnable: bool)` - Control stability claims
-
-#### Access
-
-- **To Enable**: Only governance
-- **To Disable**: Governance OR users with lite action permission
-
-#### Example Usage
-```python
-# Emergency: disable WETH deposits
-switchboard_bravo.setCanDepositAsset(
-    weth.address,
-    False,
-    sender=emergency_user.address  # Has lite action permission
-)
-
-# Re-enable WETH deposits
-switchboard_bravo.setCanDepositAsset(
-    weth.address,
-    True,
-    sender=governance.address  # Only governance can enable
-)
-```
-
-## Execution Functions
-
-### `executePendingAction`
-
-Executes a pending configuration change after time-lock.
-
-```vyper
-@external
-def executePendingAction(_aid: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_aid` | `uint256` | Action ID to execute |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if executed successfully |
-
-#### Access
-
-Only callable by governance
-
-#### Example Usage
-```python
-# Execute after time-lock
-boa.env.time_travel(blocks=timelock_period)
-success = switchboard_bravo.executePendingAction(
-    action_id,
-    sender=governance.address
-)
-```
-
-### `cancelPendingAction`
-
-Cancels a pending configuration change.
-
-```vyper
-@external
-def cancelPendingAction(_aid: uint256) -> bool:
-```
-
-## Key Validation Logic
-
-### Asset Configuration Validation
-
-Each asset configuration must pass comprehensive checks:
-
-1. **Vault Validation**:
-   - All vault IDs must be registered in VaultBook
-   - Staker allocations require staker vaults (ID 1 or 2)
-
-2. **Allocation Validation**:
-   - Staker + voter allocations ≤ 100%
-   - No max uint256 values
-
-3. **Limit Validation**:
-   - Per-user limit ≤ global limit
-   - Minimum deposit ≤ per-user limit
-   - Non-zero limits required
-
-4. **Debt Terms Validation**:
-   - LTV < redemption threshold < liquidation threshold ≤ 100%
-   - Liquidation fee + threshold ≤ 100%
-   - Non-zero fees if LTV > 0
-
-5. **Special Asset Rules**:
-   - Only Green/sGreen can use burn on payment
-   - NFTs cannot use stability pools or collateral redemption
-   - Stable assets cannot be redeemed as collateral
-
-### LTV Deviation Protection
-
-Prevents sudden LTV changes that could harm users:
-```
-maxDeviation = protocol setting
-upperBound = min(currentLTV + maxDeviation, 100%)
-lowerBound = max(currentLTV - maxDeviation, 0)
-newLTV must be within [lowerBound, upperBound]
-```
-
-## Security Considerations
-
-1. **Time-lock Protection**: All configuration changes require time-lock
-2. **Emergency Response**: Quick disable capability for crisis management
-3. **Parameter Validation**: Comprehensive checks prevent invalid configurations
-4. **Access Control**: Strict governance requirements for enabling functions
-5. **Asset Isolation**: Each asset configured independently
-6. **LTV Protection**: Deviation limits prevent market manipulation
+# SwitchboardBravo
+
+`SwitchboardBravo` governs collateral onboarding and the timelocked update of
+asset deposit, liquidation, debt, and whitelist configuration in
+MissionControl.
+
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/SwitchboardBravo.vy)
+
+## Action model
+
+Bravo supports five timelocked action types:
+
+1. add a new asset;
+2. update deposit/vault/points parameters;
+3. update liquidation routing;
+4. update debt terms; and
+5. update an asset whitelist.
+
+Only governance may propose, execute, or cancel. Each proposal binds its target
+MissionControl address and is re-read and revalidated at execution. Expired
+actions are cancelled.
+
+When a newly added fungible asset has no PriceDesk token scale, execution calls
+`syncTokenScale` after storing the asset configuration.
+
+## Asset validation
+
+Deposit configuration requires nonzero finite user/global limits, user limit no
+greater than the global limit, minimum balance no greater than the user limit,
+valid VaultBook IDs, and combined staker/voter allocations no greater than
+100%. A nonzero staker allocation also requires either the current core RipeGov
+vault or an ID historically classified as a StabilityPool.
+
+Liquidation configuration enforces the route combinations used by the
+liquidation engine:
+
+- StabilityPool swapping implies immediate auction fallback;
+- only GREEN or Savings GREEN may be burned as payment;
+- assets transferred to Endaoment cannot be GREEN or Savings GREEN;
+- NFTs cannot use StabilityPool swapping;
+- collateral redemption requires a non-NFT asset with nonzero LTV that is not
+  marked for Endaoment transfer; and
+- custom auction parameters must pass SwitchboardAlpha validation.
+
+A special StabilityPool ID must resolve to a registered, unpaused contract with
+the expected claim and vault getters. If it already has a stabilization asset,
+that pool cannot also register the proposed collateral as principal, and a new
+claim pair is rejected when the active claim-asset count is already 20. These
+are structural configuration checks; reservation, custody, value, and
+liquidation-acceptance checks remain the StabilityPool settlement path's job.
+
+## Directional debt-term rails
+
+Debt terms must preserve the ordering
+`LTV <= redemption threshold <= liquidation threshold`, keep the liquidation
+threshold plus fee at or below 100%, and satisfy the remaining percentage and
+nonzero constraints.
+
+`maxLtvDeviation` is directional:
+
+| Change | Restricted direction |
+| --- | --- |
+| LTV | Decreases are step-limited; increases are not |
+| Redemption threshold | Decreases are step-limited; increases are not |
+| Liquidation threshold | Decreases are step-limited; increases are not |
+| Borrow rate | Increases are step-limited; decreases are not |
+
+These are risk-direction rails, not a symmetric absolute-difference band. A
+previously nonzero LTV cannot be set to zero. A zero deviation disables the step
+size checks, but not the structural debt-term invariants.
+
+The same directional checks run when the action is proposed and again against
+the then-current debt terms when it executes. Multiple queued actions therefore
+cannot bypass the rail by validating against a stale common baseline.
+
+## Whitelists and lifecycle
+
+A nonzero whitelist must expose the generic `isUserAllowed(user, asset)`
+surface. An allocated asset remains governed by MissionControl until a separate
+SwitchboardCharlie deregistration action removes it.
+
+<!-- BEGIN GENERATED API REFERENCE: SwitchboardBravo -->
+## Exact API reference
+
+> Generated from `contracts/config/SwitchboardBravo.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, uint256 _minConfigTimeLock, uint256 _maxConfigTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, tuple _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, tuple _customAuctionParams, address _whitelist, bool _isNft, address _missionControl)` | `6–23` | `_minDepositBalance`, `_debtTerms`, `_shouldBurnAsPayment`, `_shouldTransferToEndaoment`, `_shouldSwapInStabPools`, `_shouldAuctionInstantly`, `_canDeposit`, `_canWithdraw`, `_canRedeemCollateral`, `_canRedeemInStabPool`, `_canBuyInAuction`, `_canClaimInStabPool`, `_specialStabPoolId`, `_customAuctionParams`, `_whitelist`, `_isNft`, `_missionControl` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
+| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry, address _missionControl)` | `7–8` | `_missionControl` |
+| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, address _missionControl)` | `7–8` | `_missionControl` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, tuple _customAuctionParams, address _missionControl)` | `5–8` | `_specialStabPoolId`, `_customAuctionParams`, `_missionControl` |
+| `setWhitelistForAsset(address _asset, address _whitelist, address _missionControl)` | `2–3` | `_missionControl` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `actionType(uint256 arg0)` | `view` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist, bool _isNft)` | `nonpayable` | `uint256` |
+| `addAsset(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, (uint256,uint256,uint256,uint256,uint256,uint256) _debtTerms, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, bool _canDeposit, bool _canWithdraw, bool _canRedeemCollateral, bool _canRedeemInStabPool, bool _canBuyInAuction, bool _canClaimInStabPool, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _whitelist, bool _isNft, address _missionControl)` | `nonpayable` | `uint256` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelPendingAction(uint256 _aid)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `executePendingAction(uint256 _aid)` | `nonpayable` | `bool` |
+| `expiration()` | `view` | `uint256` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `getGovernors()` | `view` | `address[]` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
+| `pendingAssetConfig(uint256 arg0)` | `view` | `(address,(uint256[],uint256,uint256,uint256,uint256,uint256,(uint256,uint256,uint256,uint256,uint256,uint256),bool,bool,bool,bool,bool,bool,bool,bool,bool,bool,uint256,(bool,uint256,uint256,uint256,uint256),address,bool))` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `pendingMissionControl(uint256 arg0)` | `view` | `address` |
+| `relinquishGov()` | `nonpayable` | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry)` | `nonpayable` | `uint256` |
+| `setAssetDebtTerms(address _asset, uint256 _ltv, uint256 _redemptionThreshold, uint256 _liqThreshold, uint256 _liqFee, uint256 _borrowRate, uint256 _daowry, address _missionControl)` | `nonpayable` | `uint256` |
+| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance)` | `nonpayable` | `uint256` |
+| `setAssetDepositParams(address _asset, uint256[] _vaultIds, uint256 _stakersPointsAlloc, uint256 _voterPointsAlloc, uint256 _perUserDepositLimit, uint256 _globalDepositLimit, uint256 _minDepositBalance, address _missionControl)` | `nonpayable` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly)` | `nonpayable` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId)` | `nonpayable` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams)` | `nonpayable` | `uint256` |
+| `setAssetLiqConfig(address _asset, bool _shouldBurnAsPayment, bool _shouldTransferToEndaoment, bool _shouldSwapInStabPools, bool _shouldAuctionInstantly, uint256 _specialStabPoolId, (bool,uint256,uint256,uint256,uint256) _customAuctionParams, address _missionControl)` | `nonpayable` | `uint256` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `setWhitelistForAsset(address _asset, address _whitelist)` | `nonpayable` | `uint256` |
+| `setWhitelistForAsset(address _asset, address _whitelist, address _missionControl)` | `nonpayable` | `uint256` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `AssetAdded` | `address asset indexed` |
+| `AssetDebtTermsSet` | `address asset indexed, uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry` |
+| `AssetDepositParamsSet` | `address asset indexed, uint256 numVaultIds, uint256 stakersPointsAlloc, uint256 voterPointsAlloc, uint256 perUserDepositLimit, uint256 globalDepositLimit, uint256 minDepositBalance` |
+| `AssetLiqConfigSet` | `address asset indexed, bool shouldBurnAsPayment, bool shouldTransferToEndaoment, bool shouldSwapInStabPools, bool shouldAuctionInstantly, uint256 specialStabPoolId, uint256 auctionStartDiscount, uint256 auctionMaxDiscount, uint256 auctionDelay, uint256 auctionDuration` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `NewAssetPending` | `address asset indexed, uint256 numVaults, uint256 stakersPointsAlloc, uint256 voterPointsAlloc, uint256 perUserDepositLimit, uint256 globalDepositLimit, uint256 minDepositBalance, uint256 debtTermsLtv, uint256 debtTermsRedemptionThreshold, uint256 debtTermsLiqThreshold, uint256 debtTermsLiqFee, uint256 debtTermsBorrowRate, uint256 debtTermsDaowry, bool shouldBurnAsPayment, bool shouldTransferToEndaoment, bool shouldSwapInStabPools, bool shouldAuctionInstantly, bool canDeposit, bool canWithdraw, bool canRedeemCollateral, bool canRedeemInStabPool, bool canBuyInAuction, bool canClaimInStabPool, uint256 specialStabPoolId, uint256 auctionStartDiscount, uint256 auctionMaxDiscount, uint256 auctionDelay, uint256 auctionDuration, address whitelist, bool isNft` |
+| `PendingAssetDebtTermsChange` | `address asset indexed, uint256 ltv, uint256 redemptionThreshold, uint256 liqThreshold, uint256 liqFee, uint256 borrowRate, uint256 daowry, uint256 confirmationBlock, uint256 actionId` |
+| `PendingAssetDepositParamsChange` | `address asset indexed, uint256 numVaultIds, uint256 stakersPointsAlloc, uint256 voterPointsAlloc, uint256 perUserDepositLimit, uint256 globalDepositLimit, uint256 minDepositBalance, uint256 confirmationBlock, uint256 actionId` |
+| `PendingAssetLiqConfigChange` | `address asset indexed, bool shouldBurnAsPayment, bool shouldTransferToEndaoment, bool shouldSwapInStabPools, bool shouldAuctionInstantly, uint256 specialStabPoolId, uint256 auctionStartDiscount, uint256 auctionMaxDiscount, uint256 auctionDelay, uint256 auctionDuration, uint256 confirmationBlock, uint256 actionId` |
+| `PendingAssetWhitelistChange` | `address asset indexed, address whitelist indexed, uint256 confirmationBlock, uint256 actionId` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+| `WhitelistAssetSet` | `address asset indexed, address whitelist indexed` |
+
+### Structs declared by this source
+
+- `AssetUpdate(asset: address, config: cs.AssetConfig)`
+
+<!-- END GENERATED API REFERENCE: SwitchboardBravo -->

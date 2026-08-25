@@ -1,7 +1,7 @@
-# Deployed Contracts
+# Ripe Params
 
-For the latest deployed contract addresses on Base Mainnet, please visit the official Ripe Protocol parameters page:
+Deployment addresses, enabled features, asset listings, and selected governance
+parameters are intentionally maintained outside these technical docs.
 
-**[View Live Deployments](https://params.ripe.finance/?tab=deployments)**
-
-This page is maintained and updated in real-time as new contracts are deployed or upgraded.
+Use [Ripe Params](https://params.ripe.finance/) for current addresses and
+configuration.

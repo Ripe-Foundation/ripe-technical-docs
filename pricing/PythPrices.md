@@ -1,695 +1,213 @@
-# PythPrices Technical Documentation
+# PythPrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/PythPrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/priceSources/PythPrices.vy)
 
 ## Overview
 
-PythPrices integrates the Pyth Network oracle for high-frequency, low-latency price feeds. It provides real-time USD pricing with confidence intervals and exponential notation support for maximum precision.
+`PythPrices` maps assets to Pyth feed IDs, normalizes Pyth values to 18 decimals, applies a conservative confidence adjustment, and exposes authorized paid and prepaid batch update routes.
 
-**Core Features**:
-- **Pull-Based Updates**: On-demand price updates with fee optimization
-- **Confidence Intervals**: Price uncertainty metrics for risk assessment
-- **Batch Processing**: Multi-asset updates in single transaction
-- **Exponential Pricing**: Handles both positive and negative exponents
+## Feed and price model
 
-The module implements automatic fee calculation for updates, strict validation of price freshness and confidence, efficient caching to minimize update costs, and comprehensive error handling for failed updates.
+Each asset stores:
 
-## Architecture & Dependencies
-
-PythPrices is built using a modular architecture with direct Pyth Network integration:
-
-### Core Module Dependencies
-- **LocalGov**: Provides governance functionality with access control
-- **Addys**: Address resolution for protocol contracts
-- **PriceSourceData**: Asset registration and pause state management
-- **TimeLock**: Time-locked changes for feed management
-
-### External Integration
-- **Pyth Network**: Direct integration with Pyth oracle contracts
-- **Pull Oracle Model**: Off-chain prices brought on-chain as needed
-- **Update Fee System**: Automatic fee payment for price updates
-
-### Module Initialization
-```vyper
-initializes: gov
-initializes: addys
-initializes: priceData[addys := addys]
-initializes: timeLock[gov := gov]
+```text
+PythFeedConfig(feedId: bytes32, staleTime: uint256)
 ```
 
-### Immutable Configuration
-```vyper
-PYTH: immutable(address)  # Pyth Network contract address
+`getPrice` returns zero for a missing feed or unusable data. `getPriceAndHasFeed` returns `hasFeed = true` for a configured feed even when its current price is zero. `getLastPriceAndLastUpdate` returns the adjusted price and publish time without applying a stale-time bound, while still enforcing all other data checks.
+
+The raw `PythPrice` contains signed `price`, unsigned `confidence`, signed `exponent`, and `publishTime`. The source:
+
+1. rejects nonpositive prices and future publish times;
+2. applies the effective freshness policy;
+3. scales price and confidence to 18 decimals using the signed exponent;
+4. rejects `confidence >= price`;
+5. rejects a confidence ratio above `maxConfidenceRatio` when that control is nonzero; and
+6. returns `price - confidence`.
+
+The default maximum confidence ratio is 3% (`3_00` basis points). Switchboard may change it while the source is unpaused; the value must remain below 100%. A value of zero disables the ratio ceiling, but the `confidence < price` requirement remains.
+
+## Freshness policy
+
+Only the canonical PriceDesk may forward a nonzero global stale time. A direct call uses zero and lets the source resolve MissionControl when the feed inherits.
+
+- nonzero feed `staleTime` is an absolute override;
+- zero feed `staleTime` inherits MissionControl;
+- local overrides must be 5 minutes through 7 days; and
+- an effective/global nonzero policy above 7 days is invalid.
+
+There is no `min(global, feed)` cap.
+
+## Typed batch updates
+
+Both update routes accept the current batch type:
+
+```text
+DynArray[Bytes[2048], 20]
 ```
 
-## Data Structures
-
-### PythPrice Struct
-Raw price data from Pyth Network:
-```vyper
-struct PythPrice:
-    price: int64          # Price value (can be negative)
-    confidence: uint64    # Confidence interval
-    exponent: int32       # Decimal exponent
-    publishTime: uint64   # When price was published
-```
-
-### PythFeedConfig Struct
-Configuration for each asset's price feed:
-```vyper
-struct PythFeedConfig:
-    feedId: bytes32       # Pyth price feed ID
-    staleTime: uint256    # Maximum age for price data in seconds
-```
-
-### PendingPythFeed Struct
-Tracks pending feed changes during timelock:
-```vyper
-struct PendingPythFeed:
-    actionId: uint256     # TimeLock action ID
-    config: PythFeedConfig # New configuration
-```
-
-## State Variables
-
-### Feed Configuration
-- `feedConfig: HashMap[address, PythFeedConfig]` - Maps assets to Pyth feed configurations
-- `pendingUpdates: HashMap[address, PendingPythFeed]` - Pending changes
-- `maxConfidenceRatio: uint256` - Maximum allowed confidence ratio (default: percentage of price)
-
-### Constants
-- `NORMALIZED_DECIMALS: constant(uint256) = 18` - Standard decimals
-- `MAX_PRICE_UPDATES: constant(uint256) = 20` - Max batch updates
-
-### Inherited State
-From modules:
-- Governance state (LocalGov)
-- Pause state and asset registry (PriceSourceData)
-- TimeLock configuration
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                        PythPrices Contract                            |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Price Retrieval Flow                          |  |
-|  |                                                                  |  |
-|  |  getPrice(asset):                                                |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Load Pyth feed ID for asset                             │ |  |
-|  |  │ 2. Call Pyth Network's getPriceUnsafe()                    │ |  |
-|  |  │ 3. Validate price data:                                     │ |  |
-|  |  │    - price > 0 (has valid price)                           │ |  |
-|  |  │    - publishTime not stale                                 │ |  |
-|  |  │    - confidence < price (quality check)                    │ |  |
-|  |  │ 4. Convert price based on exponent:                         │ |  |
-|  |  │    - Negative exp: price × 10^(18-|exp|)                   │ |  |
-|  |  │    - Positive exp: price × 10^(18+exp)                     │ |  |
-|  |  │ 5. Apply confidence adjustment:                             │ |  |
-|  |  │    final_price = price - confidence                        │ |  |
-|  |  │ 6. Return price in 18 decimals                             │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Pull Oracle Update System                     |  |
-|  |                                                                  |  |
-|  |  Off-Chain Price Flow:                                           |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │   Pyth Publishers  ──> Aggregation ──> Signed Updates       │ |  |
-|  |  │         ↓                                   ↓                │ |  |
-|  |  │   Market Data                        Price Attestations     │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  On-Chain Update Flow:                                           |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ updatePythPrice(payload):                                   │ |  |
-|  |  │ 1. Get required fee from Pyth                               │ |  |
-|  |  │ 2. Check contract has sufficient ETH                        │ |  |
-|  |  │ 3. Call updatePriceFeeds with fee payment                  │ |  |
-|  |  │ 4. Pyth verifies signatures and updates prices              │ |  |
-|  |  │ 5. Emit PythPriceUpdated event                             │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Confidence Interval System                    |  |
-|  |                                                                  |  |
-|  |  Price with Confidence:                                          |  |
-|  |  ├────────────────────────────────────────────────┤             |  |
-|  |  │←── confidence ──→│←──── price ────→│←── conf ──→│             |  |
-|  |  └────────────────────────────────────────────────┘             |  |
-|  |           ↓                   ↓              ↓                   |  |
-|  |      Lower Bound      Best Estimate    Upper Bound              |  |
-|  |                                                                  |  |
-|  |  Conservative Pricing:                                           |  |
-|  |  • final_price = price - confidence                             |  |
-|  |  • Accounts for data provider disagreement                      |  |
-|  |  • More conservative during volatile markets                    |  |
-|  |  • Rejects if confidence >= price                               |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-                                    ▼
-+------------------------------------------------------------------------+
-|                        Pyth Network Oracle                            |
-+------------------------------------------------------------------------+
-| • Decentralized network of professional data providers                |
-| • Sub-second price updates with cryptographic attestations            |
-| • Pull-based architecture for cost efficiency                         |
-| • Cross-chain price feeds with unified interface                      |
-+------------------------------------------------------------------------+
-```
-
-## Constructor
-
-### `__init__`
-
-Initializes PythPrices with governance settings and Pyth Network address.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _pythNetwork: address,
-    _minPriceChangeTimeLock: uint256,
-    _maxPriceChangeTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract for protocol integration |
-| `_tempGov` | `address` | Initial temporary governance address |
-| `_pythNetwork` | `address` | Pyth Network contract address |
-| `_minPriceChangeTimeLock` | `uint256` | Minimum timelock for feed changes |
-| `_maxPriceChangeTimeLock` | `uint256` | Maximum timelock for feed changes |
-
-#### Deployment Requirements
-- Pyth Network address must not be empty
-- Contract requires ETH balance for update fees
-
-#### Example Usage
-```python
-pyth_prices = boa.load(
-    "contracts/priceSources/PythPrices.vy",
-    ripe_hq.address,
-    deployer.address,
-    pyth_network.address,  # Chain-specific Pyth deployment
-    100,   # Min 100 blocks timelock
-    1000   # Max 1000 blocks timelock
-)
-
-# Fund contract for update fees
-deployer.transfer(pyth_prices.address, eth_amount)
-```
-
-## Core Price Functions
-
-### `getPrice`
-
-Retrieves the current price for an asset from Pyth Network.
-
-```vyper
-@view
-@external
-def getPrice(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to get price for |
-| `_staleTime` | `uint256` | Maximum age for price data in seconds. The caller is responsible for providing this value. A value of 0 disables the staleness check for this call. |
-| `_priceDesk` | `address` | Not used in Pyth implementation |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Normalized price in 18 decimals (0 if invalid) |
-
-#### Process Flow
-1. **Feed Lookup**: Gets Pyth feed ID for asset
-2. **Price Query**: Calls getPriceUnsafe for gas efficiency
-3. **Validation**: Checks price > 0 and not stale
-4. **Exponent Handling**: Normalizes to 18 decimals
-5. **Confidence Adjustment**: Subtracts confidence interval
-
-#### Example Usage
-```python
-# Get BTC price
-btc_price = pyth_prices.getPrice(btc.address)
-
-# Get price with 5 minute staleness check
-eth_price = pyth_prices.getPrice(
-    eth.address,
-    300  # 5 minutes
-)
-```
-
-### `getPriceAndHasFeed`
-
-Returns price and feed existence status.
-
-```vyper
-@view
-@external
-def getPriceAndHasFeed(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> (uint256, bool):
-```
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Current price (0 if no feed) |
-| `bool` | True if feed exists |
-
-### `getLastPriceAndLastUpdate`
-
-Returns the last price and last update timestamp for an asset.
-
-```vyper
-@view
-@external
-def getLastPriceAndLastUpdate(_asset: address) -> (uint256, uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to get price and timestamp for |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Last price in 18 decimals (0 if no feed) |
-| `uint256` | Last update timestamp (0 if no feed) |
-
-#### Notes
-- Does not apply staleness checks
-- Useful for checking when price was last updated
-
-## Price Update Functions
-
-### `updatePythPrice`
-
-Brings fresh price data on-chain for configured feeds. Requires ETH payment for Pyth update fee.
-
-```vyper
-@payable
-@external
-def updatePythPrice(_payload: Bytes[2048]) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_payload` | `Bytes[2048]` | Signed price update from Pyth |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if update successful |
-
-#### Process
-1. **Fee Calculation**: Gets required fee from Pyth
-2. **Balance Check**: Ensures contract has ETH
-3. **Update Call**: Submits payload with fee
-4. **Event Emission**: Logs update details
-
-#### Example Usage
-```python
-# Get price update from Pyth API
-update_data = get_pyth_price_update(["0xabc123..."])  # Feed IDs
-
-# Submit update on-chain
-success = pyth_prices.updatePythPrice(update_data)
-```
-
-### `updateManyPythPrices`
-
-Updates multiple price feeds in a single transaction.
-
-```vyper
-@external
-def updateManyPythPrices(_payloads: DynArray[Bytes[2048], MAX_PRICE_UPDATES]) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_payloads` | `DynArray[Bytes[2048], MAX_PRICE_UPDATES]` | Multiple updates (max 20) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Number of successful updates |
-
-Stops processing on first failure to save gas.
-
-### `updatePythPriceNoPay`
-
-Updates a price feed without requiring ETH payment (uses contract balance).
-
-```vyper
-@external
-def updatePythPriceNoPay(_payload: Bytes[2048]) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_payload` | `Bytes[2048]` | Signed price update from Pyth |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if update successful |
-
-#### Access
-
-Only callable by addresses with lite action permission (via MissionControl)
-
-#### Notes
-- Uses existing contract ETH balance for fees
-- Useful for automated keepers that don't send ETH with call
-
-## Feed Management Functions
-
-### `addNewPriceFeed`
-
-Initiates addition of a new Pyth price feed.
-
-```vyper
-@external
-def addNewPriceFeed(_asset: address, _feedId: bytes32, _staleTime: uint256 = 0) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to add price feed for |
-| `_feedId` | `bytes32` | Pyth Network price feed ID |
-| `_staleTime` | `uint256` | Maximum age for price data in seconds (0 uses MissionControl default) |
-
-#### Access
-
-Only callable by governance
-
-#### Validation
-- Feed must exist in Pyth Network
-- Asset must not already have a feed
-- Feed must return valid price
-
-#### Events Emitted
-
-- `NewPythFeedPending` - Contains feed ID and confirmation block
-
-#### Example Usage
-```python
-# Add ETH/USD feed with custom stale time
-pyth_prices.addNewPriceFeed(
-    eth.address,
-    "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",  # ETH/USD
-    300,  # 5 minute stale time
-    sender=governance
-)
-```
-
-### `confirmNewPriceFeed`
-
-Confirms a pending feed addition after timelock.
-
-```vyper
-@external
-def confirmNewPriceFeed(_asset: address) -> bool:
-```
-
-#### Process Flow
-1. **Re-validation**: Ensures feed still valid
-2. **Timelock Check**: Verifies time passed
-3. **Configuration Save**: Stores feed ID
-4. **Asset Registration**: Adds to PriceSourceData
-
-#### Events Emitted
-
-- `NewPythFeedAdded` - Confirms feed is active
-
-### `updatePriceFeed`
-
-Updates existing feed to new Pyth feed ID.
-
-```vyper
-@external
-def updatePriceFeed(_asset: address, _feedId: bytes32, _staleTime: uint256 = 0) -> bool:
-```
-
-Used when Pyth migrates feeds or better feeds become available.
-
-### `disablePriceFeed`
-
-Removes a price feed from the system.
-
-```vyper
-@external
-def disablePriceFeed(_asset: address) -> bool:
-```
-
-Requires time-locked confirmation like other changes.
-
-## ETH Balance Management
-
-### `recoverEthBalance`
-
-Withdraws ETH from contract (for excess update fees).
-
-```vyper
-@external
-def recoverEthBalance(_recipient: address) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_recipient` | `address` | Address to receive ETH |
-
-#### Access
-
-Only callable by governance
-
-#### Example Usage
-```python
-# Recover excess ETH
-pyth_prices.recoverEthBalance(
-    treasury.address,
-    sender=governance
-)
-```
-
-## Configuration Functions
-
-### `setMaxConfidenceRatio`
-
-Sets the maximum allowed confidence ratio for price validation.
-
-```vyper
-@external
-def setMaxConfidenceRatio(_newRatio: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_newRatio` | `uint256` | New max confidence ratio (must be < 100%) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if successfully set |
-
-#### Access
-
-Only callable by Switchboard
-
-#### Events Emitted
-
-- `MaxConfidenceRatioUpdated` - New ratio value
-
-#### Notes
-- Ratio must be less than HUNDRED_PERCENT (100%)
-- Ratio cannot be same as current value
-- Higher ratio = more lenient confidence checks
-
-## Price Processing Details
-
-### Exponent Handling
-
-Pyth uses flexible decimal representation:
-```vyper
-# Negative exponent: divide by 10^|exponent|
-if data.exponent < 0:
-    exponent = convert(-data.exponent, uint256)
-    price = price * 10**18 / 10**exponent
-
-# Positive exponent: multiply by 10^exponent  
-else:
-    exponent = convert(data.exponent, uint256)
-    price = price * 10**18 * 10**exponent
-```
-
-### Confidence Adjustment
-
-Conservative pricing approach:
-```vyper
-# Subtract confidence interval from price
-if confidence >= price:
-    return 0  # Invalid price
-    
-return price - confidence
-```
-
-### Staleness Check
-
-Uses publish time, not block time:
-```vyper
-publishTime = convert(data.publishTime, uint256)
-if _staleTime != 0 and block.timestamp - publishTime > _staleTime:
-    return 0  # Too stale
-```
-
-## Validation Functions
-
-### `isValidNewFeed`
-
-Checks if a new feed configuration is valid.
-
-```vyper
-@view
-@external
-def isValidNewFeed(_asset: address, _feedId: bytes32, _staleTime: uint256) -> bool:
-```
-
-#### Validation Checks
-1. **No Existing Feed**: Asset must not have feed
-2. **Feed Exists**: Must exist in Pyth Network
-3. **Valid Price**: Must return non-zero price
-4. **Asset Valid**: Non-empty address
-
-### `isValidUpdateFeed`
-
-Validates feed updates with additional checks:
-- New feed must differ from current
-- Asset must have existing feed
-
-### `isValidDisablePriceFeed`
-
-Ensures:
-- Feed exists
-- Asset is registered in PriceSourceData
-
-## Events
-
-### Feed Management Events
-- `NewPythFeedPending` - New feed initiated
-- `NewPythFeedAdded` - Feed confirmed
-- `NewPythFeedCancelled` - Addition cancelled
-- `PythFeedUpdatePending` - Update initiated
-- `PythFeedUpdated` - Update confirmed
-- `PythFeedUpdateCancelled` - Update cancelled
-- `DisablePythFeedPending` - Removal initiated
-- `PythFeedDisabled` - Feed removed
-- `DisablePythFeedCancelled` - Removal cancelled
-
-### Operational Events
-- `PythPriceUpdated` - Price update submitted
-- `EthRecoveredFromPyth` - ETH withdrawn
-- `MaxConfidenceRatioUpdated` - Max confidence ratio changed
-
-All events include relevant addresses, feed IDs, and action details.
-
-## Security Considerations
-
-### Access Control
-- **Governance Only**: All feed management restricted
-- **Public Updates**: Anyone can update prices (pays fee)
-- **Time-locked Changes**: Prevents rushed modifications
-
-### Price Security
-- **Confidence Intervals**: Built-in uncertainty handling
-- **Staleness Protection**: Publish time validation
-- **Signature Verification**: Handled by Pyth Network
-- **Conservative Estimates**: Subtracts confidence
-
-### Integration Safety
-- **Gas Efficiency**: Uses getPriceUnsafe for views
-- **Fee Management**: Automatic fee calculation
-- **Balance Checks**: Prevents failed updates
-- **Batch Limits**: Max 20 updates per transaction
-
-## Common Integration Patterns
-
-### Price Update Automation
-```python
-# Off-chain service to keep prices fresh
-def update_prices_if_stale():
-    assets = [eth, btc, usdc]
-    feed_ids = [get_feed_id(a) for a in assets]
-    
-    # Check if any price is stale
-    for asset in assets:
-        price, _ = pyth_prices.getPriceAndHasFeed(asset, 300)
-        if price == 0:  # Stale or no price
-            # Get fresh update data
-            update = get_pyth_update(feed_ids)
-            pyth_prices.updatePythPrice(update)
-            break
-```
-
-### Multi-Asset Updates
-```python
-# Update multiple prices efficiently
-updates = []
-for feed_id in important_feeds:
-    update = get_pyth_update([feed_id])
-    updates.append(update)
-
-# Submit all at once
-num_updated = pyth_prices.updateManyPythPrices(updates[:20])
-```
-
-### Feed Migration
-```python
-# When Pyth provides new feed
-# 1. Initiate update
-pyth_prices.updatePriceFeed(
-    asset.address,
-    new_feed_id,
-    sender=governance
-)
-
-# 2. Wait for timelock
-boa.env.time_travel(seconds=timelock_duration)
-
-# 3. Confirm update
-pyth_prices.confirmPriceFeedUpdate(asset.address, sender=governance)
-```
+Only these typed batch routes are exposed; integrations should encode the payload as `bytes[]`.
+
+### `updatePythPrice(payload)`
+
+This payable route requires a MissionControl-authorized lite-action caller and nonzero `msg.value`. It asks Pyth for the batch fee, pays exactly that fee, emits `PythPriceUpdated(payload, feeAmount, caller)`, and refunds excess ETH to the caller.
+
+### `updatePythPriceNoPay(payload)`
+
+This nonpayable route has the same lite-action authorization. It funds the update from the contract's existing ETH balance and does not refund unused balance to the caller.
+
+Both routes revert if available payment is below Pyth's reported fee. Governance may withdraw the entire ETH balance to a nonzero recipient with `recoverEthBalance`.
+
+## Feed lifecycle
+
+Governance controls timelocked add, update, stale-time update, and disable operations. New and updated configurations must identify an existing Pyth feed and produce a currently valid nonzero adjusted price. Confirmation revalidates the candidate before changing active state.
+
+`updatePriceFeed(asset, feedId, staleTime = 0)` preserves the current local stale-time value when the optional value is omitted. `updateStaleTime` explicitly changes the policy, including setting zero to inherit global policy.
+
+`addPriceSnapshot` returns false; PythPrices has no internal snapshot history.
+
+## Integration requirements
+
+- Encode updates as `bytes[]` with at most 20 elements and each element at most 2,048 bytes.
+- Use the canonical typed batch routes shown above.
+- Treat feed configuration and a current usable price as separate states.
+- Use PriceDesk for protocol price reads.
+
+<!-- BEGIN GENERATED API REFERENCE: PythPrices -->
+## Exact API reference
+
+> Generated from `contracts/priceSources/PythPrices.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, address _pythNetwork, uint256 _minPriceChangeTimeLock, uint256 _maxPriceChangeTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `addNewPriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `2–3` | `_staleTime` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime`, `_priceDesk` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock` |
+| `updatePriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `2–3` | `_staleTime` |
+
+### Functions
+
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `PYTH()` | `view` | `address` |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `addNewPriceFeed(address _asset, bytes32 _feedId)` | `nonpayable` | `bool` |
+| `addNewPriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `nonpayable` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `canGovern(address _addr)` | `view` | `bool` |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` |
+| `expiration()` | `view` | `uint256` |
+| `feedConfig(address arg0)` | `view` | `(bytes32,uint256)` |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getGovernors()` | `view` | `address[]` |
+| `getLastPriceAndLastUpdate(address _asset)` | `view` | `(uint256, uint256)` |
+| `getPrice(address _asset)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` |
+| `getRipeHq()` | `view` | `address` |
+| `getRipeHqFromGov()` | `view` | `address` |
+| `govChangeTimeLock()` | `view` | `uint256` |
+| `governance()` | `view` | `address` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `hasPendingGovChange()` | `view` | `bool` |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isPaused()` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `isValidNewFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `view` | `bool` |
+| `isValidStaleTimeUpdate(address _asset, uint256 _staleTime)` | `view` | `bool` |
+| `isValidUpdateFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `maxConfidenceRatio()` | `view` | `uint256` |
+| `maxGovChangeTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `minGovChangeTimeLock()` | `view` | `uint256` |
+| `numAssets()` | `view` | `uint256` |
+| `numGovChanges()` | `view` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256,uint256,uint256)` |
+| `pendingGov()` | `view` | `(address,uint256,uint256)` |
+| `pendingUpdates(address arg0)` | `view` | `(uint256,(bytes32,uint256))` |
+| `recoverEthBalance(address _recipient)` | `nonpayable` | `bool` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `relinquishGov()` | `nonpayable` | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` |
+| `setMaxConfidenceRatio(uint256 _newRatio)` | `nonpayable` | `bool` |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — |
+| `updatePriceFeed(address _asset, bytes32 _feedId)` | `nonpayable` | `bool` |
+| `updatePriceFeed(address _asset, bytes32 _feedId, uint256 _staleTime)` | `nonpayable` | `bool` |
+| `updatePythPrice(bytes[] _payload)` | `payable` | `bool` |
+| `updatePythPriceNoPay(bytes[] _payload)` | `nonpayable` | `bool` |
+| `updateStaleTime(address _asset, uint256 _staleTime)` | `nonpayable` | `bool` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `DisablePythFeedCancelled` | `address asset indexed, bytes32 feedId` |
+| `DisablePythFeedPending` | `address asset indexed, bytes32 feedId, uint256 confirmationBlock, uint256 actionId` |
+| `EthRecoveredFromPyth` | `address recipient indexed, uint256 amount` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `MaxConfidenceRatioUpdated` | `uint256 newRatio` |
+| `NewPythFeedAdded` | `address asset indexed, bytes32 feedId, uint256 staleTime` |
+| `NewPythFeedCancelled` | `address asset indexed, bytes32 feedId` |
+| `NewPythFeedPending` | `address asset indexed, bytes32 feedId, uint256 staleTime, uint256 confirmationBlock, uint256 actionId` |
+| `PriceSourceFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `PriceSourcePauseModified` | `bool isPaused` |
+| `PythFeedDisabled` | `address asset indexed, bytes32 feedId` |
+| `PythFeedUpdateCancelled` | `address asset indexed, bytes32 feedId, bytes32 oldFeedId` |
+| `PythFeedUpdatePending` | `address asset indexed, bytes32 feedId, uint256 staleTime, uint256 confirmationBlock, bytes32 oldFeedId, uint256 actionId` |
+| `PythFeedUpdated` | `address asset indexed, bytes32 feedId, uint256 staleTime, bytes32 oldFeedId` |
+| `PythPriceUpdated` | `bytes[] payload, uint256 feeAmount, address caller indexed` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+
+### Structs declared by this source
+
+- `PythPrice(price: int64, confidence: uint64, exponent: int32, publishTime: uint64)`
+- `PythFeedConfig(feedId: bytes32, staleTime: uint256)`
+- `PendingPythFeed(actionId: uint256, config: PythFeedConfig)`
+
+<!-- END GENERATED API REFERENCE: PythPrices -->

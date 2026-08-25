@@ -1,0 +1,67 @@
+name: Documentation validation
+
+on:
+  pull_request:
+  merge_group:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-validation-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Source, ABI, API, and Markdown parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out technical documentation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Use Python 3.12.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.0"
+
+      - name: Validate Markdown and navigation
+        run: python3 scripts/check_markdown.py
+
+      - name: Check out the pinned protocol source object
+        run: |
+          protocol_repository="$(python3 -c 'import json; print(json.load(open("reference/implementation-baseline.json"))["protocol_repository"])')"
+          protocol_branch="$(python3 -c 'import json; print(json.load(open("reference/implementation-baseline.json"))["protocol_branch"])')"
+          protocol_commit="$(python3 -c 'import json; print(json.load(open("reference/implementation-baseline.json"))["protocol_commit"])')"
+          protocol_tree="$(python3 -c 'import json; print(json.load(open("reference/implementation-baseline.json"))["protocol_tree"])')"
+          test "$protocol_repository" = "https://github.com/Ripe-Foundation/ripe-protocol"
+          test "$protocol_branch" = "rh"
+          python3 -c 'import re, sys; assert all(re.fullmatch(r"[0-9a-f]{40}", value) for value in sys.argv[1:])' "$protocol_commit" "$protocol_tree"
+          protocol_repo="$RUNNER_TEMP/ripe-protocol"
+          git init "$protocol_repo"
+          git -C "$protocol_repo" remote add origin "$protocol_repository"
+          git -C "$protocol_repo" fetch --depth=1 origin refs/heads/rh
+          git -C "$protocol_repo" checkout --detach FETCH_HEAD
+          actual_commit="$(git -C "$protocol_repo" rev-parse 'HEAD^{commit}')"
+          actual_tree="$(git -C "$protocol_repo" rev-parse 'HEAD^{tree}')"
+          test "$actual_commit" = "$protocol_commit"
+          test "$actual_tree" = "$protocol_tree"
+          echo "RIPE_PROTOCOL_REPO=$protocol_repo" >> "$GITHUB_ENV"
+
+      - name: Install the pinned Vyper compiler
+        run: |
+          vyper_requirement="$(sed -n 's/^\(vyper==[^[:space:]]*\).*/\1/p' "$RIPE_PROTOCOL_REPO/requirements.txt")"
+          python3 -c 'import re, sys; assert re.fullmatch(r"vyper==[0-9]+\.[0-9]+\.[0-9]+", sys.argv[1])' "$vyper_requirement"
+          python3 -m pip install --disable-pip-version-check "$vyper_requirement"
+
+      - name: Recompile and verify tracked production ABIs
+        run: |
+          cd "$RIPE_PROTOCOL_REPO"
+          python3 scripts/export_abis.py --check
+
+      - name: Verify source coverage and generated API references
+        run: python3 scripts/sync_api_reference.py --protocol-repo "$RIPE_PROTOCOL_REPO" --check

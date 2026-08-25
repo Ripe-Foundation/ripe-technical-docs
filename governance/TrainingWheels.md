@@ -1,220 +1,75 @@
-# TrainingWheels Technical Documentation
+# TrainingWheels
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/config/TrainingWheels.vy)
+`TrainingWheels` is a small protocol whitelist. MissionControl can reference it
+as an asset whitelist. At the contract boundary, any currently registered
+Switchboard may manage its members; SwitchboardCharlie supplies the normal
+governed batch-management route.
 
-## Overview
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/config/TrainingWheels.vy)
 
-TrainingWheels is an access control contract that manages a whitelist of allowed users in Ripe Protocol. It provides a simple allowlist mechanism that can be used to restrict access to certain protocol features during early deployment phases or for specific user groups.
+## Initialization
 
-**Core Features**:
-- **User Allowlist**: Maintains a mapping of allowed user addresses
-- **Switchboard Access**: Only Switchboard-registered contracts can modify the allowlist
-- **Batch Initialization**: Supports setting initial allowed users at deployment
-- **Whitelist Compatibility**: Interface compatible with other whitelist contracts
+The constructor binds the contract to RipeHq and accepts up to 20 initial
+addresses. Zero addresses are skipped; each nonzero entry is marked allowed and
+emits `TrainingWheelsModified`. The contract uses `DeptBasics` but cannot mint
+GREEN or RIPE.
 
-## Architecture & Modules
+## Membership updates
 
-TrainingWheels uses a standard department architecture:
+`setAllowed(user, shouldAllow)` may be called only by a currently registered
+Switchboard configuration contract. The user must be nonzero. Writing the same
+value is allowed and still emits an event.
 
-### Addys Module
+Operationally, Charlie's governed
+`setManyTrainingWheelsAccess(trainingWheels, rows)` helper can apply up to 25
+membership rows to an explicitly supplied TrainingWheels address. This helper
+works because Charlie is a registered Switchboard; it does not make Charlie the
+only contract that `TrainingWheels.setAllowed` authorizes. Changing
+MissionControl's TrainingWheels pointer is a separate timelocked Charlie action.
 
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution and validation
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Exported Interface**: Address utilities via `addys.__interface__`
+`isUserAllowed(user, asset)` returns the stored user flag. The asset parameter
+is intentionally ignored so that TrainingWheels remains compatible with the
+protocol's generic per-asset whitelist interface.
 
-### DeptBasics Module
+## Security and lifecycle
 
-- **Location**: `contracts/modules/DeptBasics.vy`
-- **Purpose**: Provides department-level basic functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
-- **Key Features**:
-  - Pause mechanism
-  - Department interface compliance
-  - No minting capabilities
-- **Exported Interface**: Department basics via `deptBasics.__interface__`
+- TrainingWheels has no independent governor; authority follows current
+  Switchboard registry membership.
+- Updating MissionControl's `trainingWheels` pointer does not mutate or disable
+  an older whitelist contract.
+- Membership is global to the TrainingWheels instance, not per asset.
 
-### Module Initialization
+<!-- BEGIN GENERATED API REFERENCE: TrainingWheels -->
+## Exact API reference
 
-```vyper
-initializes: addys
-initializes: deptBasics[addys := addys]
-```
+> Generated from `contracts/config/TrainingWheels.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
 
-## Events
+### Constructor
 
-### TrainingWheelsModified
+- `constructor(address _ripeHq, address[] _initialList)`
 
-Emitted when a user's allowlist status changes:
+### Functions
 
-```vyper
-event TrainingWheelsModified:
-    user: indexed(address)     # User address modified
-    shouldAllow: bool          # New allowlist status
-```
+| Signature | Mutability | Returns |
+| --- | --- | --- |
+| `allowed(address arg0)` | `view` | `bool` |
+| `canMintGreen()` | `view` | `bool` |
+| `canMintRipe()` | `view` | `bool` |
+| `getAddys()` | `view` | `(address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address)` |
+| `getRipeHq()` | `view` | `address` |
+| `isPaused()` | `view` | `bool` |
+| `isUserAllowed(address _user, address _asset)` | `view` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — |
+| `setAllowed(address _user, bool _shouldAllow)` | `nonpayable` | — |
 
-## State Variables
+### Events
 
-### Public Variables
+| Event | Fields |
+| --- | --- |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+| `TrainingWheelsModified` | `address user indexed, bool shouldAllow` |
 
-- `allowed: HashMap[address, bool]` - Maps user addresses to their allowlist status
-
-### Constants
-
-- `MAX_INITIAL: uint256 = 20` - Maximum users that can be set in initial list
-
-## Constructor
-
-### `__init__`
-
-Initializes TrainingWheels with optional initial allowlist.
-
-```vyper
-@deploy
-def __init__(_ripeHq: address, _initialList: DynArray[address, MAX_INITIAL]):
-```
-
-#### Parameters
-
-| Name           | Type                              | Description                    |
-| -------------- | --------------------------------- | ------------------------------ |
-| `_ripeHq`      | `address`                         | RipeHq contract address        |
-| `_initialList` | `DynArray[address, MAX_INITIAL]`  | Initial list of allowed users  |
-
-#### Behavior
-
-1. Initializes Addys with RipeHq address
-2. Initializes DeptBasics with no minting capabilities
-3. Iterates through initial list and sets each address as allowed
-4. Emits `TrainingWheelsModified` for each initialized user
-5. Skips empty addresses in the initial list
-
-#### Example Usage
-
-```python
-# Deploy with initial allowed users
-initial_users = [user1.address, user2.address, user3.address]
-training_wheels = boa.load(
-    "contracts/config/TrainingWheels.vy",
-    ripe_hq.address,
-    initial_users
-)
-
-# Deploy with empty initial list
-training_wheels = boa.load(
-    "contracts/config/TrainingWheels.vy",
-    ripe_hq.address,
-    []
-)
-```
-
-## Functions
-
-### `setAllowed`
-
-Updates a user's allowlist status.
-
-```vyper
-@external
-def setAllowed(_user: address, _shouldAllow: bool):
-```
-
-#### Parameters
-
-| Name           | Type      | Description                          |
-| -------------- | --------- | ------------------------------------ |
-| `_user`        | `address` | User address to update               |
-| `_shouldAllow` | `bool`    | Whether user should be allowed       |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `TrainingWheelsModified` - Contains user and new status
-
-#### Example Usage
-
-```python
-# Allow a user
-training_wheels.setAllowed(
-    new_user.address,
-    True,
-    sender=switchboard_config.address
-)
-
-# Revoke access
-training_wheels.setAllowed(
-    revoked_user.address,
-    False,
-    sender=switchboard_config.address
-)
-```
-
-### `isUserAllowed`
-
-Checks if a user is on the allowlist.
-
-```vyper
-@view
-@external
-def isUserAllowed(_user: address, _asset: address) -> bool:
-```
-
-#### Parameters
-
-| Name     | Type      | Description                                    |
-| -------- | --------- | ---------------------------------------------- |
-| `_user`  | `address` | User address to check                          |
-| `_asset` | `address` | Asset parameter (unused, for interface compat) |
-
-#### Returns
-
-| Type   | Description                    |
-| ------ | ------------------------------ |
-| `bool` | True if user is on allowlist   |
-
-#### Notes
-
-- The `_asset` parameter is included for interface compatibility with other whitelist contracts but is not used in this implementation
-- Returns `False` for any user not explicitly added to the allowlist
-
-#### Example Usage
-
-```python
-# Check if user is allowed
-is_allowed = training_wheels.isUserAllowed(user.address, empty(address))
-```
-
-## Use Cases
-
-### Early Access Control
-
-TrainingWheels can restrict protocol features to approved users during:
-- Beta testing phases
-- Gradual rollouts
-- VIP access programs
-
-### Integration Pattern
-
-Other contracts can use TrainingWheels for access checks:
-
-```vyper
-interface TrainingWheels:
-    def isUserAllowed(_user: address, _asset: address) -> bool: view
-
-# In some protocol contract
-def someRestrictedFunction():
-    tw: TrainingWheels = TrainingWheels(training_wheels_addr)
-    assert staticcall tw.isUserAllowed(msg.sender, empty(address))
-    # ... perform restricted action
-```
-
-## Security Considerations
-
-1. **Switchboard Only**: Only Switchboard-authorized contracts can modify the allowlist
-2. **Non-Zero Address**: Prevents setting allowlist status for zero address
-3. **No Minting**: Department has no token minting capabilities
-4. **Event Logging**: All changes are logged for transparency and auditing
-5. **Simple Logic**: Minimal attack surface with straightforward boolean mapping
+<!-- END GENERATED API REFERENCE: TrainingWheels -->

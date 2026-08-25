@@ -1,499 +1,118 @@
-# Erc4626Token Technical Documentation
+# Erc4626Token module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/tokens/modules/Erc4626Token.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/4701c43613253fd12e33ac57aaa818caf09b5840/contracts/tokens/modules/Erc4626Token.vy)
 
 ## Overview
 
-Erc4626Token is a tokenized vault module that extends Erc20Token to implement the EIP-4626 standard. It transforms any ERC20 token into a yield-bearing vault token, enabling standardized interactions with DeFi aggregators and yield optimizers.
+`Erc4626Token` is the share-accounting module used by Savings GREEN. Its assets are the underlying token balance held directly by the vault contract. It does not deploy assets into a strategy.
 
-**Core Functions**:
-- **Asset/Share Conversion**: Bidirectional exchange with accurate rate calculations
-- **Flexible Operations**: Multiple deposit/withdrawal methods (asset or share-based)
-- **Price Tracking**: Current and historical price-per-share for valuation and security
-- **EIP-4626 Compliance**: Full standard implementation for protocol composability
-- **Attack Protection**: Careful rounding logic prevents precision loss exploits
+The module relies on `Erc20Token` for share balances, allowances, pause/blacklist enforcement, minting, and protected burns.
 
-Built on Vyper's module system, Erc4626Token inherits all Erc20Token features while adding vault logic. It implements reentrancy protection, handles edge cases gracefully, and maintains lastPricePerShare for security. All operations emit standard events for transparency and integration.
+## Accounting
 
-## Architecture & Dependencies
+`totalAssets()` is exactly `underlying.balanceOf(vault)`. Share conversions use the current total share supply and underlying balance:
 
-Erc4626Token extends Erc20Token as a module with additional vault functionality:
-
-### Module Inheritance
-```vyper
-uses: token
-from contracts.tokens.modules import Erc20Token as token
+```text
+assets -> shares: assets * totalSupply / totalAssets
+shares -> assets: shares * totalAssets / totalSupply
 ```
 
-This means Erc4626Token has access to all Erc20Token functionality including:
-- Standard ERC20 operations
-- Blacklist management
-- Permit functionality
-- RipeHq integration
-
-### External Interfaces
-- **IERC20**: For interacting with the underlying asset
-- **IERC4626**: Standard vault interface implementation
-
-### Immutable Configuration
-```vyper
-ASSET: immutable(address)  # Underlying asset token
-```
-
-## Data Structures
-
-The module extends Erc20Token's state with vault-specific additions:
-
-### Additional State Variables
-- `lastPricePerShare: uint256` - Cached price per share for security checks
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                        Erc4626Token Module                            |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Vault Operations Flow                         |  |
-|  |                                                                  |  |
-|  |  Deposit Flow:                                                   |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ User chooses entry method:                                  │ |  |
-|  |  │                                                             │ |  |
-|  |  │ deposit(assets):               mint(shares):               │ |  |
-|  |  │ 1. Calculate shares            1. Calculate assets needed  │ |  |
-|  |  │ 2. Transfer assets in          2. Transfer assets in       │ |  |
-|  |  │ 3. Mint shares to user         3. Mint exact shares        │ |  |
-|  |  │ 4. Update lastPricePerShare    4. Update lastPricePerShare │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Withdrawal Flow:                                                |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ User chooses exit method:                                   │ |  |
-|  |  │                                                             │ |  |
-|  |  │ withdraw(assets):              redeem(shares):             │ |  |
-|  |  │ 1. Calculate shares needed     1. Calculate assets to give │ |  |
-|  |  │ 2. Burn shares from owner      2. Burn exact shares        │ |  |
-|  |  │ 3. Transfer assets out         3. Transfer assets out      │ |  |
-|  |  │ 4. Update lastPricePerShare    4. Update lastPricePerShare │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                 Asset/Share Conversion Logic                     |  |
-|  |                                                                  |  |
-|  |  Price Per Share = Total Assets / Total Shares                   |  |
-|  |                                                                  |  |
-|  |  Assets to Shares:                                               |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ If first deposit: shares = assets (1:1 ratio)               │ |  |
-|  |  │ Else: shares = assets * totalShares / totalAssets           │ |  |
-|  |  │                                                             │ |  |
-|  |  │ Rounding: Down for deposits, Up for withdrawals             │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Shares to Assets:                                               |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ If no shares exist: assets = shares (1:1 ratio)             │ |  |
-|  |  │ Else: assets = shares * totalAssets / totalShares           │ |  |
-|  |  │                                                             │ |  |
-|  |  │ Rounding: Up for minting, Down for redeeming                │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Security Considerations                       |  |
-|  |                                                                  |  |
-|  |  First Deposit Attack Protection:                                |  |
-|  |  • 1:1 ratio for initial deposit prevents manipulation           |  |
-|  |  • lastPricePerShare tracking for monitoring                     |  |
-|  |                                                                  |  |
-|  |  Rounding Protection:                                             |  |
-|  |  • Conservative rounding favors protocol                         |  |
-|  |  • Prevents dust attacks and precision loss                      |  |
-|  |                                                                  |  |
-|  |  Reentrancy Protection:                                           |  |
-|  |  • @nonreentrant on deposit() and mint()                         |  |
-|  |  • State updates before external calls                           |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                    |                                   |
-                    ▼                                   ▼
-+----------------------------------+  +----------------------------------+
-|         Erc20Token Module        |  |        Underlying Asset          |
-+----------------------------------+  +----------------------------------+
-| • Provides ERC20 functionality   |  | • Any ERC20 token                |
-| • Minting/burning of shares      |  | • Held by vault contract         |
-| • Transfer/approval logic        |  | • Generates yield (potentially)  |
-| • Blacklist and pause features   |  +----------------------------------+
-+----------------------------------+
-```
+The first deposit is one-for-one. Deposit/redeem previews round down; mint/withdraw previews round up. When share supply exists but underlying balance is zero, asset-to-share conversion returns zero, preventing a deposit from receiving shares. Share-to-asset conversion returns zero.
 
-## Constructor
+There is no virtual-share offset. Direct underlying transfers to the vault increase the value of existing shares.
 
-### `__init__`
+## Maximum views
 
-Initializes the vault with an underlying asset.
+The maximum-operation views reflect safety state:
 
-```vyper
-@deploy
-def __init__(_asset: address):
-```
+- `maxDeposit(receiver)` and `maxMint(receiver)` return zero if the share token is paused, the receiver is blacklisted/zero/self, the underlying is blocked, or nonzero shares have zero backing. Otherwise they return `max_value(uint256)`.
+- `maxWithdraw(owner)` returns zero under the corresponding pause/blacklist/underlying/zero-backing conditions. Otherwise it returns the owner's current pro-rata asset claim, not the vault's entire asset balance.
+- `maxRedeem(owner)` returns zero under those conditions; otherwise it returns the owner's share balance.
 
-#### Parameters
+“Underlying blocked” means the underlying token reports itself paused or reports this vault as blacklisted. These views assume the underlying implements that Ripe token control surface.
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | The ERC20 token this vault will accept |
+Preview functions are conversion views; they do not substitute for the maximum views and may return a mathematical result while an operation is currently blocked.
 
-#### Validation
-- Asset address cannot be empty
+## Deposits and minting
 
-#### Note
-The Erc4626Token module must be combined with Erc20Token initialization to create a complete vault token.
+`deposit(assets, receiver)` supports `max_value(uint256)` as “the caller's full underlying balance.” `mint(shares, receiver)` computes the required assets with upward rounding.
 
-#### Example Usage
-```python
-# Deploy a vault for USDC
-# This would be in a contract that uses both modules
-usdc_vault = deploy_vault_contract(
-    asset=usdc.address,
-    name="USDC Vault",
-    symbol="vUSDC",
-    decimals=usdc.decimals()
-)
-```
+Both paths:
 
-## Core Vault Functions
+- reject zero assets or zero resulting shares;
+- reject a zero receiver;
+- transfer underlying from the caller with default-true ERC-20 semantics;
+- mint shares through Erc20Token, which enforces share-token pause and receiver blacklist state; and
+- update `lastPricePerShare` after the operation.
 
-### Deposit Functions
+The nonreentrant guard covers deposit and mint.
 
-#### `deposit`
+## Withdrawals and redemption
 
-Deposit exact amount of assets for shares.
+`withdraw(assets, receiver, owner)` computes shares with upward rounding. `redeem(shares, receiver, owner)` supports `max_value(uint256)` as the owner's entire share balance and computes assets with downward rounding.
 
-```vyper
-@nonreentrant
-@external
-def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256:
-```
+The shared redemption path rejects zero assets/shares, zero receiver, paused share token, blacklisted owner, and insufficient shares. When caller and owner differ, the caller must not be blacklisted and sufficient allowance is spent. Shares burn before the underlying transfer; a failed transfer reverts the entire transaction.
 
-#### Parameters
+The underlying token's own pause/blacklist transfer rules provide a second enforcement layer. The maximum views expose that state proactively.
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_assets` | `uint256` | Amount of assets to deposit (max_value for full balance) |
-| `_receiver` | `address` | Who receives the minted shares |
+## Price-per-share observations
 
-#### Returns
-- `uint256`: Amount of shares minted
+`pricePerShare()` converts one whole share unit using state at call time.
+`lastPricePerShare` is updated only after a successful
+deposit/mint/withdraw/redeem. `getLastUnderlying(shares)` uses that stored
+observation.
 
-#### Process
-1. Calculate shares to mint based on current ratio
-2. Transfer assets from depositor
-3. Mint shares to receiver
-4. Update price per share
+A direct underlying donation changes `pricePerShare` immediately but does not
+refresh `lastPricePerShare` until the next successful vault operation.
 
-**Events Emitted**: `Deposit`, `Transfer`
+## Supply/backing safeguards
 
-#### `mint`
+The shared ERC-20 module prevents:
 
-Mint exact amount of shares for assets.
+- ordinary or governance blacklist burning of the entire share supply while the vault still holds underlying; and
+- ordinary burns by a blacklisted share holder.
 
-```vyper
-@nonreentrant
-@external
-def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256:
-```
+These checks prevent vault assets from becoming stranded without shares.
+Savings GREEN additionally requires zero initial share supply at construction.
 
-#### Parameters
+## Integration requirements
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_shares` | `uint256` | Exact shares to mint |
-| `_receiver` | `address` | Who receives the shares |
+- Consult `max*` immediately before submitting an operation.
+- Do not interpret previews as authorization or availability.
+- Use owner-specific `maxWithdraw`; it is not total vault liquidity.
+- Account for direct donations and the distinction between current and stored
+  price per share.
+- Verify the underlying exposes the expected pause/blacklist getters.
 
-#### Returns
-- `uint256`: Amount of assets deposited
+<!-- BEGIN GENERATED API REFERENCE: Erc4626Token -->
+## Exact API reference
 
-**Events Emitted**: `Deposit`, `Transfer`
+> Generated from declarations in `contracts/tokens/modules/Erc4626Token.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers the functions, events, and structs declared by this source rather than claiming a composed host ABI.
 
-### Withdrawal Functions
+### External functions declared by this source
 
-#### `withdraw`
+- `def asset() -> address`
+- `def convertToAssets(_shares: uint256) -> uint256`
+- `def convertToShares(_assets: uint256) -> uint256`
+- `def deposit(_assets: uint256, _receiver: address = msg.sender) -> uint256`
+- `def getLastUnderlying(_shares: uint256) -> uint256`
+- `def maxDeposit(_receiver: address) -> uint256`
+- `def maxMint(_receiver: address) -> uint256`
+- `def maxRedeem(_owner: address) -> uint256`
+- `def maxWithdraw(_owner: address) -> uint256`
+- `def mint(_shares: uint256, _receiver: address = msg.sender) -> uint256`
+- `def previewDeposit(_assets: uint256) -> uint256`
+- `def previewMint(_shares: uint256) -> uint256`
+- `def previewRedeem(_shares: uint256) -> uint256`
+- `def previewWithdraw(_assets: uint256) -> uint256`
+- `def pricePerShare() -> uint256`
+- `def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256`
+- `def totalAssets() -> uint256`
+- `def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256`
 
-Withdraw exact amount of assets by burning shares.
+### Events declared by this source
 
-```vyper
-@external
-def withdraw(_assets: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-```
+- `Deposit(sender: indexed(address), owner: indexed(address), assets: uint256, shares: uint256)`
+- `Withdraw(sender: indexed(address), receiver: indexed(address), owner: indexed(address), assets: uint256, shares: uint256)`
 
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_assets` | `uint256` | Exact assets to withdraw |
-| `_receiver` | `address` | Who receives the assets |
-| `_owner` | `address` | Whose shares to burn |
-
-#### Returns
-- `uint256`: Amount of shares burned
-
-**Events Emitted**: `Withdraw`, `Transfer`
-
-#### `redeem`
-
-Redeem exact amount of shares for assets.
-
-```vyper
-@external
-def redeem(_shares: uint256, _receiver: address = msg.sender, _owner: address = msg.sender) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_shares` | `uint256` | Shares to redeem (max_value for all) |
-| `_receiver` | `address` | Who receives the assets |
-| `_owner` | `address` | Whose shares to redeem |
-
-#### Returns
-- `uint256`: Amount of assets withdrawn
-
-**Events Emitted**: `Withdraw`, `Transfer`
-
-## Preview Functions
-
-### `previewDeposit`
-```vyper
-@view
-@external
-def previewDeposit(_assets: uint256) -> uint256:
-```
-Returns shares that would be minted for asset deposit.
-
-### `previewMint`
-```vyper
-@view
-@external
-def previewMint(_shares: uint256) -> uint256:
-```
-Returns assets needed to mint exact shares.
-
-### `previewWithdraw`
-```vyper
-@view
-@external
-def previewWithdraw(_assets: uint256) -> uint256:
-```
-Returns shares needed to withdraw exact assets.
-
-### `previewRedeem`
-```vyper
-@view
-@external
-def previewRedeem(_shares: uint256) -> uint256:
-```
-Returns assets that would be withdrawn for shares.
-
-## Conversion Functions
-
-### `convertToShares`
-```vyper
-@view
-@external
-def convertToShares(_assets: uint256) -> uint256:
-```
-Converts asset amount to equivalent shares.
-
-### `convertToAssets`
-```vyper
-@view
-@external
-def convertToAssets(_shares: uint256) -> uint256:
-```
-Converts share amount to equivalent assets.
-
-## Vault State Functions
-
-### `asset`
-```vyper
-@view
-@external
-def asset() -> address:
-```
-Returns the underlying asset address.
-
-### `totalAssets`
-```vyper
-@view
-@external
-def totalAssets() -> uint256:
-```
-Returns total assets held by vault.
-
-### `pricePerShare`
-```vyper
-@view
-@external
-def pricePerShare() -> uint256:
-```
-Returns current price per share scaled by token decimals.
-
-### `getLastUnderlying`
-```vyper
-@view
-@external
-def getLastUnderlying(_shares: uint256) -> uint256:
-```
-Returns asset value using cached price per share.
-
-## Maximum Functions
-
-### `maxDeposit`
-```vyper
-@view
-@external
-def maxDeposit(_receiver: address) -> uint256:
-```
-Always returns `max_value(uint256)` - no deposit limit.
-
-### `maxMint`
-```vyper
-@view
-@external
-def maxMint(_receiver: address) -> uint256:
-```
-Always returns `max_value(uint256)` - no mint limit.
-
-### `maxWithdraw`
-```vyper
-@view
-@external
-def maxWithdraw(_owner: address) -> uint256:
-```
-Returns total vault assets - practical withdrawal limit.
-
-### `maxRedeem`
-```vyper
-@view
-@external
-def maxRedeem(_owner: address) -> uint256:
-```
-Returns owner's share balance.
-
-## Internal Conversion Logic
-
-### Asset to Share Conversion
-```vyper
-def _amountToShares(
-    _amount: uint256,
-    _totalShares: uint256,
-    _totalBalance: uint256,
-    _shouldRoundUp: bool,
-) -> uint256:
-```
-
-Key Logic:
-- First deposit: 1:1 ratio
-- Zero balance: Returns 0 (protects against division)
-- Normal: `shares = amount * totalShares / totalBalance`
-- Rounding: Up for withdrawals, down for deposits
-
-### Share to Asset Conversion
-```vyper
-def _sharesToAmount(
-    _shares: uint256,
-    _totalShares: uint256,
-    _totalBalance: uint256,
-    _shouldRoundUp: bool,
-) -> uint256:
-```
-
-Key Logic:
-- No shares exist: 1:1 ratio
-- Normal: `amount = shares * totalBalance / totalShares`
-- Rounding: Up for minting, down for redeeming
-
-
-## Security Considerations
-
-### First Depositor Attack Prevention
-- Initial deposits use 1:1 ratio
-- Cannot manipulate exchange rate before users join
-- lastPricePerShare tracking for monitoring
-
-### Rounding Protection
-- Conservative rounding favors vault
-- Deposits round shares down
-- Withdrawals round shares up
-- Prevents accumulation of dust
-
-### Reentrancy Protection
-- `@nonreentrant` on deposit/mint
-- State updates before external calls
-- Follows checks-effects-interactions
-
-### Integration Safety
-- Handles max_value inputs gracefully
-- Zero amount validation
-- Proper allowance handling for operators
-
-## Common Integration Patterns
-
-### Basic Vault Usage
-```python
-# Deposit assets
-usdc.approve(vault.address, amount, sender=user)
-shares = vault.deposit(amount, sender=user)
-
-# Withdraw assets
-assets = vault.redeem(shares, sender=user)
-```
-
-### Deposit Entire Balance
-```python
-# Use max_value to deposit everything
-usdc.approve(vault.address, max_value, sender=user)
-shares = vault.deposit(max_value, sender=user)
-```
-
-### Third-Party Operations
-```python
-# Deposit for someone else
-vault.deposit(amount, alice.address, sender=bob)
-
-# Withdraw using allowance
-vault.redeem(shares, bob.address, alice.address, sender=bob)
-```
-
-### Preview Calculations
-```python
-# Check before depositing
-shares_expected = vault.previewDeposit(assets)
-print(f"Will receive {shares_expected} shares")
-
-# Check before withdrawing
-assets_expected = vault.previewRedeem(shares)
-print(f"Will receive {assets_expected} assets")
-```
-
-## Yield Strategies
-
-While Erc4626Token provides the vault interface, yield generation would be implemented by contracts inheriting this module:
-
-```python
-# Example: Lending vault pseudocode
-class LendingVault(Erc4626Token):
-    def _earnYield():
-        # Deposit idle assets to lending protocol
-        assets = totalAssets()
-        lending_protocol.deposit(assets)
-    
-    def totalAssets():
-        # Include assets in lending protocol
-        return balance + lending_deposits + accrued_interest
-```
+<!-- END GENERATED API REFERENCE: Erc4626Token -->
