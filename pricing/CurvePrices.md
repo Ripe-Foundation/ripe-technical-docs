@@ -1,713 +1,341 @@
-# CurvePrices Technical Documentation
+# CurvePrices
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/priceSources/CurvePrices.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/priceSources/CurvePrices.vy)
 
 ## Overview
 
-CurvePrices provides specialized pricing for Curve LP tokens and manages the Green token stabilizer mechanism. It handles complex multi-asset pools while maintaining accurate USD valuations for protocol operations.
+`CurvePrices` prices supported Curve LP tokens and two-coin pool assets, derives sGREEN from the GREEN price, and maintains a separate GREEN reference-pool monitor used by debt-rate and Endaoment stabilizer logic.
 
-**Dual Functionality**:
-- **LP Token Pricing**: Calculates USD values using virtual price and underlying asset prices
-- **Green Stabilizer**: Monitors GREEN/USDC pool ratios for external stabilization mechanisms
-- **Multi-Pool Support**: Handles stable pools, crypto pools, and metapool configurations
-- **Automated Discovery**: Leverages Curve's Meta Registry for automatic pool configuration
+## Curve registry binding
 
-The module implements distinct pricing methods for stable vs crypto pools, EMA-based price oracles for manipulation resistance, snapshot system for historical tracking, and special handling for ecosystem tokens (GREEN, sGREEN, RIPE).
+The constructor resolves the MetaRegistry and supported registry/factory handlers from a supplied Curve Address Provider. It stores the GREEN and Savings GREEN token addresses and governance/timelock bounds.
 
-## Architecture & Dependencies
+`getCurvePoolConfig(pool)` snapshots:
 
-CurvePrices is built using a modular architecture with deep Curve protocol integration:
-
-### Core Module Dependencies
-- **LocalGov**: Provides governance functionality with access control
-- **Addys**: Address resolution for protocol contracts
-- **PriceSourceData**: Asset registration and pause state management
-- **TimeLock**: Time-locked changes for configuration updates
-
-### External Dependencies
-- **Curve Address Provider**: Gateway to all Curve registry contracts
-- **Curve Meta Registry**: Pool configuration and asset discovery
-- **PriceDesk**: Retrieves underlying asset prices for LP calculations
-- **Curve Pools**: Direct integration with various pool implementations
-
-### Module Initialization
-```vyper
-initializes: gov
-initializes: addys
-initializes: priceData[addys := addys]
-initializes: timeLock[gov := gov]
+```text
+pool
+lpToken
+numUnderlying
+underlying[4]
+poolType
+hasEcoToken
 ```
 
-### Immutable Configuration
-```vyper
-GREEN: immutable(address)          # GREEN token address
-SAVINGS_GREEN: immutable(address)  # sGREEN token address
+Supported pool flags are StableSwap NG, TwoCrypto NG, Tricrypto NG, legacy TwoCrypto, MetaPool, and the fallback Crypto type. A feed rejects a pool with more than four underlyings; only the first four are represented.
+
+## Price routes
+
+### Stable and MetaPool LP tokens
+
+For an LP token in StableSwap NG or MetaPool, the source asks PriceDesk for every underlying and selects the lowest price. It returns:
+
+```text
+lowestUnderlyingUsdPrice * pool.get_virtual_price() / 1e18
 ```
 
-## Data Structures
+Any missing underlying price or zero virtual price makes the result zero.
 
-### PoolType Flag
-Identifies different Curve pool implementations:
-```vyper
-flag PoolType:
-    STABLESWAP_NG    # Next-gen stable pools
-    TWO_CRYPTO_NG    # Two-asset crypto pools
-    TRICRYPTO_NG     # Three-asset crypto pools
-    TWO_CRYPTO       # Legacy two-asset pools
-    METAPOOL         # Stable metapools
-    CRYPTO           # General crypto pools
+### Crypto LP tokens
+
+Other supported LP routes use:
+
+```text
+PriceDesk price of underlying[0] * pool.lp_price() / 1e18
 ```
 
-### CurvePriceConfig Struct
-Complete configuration for a Curve asset:
-```vyper
-struct CurvePriceConfig:
-    pool: address                   # Curve pool contract
-    lpToken: address               # LP token address
-    numUnderlying: uint256         # Number of assets (1-4)
-    underlying: address[4]         # Underlying assets
-    poolType: PoolType            # Pool implementation type(s)
-    hasEcoToken: bool             # Contains GREEN/sGREEN/RIPE
+Both inputs must be nonzero.
+
+### Two-coin single assets
+
+Only a pool with exactly two underlyings can price one of its component assets. The source combines the pool's price oracle with PriceDesk's price for the other asset. StableSwap NG uses `price_oracle(0)`; other types use `price_oracle()`.
+
+### Savings GREEN
+
+sGREEN does not have an independent Curve config. Requests canonicalize sGREEN to the GREEN feed, then multiply the GREEN price by `sGREEN.convertToAssets(1e18) / 1e18`. Governance cannot add a direct `curveConfig[sGREEN]` feed.
+
+The shared price-source `staleTime` parameter is not used by CurvePrices. Freshness is provided by the component prices selected through PriceDesk and, separately, by block-based reference-pool policy.
+
+## Dependency graph safety
+
+Curve routes can recurse through PriceDesk when an LP or alternate asset is itself priced by CurvePrices. Admission therefore constructs the proposed route's dependency edges and walks the active Curve graph.
+
+The source rejects:
+
+- a direct self-dependency;
+- an LP whose underlying canonicalizes to that same LP;
+- same-pool, cross-pool, or transitive cycles;
+- a cycle hidden by GREEN/sGREEN aliases; and
+- inconsistent active graph indices or a walk that cannot be represented within the candidate plus 50 active Curve assets.
+
+Stable/MetaPool LPs depend on all underlyings. Crypto LPs depend on index zero. A two-coin single-asset route depends on the alternate asset. Graph checks model only dependencies that can recurse into active Curve configs; other PriceDesk sources terminate the Curve graph.
+
+## Feed lifecycle and qualification
+
+Governance controls timelocked add, update, and disable actions while unpaused. Initiation snapshots the exact MetaRegistry-derived config. Confirmation requires that a fresh MetaRegistry snapshot still matches it and that all structural/cycle checks still pass.
+
+An ecosystem-token LP may be proposed before it has supply, but it cannot be activated until `totalSupply()` is nonzero.
+
+At add or update confirmation, the source temporarily stages the exact pending config and asks PriceDesk's `qualifyCallerPriceSource(asset)` to execute it with PriceDesk's production calldata and gas stipend. Activation requires a nonzero price and source status `1`. Any failure reverts staging, timelock confirmation, and pending-state mutation atomically.
+
+The lifecycle selectors are distinct: `addNewPriceFeed(asset, pool)` confirms
+with `confirmNewPriceFeed(asset)`, while `updatePriceFeed(asset, pool)` confirms
+with `confirmPriceFeedUpdate(asset)`. A pending disable confirms through
+`confirmDisablePriceFeed(asset)`.
+
+`addPriceSnapshot(asset)` returns false; ordinary Curve price feeds do not keep local snapshots.
+
+## GREEN reference-pool configuration
+
+The reference pool is a distinct two-coin Curve pool containing GREEN and one alternate asset. The configuration stores:
+
+```text
+pool
+lpToken
+greenIndex
+altAsset
+altAssetDecimals
+maxNumSnapshots
+dangerTrigger
+staleBlocks
+stabilizerAdjustWeight
+stabilizerMaxPoolDebt
 ```
 
-### PendingCurvePriceConfig Struct
-Tracks configuration changes during timelock:
-```vyper
-struct PendingCurvePriceConfig:
-    actionId: uint256              # TimeLock action ID
-    config: CurvePriceConfig       # New configuration
+Configuration validation binds exact pool/LP/coin identity, requires exactly two underlyings, and requires alternate decimals at most 18. Other bounds are:
+
+- 1 through 100 snapshots;
+- danger trigger from 50.00% through 99.99%;
+- nonzero `staleBlocks` whose deadline is representable;
+- stabilizer adjustment weight from 0.01% through 100%; and
+- nonzero maximum pool debt no greater than 25 million GREEN.
+
+The current pool observation must also be usable. Confirmation revalidates MetaRegistry identity and the alternate token's decimals.
+
+Pool identity or ring-capacity changes clear and reseed the ring. A capacity-only change preserves accumulated danger blocks after the new seed. A danger-trigger or stale-block change preserves history but creates a policy boundary at confirmation; elapsed time before that boundary is not silently reclassified under the new rule.
+
+## Reference-pool observations
+
+`getCurvePoolData` reads the raw GREEN balance and the alternate balance normalized to 18 decimals, then computes:
+
+```text
+greenRatio = greenBalance / (greenBalance + normalizedAltBalance)
 ```
 
-### GreenRefPoolConfig Struct
-Configuration for GREEN reference pool monitoring:
-```vyper
-struct GreenRefPoolConfig:
-    pool: address                  # Pool contract address
-    lpToken: address              # LP token address
-    greenIndex: uint256           # GREEN position (0 or 1)
-    altAsset: address             # Other asset in pool
-    altAssetDecimals: uint256     # Alt asset decimal places
-    maxNumSnapshots: uint256      # Maximum snapshots to store
-    dangerTrigger: uint256        # Danger threshold (50-9999 bp)
-    staleBlocks: uint256          # Blocks before snapshot stale
-    stabilizerAdjustWeight: uint256    # Weight for adjustments
-    stabilizerMaxPoolDebt: uint256     # Max debt allowed
+An empty pool reports a neutral 50% ratio. A stored snapshot requires nonzero GREEN balance and nonzero ratio and records block number, ratio, and whether the ratio meets the danger trigger.
+
+Only a valid Ripe address may call `addGreenRefPoolSnapshot`. A paused source returns false rather than reverting. At most one snapshot may be recorded per block.
+
+Every reference-pool timestamp and `staleBlocks` interval uses native EVM
+`block.number`. CurvePrices does not read Ledger's `ACTION_BLOCK_SOURCE`; the
+reference-pool clock and Ledger's action clock are independent.
+
+## Weighted ratio and danger continuity
+
+The weighted ratio uses only **closed intervals** between consecutive valid observations. It gives no live-tail weight from the newest observation through the current block. The newest observation must nevertheless be no more than `staleBlocks` old or the result is unavailable.
+
+For a valid interval no longer than `staleBlocks`, its ratio is:
+
+```text
+min(previousRatio, currentRatio)
 ```
 
-### RefPoolSnapshot Struct
-Snapshot of GREEN pool state:
-```vyper
-struct RefPoolSnapshot:
-    greenBalance: uint256         # GREEN balance in pool
-    ratio: uint256               # GREEN % of pool (basis points)
-    update: uint256              # Block number of snapshot
-    inDanger: bool               # Ratio exceeds danger trigger
+That conservative endpoint rule prevents an isolated high tick from creating danger time. Intervals with missing, future, non-monotonic, or stale endpoints are excluded or fail closed as defined by the ring checks.
+
+`numBlocksInDanger` increases only when both endpoints are dangerous. Recovery credit likewise requires both endpoints to be safe. Mixed intervals neither add danger time nor erase it. A complete safe recovery interval of `staleBlocks`, which may accumulate across matching safe observations, resets danger blocks. Policy-boundary classification follows the same matching-endpoint principle.
+
+## Stabilizer data
+
+`getGreenStabilizerConfig()` returns the exact eight-field tuple:
+
+```text
+pool
+lpToken
+greenBalance
+greenRatio
+greenIndex
+stabilizerAdjustWeight
+stabilizerMaxPoolDebt
+altBalance
 ```
 
-### CurrentGreenPoolStatus Struct
-Data structure returned by getCurrentGreenPoolStatus:
-```vyper
-struct CurrentGreenPoolStatus:
-    weightedRatio: uint256           # Weighted average ratio
-    dangerTrigger: uint256           # Danger threshold
-    numBlocksInDanger: uint256       # Consecutive danger blocks
-```
-
-### StabilizerConfig Struct
-Data structure returned by getGreenStabilizerConfig:
-```vyper
-struct StabilizerConfig:
-    pool: address                    # Pool contract address
-    lpToken: address                 # LP token address
-    greenBalance: uint256            # GREEN balance in pool
-    greenRatio: uint256              # GREEN ratio in pool
-    greenIndex: uint256              # GREEN position (0 or 1)
-    stabilizerAdjustWeight: uint256  # Weight for adjustments
-    stabilizerMaxPoolDebt: uint256   # Maximum allowed debt
-```
-
-## State Variables
-
-### Configuration Storage
-- `priceConfigs: HashMap[address, CurvePriceConfig]` - Active configurations
-- `pendingPriceConfigs: HashMap[address, PendingCurvePriceConfig]` - Pending changes
-- `curveAddressProvider: ICurveAddressProvider` - Curve registry access
-
-### GREEN Pool Monitoring
-- `greenRefPoolConfig: GreenRefPoolConfig` - GREEN pool configuration
-- `pendingGreenRefPoolConfig: GreenRefPoolConfig` - Pending config
-- `pendingGreenRefPoolActionId: uint256` - Timelock action ID
-- `refPoolSnapshots: RefPoolSnapshot[256]` - Circular snapshot buffer
-- `nextSnapshotIndex: uint256` - Next snapshot position
-- `blocksConsecInDanger: uint256` - Consecutive danger blocks
-
-### Constants
-- `NORMALIZED_DECIMALS: constant(uint256) = 18` - Standard decimals
-- `HUNDRED_PERCENT: constant(uint256) = 100_00` - 100.00% basis points
-- `STALE_ORACLE_THRESHOLD: constant(uint256) = 86400 * 7` - 7 days
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                        CurvePrices Contract                           |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |              Automated Pool Discovery Flow                       |  |
-|  |                                                                  |  |
-|  |  addNewPriceFeed(pool_address):                                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Query Curve Meta Registry with pool address              │ |  |
-|  |  │ 2. Automatically discover:                                  │ |  |
-|  |  │    - LP token address                                       │ |  |
-|  |  │    - Number of underlying assets                            │ |  |
-|  |  │    - All underlying asset addresses                         │ |  |
-|  |  │    - Pool type from registry                                │ |  |
-|  |  │ 3. Detect ecosystem tokens (GREEN/sGREEN/RIPE)              │ |  |
-|  |  │ 4. Create pending configuration with timelock               │ |  |
-|  |  │ 5. No manual configuration needed!                          │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Price Calculation Methods                     |  |
-|  |                                                                  |  |
-|  |  Stable Pool LP Tokens (_getStableLpPrice):                     |  |
-|  |  • Get virtual_price from pool                                  |  |
-|  |  • Find lowest price among all underlying assets                |  |
-|  |  • Price = virtual_price × lowest_underlying_price              |  |
-|  |  • Protects against depeg scenarios                             |  |
-|  |                                                                  |  |
-|  |  Crypto Pool LP Tokens (_getCryptoLpPrice):                     |  |
-|  |  • Get lp_price from pool                                       |  |
-|  |  • Get price of first underlying asset                          |  |
-|  |  • Price = lp_price × first_asset_price                         |  |
-|  |  • Optimized for volatile pairs                                 |  |
-|  |                                                                  |  |
-|  |  Single Assets (_getAssetPriceFromCurve):                       |  |
-|  |  • Use pool's internal price oracle                             |  |
-|  |  • Calculate relative to other asset in pool                    |  |
-|  |  • Different methods for different pool types                   |  |
-|  |                                                                  |  |
-|  |  Savings GREEN (sGREEN):                                        |  |
-|  |  • Get GREEN price first                                        |  |
-|  |  • Query sGREEN.convertToAssets(1e18)                           |  |
-|  |  • Price = GREEN_price × price_per_share                        |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |              GREEN Reference Pool Monitoring                     |  |
-|  |                                                                  |  |
-|  |  Snapshot System:                                                |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │         Circular Buffer (256 snapshots)                     │ |  |
-|  |  │  [0] [1] [2] ... [254] [255] → [0] (wraps)                 │ |  |
-|  |  │   ↑                       ↑                                  │ |  |
-|  |  │  old                    newest                               │ |  |
-|  |  │                                                             │ |  |
-|  |  │  Each Snapshot Contains:                                    │ |  |
-|  |  │  • greenBalance: Amount of GREEN in pool                    │ |  |
-|  |  │  • ratio: GREEN as % of pool (basis points)                 │ |  |
-|  |  │  • update: Block number                                     │ |  |
-|  |  │  • inDanger: ratio > dangerTrigger                          │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Weighted Ratio Calculation:                                     |  |
-|  |  • Filters out stale snapshots (> staleBlocks old)              |  |
-|  |  • Weights each snapshot by GREEN balance                        |  |
-|  |  • Provides time-weighted average ratio                          |  |
-|  |                                                                  |  |
-|  |  Danger Monitoring:                                              |  |
-|  |  • Tracks consecutive blocks where ratio > trigger               |  |
-|  |  • Provides data to Endaoment for stabilization                  |  |
-|  |  • Does NOT enforce price bounds directly                        |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        ┌───────────────────────────┴───────────────────────────┐
-        ▼                           ▼                           ▼
-+-------------------+   +----------------------+   +------------------+
-| Curve Registries  |   | Curve Pools         |   | External Oracle  |
-+-------------------+   +----------------------+   +------------------+
-| • Address Provider|   | • get_virtual_price()|   | • PriceDesk      |
-| • Meta Registry   |   | • lp_price()        |   | • Asset prices   |
-| • Pool info       |   | • price_oracle()    |   | • Used for LP    |
-+-------------------+   +----------------------+   +------------------+
-```
-
-## Constructor
-
-### `__init__`
-
-Initializes CurvePrices with Curve integration and GREEN token configuration.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _tempGov: address,
-    _curveAddressProvider: address,
-    _green: address,
-    _savingsGreen: address,
-    _minPriceChangeTimeLock: uint256,
-    _maxPriceChangeTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract for protocol integration |
-| `_tempGov` | `address` | Initial temporary governance address |
-| `_curveAddressProvider` | `address` | Curve's address provider for registry access |
-| `_green` | `address` | GREEN token address (immutable) |
-| `_savingsGreen` | `address` | sGREEN token address (immutable) |
-| `_minPriceChangeTimeLock` | `uint256` | Minimum timelock for config changes |
-| `_maxPriceChangeTimeLock` | `uint256` | Maximum timelock for config changes |
-
-#### Example Usage
-```python
-curve_prices = boa.load(
-    "contracts/priceSources/CurvePrices.vy",
-    ripe_hq.address,
-    deployer.address,
-    curve_address_provider.address,
-    green_token.address,
-    savings_green.address,
-    100,   # Min 100 blocks timelock
-    1000,  # Max 1000 blocks timelock
-)
-```
-
-## Core Price Functions
-
-### `getPrice`
-
-Returns the calculated price for a Curve asset (LP token, single asset, or sGREEN).
-
-```vyper
-@view
-@external
-def getPrice(_asset: address, _staleTime: uint256 = 0, _priceDesk: address = empty(address)) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to get price for |
-| `_staleTime` | `uint256` | Not used in Curve implementation |
-| `_priceDesk` | `address` | Optional PriceDesk override |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Calculated price in 18 decimals |
-
-#### Price Calculation Process
-
-1. **sGREEN Check**: Special handling for savings GREEN
-2. **Configuration Load**: Retrieves CurvePriceConfig for asset
-3. **Routing**: Determines pricing method based on asset type
-4. **Calculation**: Uses appropriate method (_getStableLpPrice, _getCryptoLpPrice, or _getAssetPriceFromCurve)
-5. **Normalization**: Ensures 18 decimal output
-
-#### Example Usage
-```python
-# Get LP token price
-lp_price = curve_prices.getPrice(curve_3pool_lp.address)
-
-# Get single asset price from pool
-dai_price = curve_prices.getPrice(dai.address)
-
-# Get sGREEN price
-sgreen_price = curve_prices.getPrice(savings_green.address)
-```
-
-## Price Feed Management
-
-### `addNewPriceFeed`
-
-Initiates addition of a new Curve price feed with automatic discovery.
-
-```vyper
-@external
-def addNewPriceFeed(_asset: address, _pool: address) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset address (LP token or single asset) |
-| `_pool` | `address` | Curve pool contract address |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if successfully initiated |
-
-#### Access
-
-Only callable by governance
-
-#### Process Flow
-
-1. **Registry Query**: Fetches pool configuration from Meta Registry
-2. **Auto Discovery**: Finds LP token and underlying assets
-3. **Validation**: Ensures pool is valid and not already configured
-4. **Eco Token Detection**: Checks for GREEN/sGREEN/RIPE
-5. **Pending Creation**: Creates time-locked configuration
-
-#### Events Emitted
-
-- `NewCurvePricePending` - Contains discovered configuration
-
-#### Example Usage
-```python
-# Add new price feed for LP token
-success = curve_prices.addNewPriceFeed(
-    curve_3pool_lp.address,  # LP token
-    curve_3pool.address,     # Pool
-    sender=governance
-)
-
-# Add new price feed for single asset
-success = curve_prices.addNewPriceFeed(
-    dai.address,             # Single asset
-    curve_3pool.address,     # Pool containing the asset
-    sender=governance
-)
-```
-
-### `confirmNewPriceFeed`
-
-Confirms a pending price feed addition after timelock.
-
-```vyper
-@external
-def confirmNewPriceFeed(_asset: address) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to confirm feed for |
-
-#### Access
-
-Only callable by governance
-
-#### Process Flow
-1. **Timelock Check**: Ensures sufficient time has passed
-2. **Configuration Save**: Stores price config
-3. **Asset Registration**: Adds both LP and assets to registry
-4. **Initial Price Check**: Validates pricing works
-
-#### Events Emitted
-
-- `NewCurvePriceAdded` - Confirms feed is active
-
-### `updatePriceFeed`
-
-Updates configuration for existing price feed.
-
-```vyper
-@external
-def updatePriceFeed(_asset: address, _pool: address) -> bool:
-```
-
-Similar to addNewPriceFeed but for existing feeds. Validates that new pool differs from current.
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `UpdateCurvePricePending` - Update initiated with new configuration
-
-### `disablePriceFeed`
-
-Initiates removal of a price feed.
-
-```vyper
-@external
-def disablePriceFeed(_asset: address) -> bool:
-```
-
-Removal requires time-locked confirmation via `confirmDisablePriceFeed`.
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `DisableCurvePricePending` - Removal initiated
-
-### `confirmUpdatePriceFeed`
-
-Confirms a pending price feed update after timelock.
-
-```vyper
-@external
-def confirmUpdatePriceFeed(_asset: address) -> bool:
-```
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `CurvePriceUpdated` - Update confirmed
-
-### `confirmDisablePriceFeed`
-
-Confirms a pending price feed removal after timelock.
-
-```vyper
-@external
-def confirmDisablePriceFeed(_asset: address) -> bool:
-```
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `CurvePriceDisabled` - Feed removed
-
-## GREEN Pool Management
-
-### `setGreenRefPoolConfig`
-
-Configures the GREEN reference pool for monitoring.
-
-```vyper
-@external
-def setGreenRefPoolConfig(
-    _pool: address,
-    _maxNumSnapshots: uint256,
-    _dangerTrigger: uint256,
-    _staleBlocks: uint256,
-    _stabilizerAdjustWeight: uint256,
-    _stabilizerMaxPoolDebt: uint256
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_pool` | `address` | GREEN pool address |
-| `_maxNumSnapshots` | `uint256` | Max snapshots to consider (1-256) |
-| `_dangerTrigger` | `uint256` | Danger threshold in basis points (5000-9999) |
-| `_staleBlocks` | `uint256` | Blocks before snapshot stale |
-| `_stabilizerAdjustWeight` | `uint256` | Weight for stabilizer |
-| `_stabilizerMaxPoolDebt` | `uint256` | Maximum allowed debt |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | TimeLock action ID for confirmation |
-
-#### Access
-
-Only callable by governance
-
-#### Special Behavior
-- Automatically discovers GREEN position in pool
-- Automatically determines alt asset and its decimals from pool
-- Validates pool contains exactly GREEN and one other asset
-- Requires time-locked confirmation via `confirmGreenRefPoolConfig`
-
-#### Events Emitted
-
-- `GreenRefPoolPending` - GREEN pool configuration initiated
-
-### `confirmGreenRefPoolConfig`
-
-Confirms pending GREEN reference pool configuration after timelock.
-
-```vyper
-@external
-def confirmGreenRefPoolConfig(_aid: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_aid` | `uint256` | TimeLock action ID from setGreenRefPoolConfig |
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `GreenRefPoolConfigUpdated` - GREEN pool configured
-
-### `cancelGreenRefPoolConfig`
-
-Cancels a pending GREEN reference pool configuration change.
-
-```vyper
-@external
-def cancelGreenRefPoolConfig(_aid: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_aid` | `uint256` | TimeLock action ID to cancel |
-
-#### Access
-
-Only callable by governance
-
-#### Events Emitted
-
-- `GreenRefPoolConfigUpdateCancelled` - Configuration update cancelled
-
-### `addGreenRefPoolSnapshot`
-
-Creates a new snapshot of GREEN pool state.
-
-```vyper
-@external
-def addGreenRefPoolSnapshot():
-```
-
-#### Access
-
-Only callable by Ripe protocol contracts
-
-#### Snapshot Process
-1. Queries current pool balances
-2. Calculates GREEN ratio as basis points
-3. Determines if ratio exceeds danger trigger
-4. Updates consecutive danger block counter
-5. Stores in circular buffer
-
-#### Events Emitted
-
-- `GreenRefPoolSnapshot` - New snapshot created with GREEN balance, ratio, and danger status
-
-### `getCurrentGreenPoolStatus`
-
-Returns current GREEN pool monitoring data.
-
-```vyper
-@view
-@external
-def getCurrentGreenPoolStatus() -> CurrentGreenPoolStatus:
-```
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `CurrentGreenPoolStatus` | Struct containing weighted ratio, danger trigger, and blocks in danger |
-
-### `getGreenStabilizerConfig`
-
-Provides configuration data for stabilizer contracts.
-
-```vyper
-@view
-@external
-def getGreenStabilizerConfig() -> StabilizerConfig:
-```
-
-Returns complete stabilizer configuration including pool details, GREEN balance/ratio, and stabilizer parameters.
-
-## Internal Pricing Methods
-
-### `_getStableLpPrice`
-
-Calculates price for stable pool LP tokens.
-
-```vyper
-@internal
-@view
-def _getStableLpPrice(
-    _pool: address,
-    _lp: address,
-    _numUnderlying: uint256,
-    _underlying: address[4],
-    _priceDesk: address
-) -> uint256:
-```
-
-#### Algorithm
-1. Get virtual price from pool
-2. Find lowest price among all underlying assets
-3. Return: `virtual_price × lowest_price / 10^18`
-
-### `_getCryptoLpPrice`
-
-Calculates price for crypto pool LP tokens.
-
-```vyper
-@internal
-@view
-def _getCryptoLpPrice(
-    _pool: address,
-    _lp: address,
-    _underlying0: address,
-    _priceDesk: address
-) -> uint256:
-```
-
-#### Algorithm
-1. Get lp_price from pool
-2. Get price of first underlying asset
-3. Return: `lp_price × asset_price / 10^18`
-
-### `_getAssetPriceFromCurve`
-
-Gets single asset price from pool's oracle.
-
-```vyper
-@internal
-@view
-def _getAssetPriceFromCurve(
-    _pool: address,
-    _asset: address,
-    _altAsset: address,
-    _poolType: PoolType,
-    _priceDesk: address
-) -> uint256:
-```
-
-Uses pool-specific oracle methods to calculate relative prices.
-
-## Security Considerations
-
-### Access Control
-- **Governance Only**: All configuration changes restricted
-- **Ripe Contracts**: Snapshot additions allowed by protocol
-- **Time-locked Changes**: Prevents rushed modifications
-
-### Price Manipulation Protection
-- **Pool Validation**: Ensures pools are properly configured
-- **Oracle Security**: Uses Curve's manipulation-resistant oracles
-- **Lowest Price Method**: Protects against depeg in stable pools
-- **Decimal Handling**: Safe normalization logic
-
-### Integration Safety
-- **Graceful Failures**: Returns 0 for invalid queries
-- **Automatic Discovery**: Reduces configuration errors
-- **Registry Validation**: Cross-checks with Curve registries
-- **Reentrancy Protection**: View functions only
+`altBalance` is normalized to 18 decimals. The tuple does not contain a field named `greenPrice`. Callers should compare normalized balances and use `greenRatio` for the current imbalance measure.
+
+## Integration requirements
+
+- Treat zero as unavailable.
+- Do not configure more than four underlyings or construct recursive Curve price graphs.
+- Do not infer active feeds from source-supported pool types.
+- Keep ordinary price freshness separate from the GREEN monitor's block-based snapshot policy.
+
+<!-- BEGIN GENERATED API REFERENCE: CurvePrices -->
+## Exact API reference
+
+> Generated from `contracts/priceSources/CurvePrices.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _tempGov, address _curveAddressProvider, address _green, address _savingsGreen, uint256 _minPriceChangeTimeLock, uint256 _maxPriceChangeTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `1–3` | `_staleTime = 0`, `_priceDesk = empty(address)` |
+| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins, uint256 _poolType)` | `3–4` | `_poolType = empty(PoolType)` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+
+### Functions
+
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `CURVE_META_REGISTRY()` | `view` | `address` | — |
+| `CURVE_REGISTRIES()` | `view` | `(address StableSwapNg, address TwoCryptoNg, address TricryptoNg, address TwoCrypto, address MetaPool)` | — |
+| `GREEN()` | `view` | `address` | — |
+| `SGREEN()` | `view` | `address` | — |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `addGreenRefPoolSnapshot()` | `nonpayable` | `bool` | `bool` |
+| `addNewPriceFeed(address _asset, address _pool)` | `nonpayable` | `bool` | `bool` |
+| `addPriceSnapshot(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `assets(uint256 arg0)` | `view` | `address` | — |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `cancelDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelGreenRefPoolConfig(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `cancelNewPendingPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `cancelPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmDisablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmGreenRefPoolConfig(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `confirmNewPriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `confirmPriceFeedUpdate(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `curveConfig(address arg0)` | `view` | `(address pool, address lpToken, uint256 numUnderlying, address[4] underlying, uint256 poolType, bool hasEcoToken)` | — |
+| `disablePriceFeed(address _asset)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getCryptoLpPrice(address _pool, address _firstAsset)` | `view` | `uint256` | `uint256` |
+| `getCurrentGreenPoolStatus()` | `view` | `(uint256 weightedRatio, uint256 dangerTrigger, uint256 numBlocksInDanger)` | `CurrentGreenPoolStatus` |
+| `getCurvePoolConfig(address _pool)` | `view` | `(address pool, address lpToken, uint256 numUnderlying, address[4] underlying, uint256 poolType, bool hasEcoToken)` | `CurvePriceConfig` |
+| `getCurvePoolData()` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getGreenStabilizerConfig()` | `view` | `(address pool, address lpToken, uint256 greenBalance, uint256 greenRatio, uint256 greenIndex, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt, uint256 altBalance)` | `StabilizerConfig` |
+| `getPrice(address _asset)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime)` | `view` | `uint256` | `uint256` |
+| `getPrice(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `uint256` | `uint256` |
+| `getPriceAndHasFeed(address _asset)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPriceAndHasFeed(address _asset, uint256 _staleTime, address _priceDesk)` | `view` | `(uint256, bool)` | `(uint256, bool)` |
+| `getPricedAssets()` | `view` | `address[]` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins)` | `view` | `uint256` | `uint256` |
+| `getSingleTokenPrice(address _pool, address _targetAsset, address[2] _coins, uint256 _poolType)` | `view` | `uint256` | `uint256` |
+| `getStableLpPrice(address _pool, address[4] _coins)` | `view` | `uint256` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `greenRefPoolConfig()` | `view` | `(address pool, address lpToken, uint256 greenIndex, address altAsset, uint256 altAssetDecimals, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt)` | — |
+| `greenRefPoolData()` | `view` | `((uint256 greenBalance, uint256 ratio, uint256 update, bool inDanger) lastSnapshot, uint256 numBlocksInDanger, uint256 nextIndex)` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasPendingPriceFeedUpdate(address _asset)` | `view` | `bool` | `bool` |
+| `hasPriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `indexOfAsset(address arg0)` | `view` | `uint256` | — |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidDisablePriceFeed(address _asset)` | `view` | `bool` | `bool` |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidNewFeed(address _asset, address _pool)` | `view` | `bool` | `bool` |
+| `isValidUpdateFeed(address _asset, address _newPool)` | `view` | `bool` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numAssets()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `pendingGreenRefPoolConfig(uint256 arg0)` | `view` | `(address pool, address lpToken, uint256 greenIndex, address altAsset, uint256 altAssetDecimals, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt)` | — |
+| `pendingUpdates(address arg0)` | `view` | `(uint256 actionId, (address pool, address lpToken, uint256 numUnderlying, address[4] underlying, uint256 poolType, bool hasEcoToken) config)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setGreenRefPoolConfig(address _pool, uint256 _maxNumSnapshots, uint256 _dangerTrigger, uint256 _staleBlocks, uint256 _stabilizerAdjustWeight, uint256 _stabilizerMaxPoolDebt)` | `nonpayable` | `uint256` | `uint256` |
+| `snapShots(uint256 arg0)` | `view` | `(uint256 greenBalance, uint256 ratio, uint256 update, bool inDanger)` | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `updatePriceFeed(address _asset, address _pool)` | `nonpayable` | `bool` | `bool` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `CurvePriceConfigUpdateCancelled` | `address asset indexed, address pool indexed, address prevPool indexed` |
+| `CurvePriceConfigUpdatePending` | `address asset indexed, address pool indexed, address prevPool indexed, uint256 confirmationBlock, uint256 actionId` |
+| `CurvePriceConfigUpdated` | `address asset indexed, address pool indexed, address prevPool indexed` |
+| `CurvePriceDisabled` | `address asset indexed, address prevPool indexed` |
+| `DisableCurvePriceCancelled` | `address asset indexed, address prevPool indexed` |
+| `DisableCurvePricePending` | `address asset indexed, address prevPool indexed, uint256 confirmationBlock, uint256 actionId` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `GreenRefPoolConfigPending` | `address pool indexed, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt, uint256 confirmationBlock, uint256 actionId` |
+| `GreenRefPoolConfigUpdateCancelled` | `address pool indexed, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt` |
+| `GreenRefPoolConfigUpdated` | `address pool indexed, uint256 maxNumSnapshots, uint256 dangerTrigger, uint256 staleBlocks, uint256 stabilizerAdjustWeight, uint256 stabilizerMaxPoolDebt` |
+| `GreenRefPoolSnapshotAdded` | `address pool indexed, uint256 greenBalance, uint256 greenRatio, bool inDanger` |
+| `NewCurvePriceAdded` | `address asset indexed, address pool indexed` |
+| `NewCurvePriceCancelled` | `address asset indexed, address pool indexed` |
+| `NewCurvePricePending` | `address asset indexed, address pool indexed, uint256 confirmationBlock, uint256 actionId` |
+| `PriceSourceFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `PriceSourcePauseModified` | `bool isPaused` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+
+### Structs declared by this source
+
+- `CurvePriceConfig(pool: address, lpToken: address, numUnderlying: uint256, underlying: address[4], poolType: PoolType, hasEcoToken: bool)`
+- `PendingCurvePrice(actionId: uint256, config: CurvePriceConfig)`
+- `CurveRegistries(StableSwapNg: address, TwoCryptoNg: address, TricryptoNg: address, TwoCrypto: address, MetaPool: address)`
+- `GreenRefPoolConfig(pool: address, lpToken: address, greenIndex: uint256, altAsset: address, altAssetDecimals: uint256, maxNumSnapshots: uint256, dangerTrigger: uint256, staleBlocks: uint256, stabilizerAdjustWeight: uint256, stabilizerMaxPoolDebt: uint256)`
+- `RefPoolSnapshot(greenBalance: uint256, ratio: uint256, update: uint256, inDanger: bool)`
+- `GreenRefPoolData(lastSnapshot: RefPoolSnapshot, numBlocksInDanger: uint256, nextIndex: uint256)`
+- `CurrentGreenPoolStatus(weightedRatio: uint256, dangerTrigger: uint256, numBlocksInDanger: uint256)`
+- `StabilizerConfig(pool: address, lpToken: address, greenBalance: uint256, greenRatio: uint256, greenIndex: uint256, stabilizerAdjustWeight: uint256, stabilizerMaxPoolDebt: uint256, altBalance: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `empty pool`
+- `invalid asset`
+- `invalid feed`
+- `invalid pool`
+- `invalid ref pool config`
+- `invalid snapshot`
+- `no pending disable feed`
+- `no pending new feed`
+- `no pending update`
+- `no pending update feed`
+- `no perms`
+- `price source not executable`
+- `time lock not reached`
+
+<!-- END GENERATED API REFERENCE: CurvePrices -->

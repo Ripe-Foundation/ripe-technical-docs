@@ -1,572 +1,249 @@
-# Erc20Token Technical Documentation
+# Erc20Token module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/tokens/modules/Erc20Token.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/tokens/modules/Erc20Token.vy)
 
 ## Overview
 
-Erc20Token is the foundational token module for Ripe Protocol, providing enhanced ERC20 functionality with built-in security and governance features. It extends standard ERC20 with blacklisting, pausability, permit functionality, and deep RipeHq integration for enterprise-grade token management.
-
-**Core Features**:
-- **Enhanced ERC20**: Standard operations with blacklist validation and pause checks
-- **Governance Integration**: RipeHq controls minting, blacklisting, and pausing permissions
-- **Permit System**: EIP-2612 gasless approvals via signatures (EOA and ERC-1271)
-- **Blacklist Management**: Compliance tools with ability to burn blacklisted tokens
-- **Safe Migrations**: Time-locked RipeHq updates prevent rushed protocol changes
-
-The module implements comprehensive security including reentrancy protection, extensive validation, and detailed event logging. It supports initial supply distribution and two-phase setup for pre-RipeHq deployments, ensuring flexible yet secure token operations.
-
-## Architecture & Dependencies
-
-Erc20Token is designed as a standalone module with external dependencies:
-
-### External Contract Interfaces
-- **RipeHq**: Central registry for permissions and governance
-- **ERC1271**: Smart contract signature validation interface
-
-### Key Constants
-```vyper
-# EIP-712 Constants
-EIP712_TYPEHASH: constant(bytes32) = keccak256("EIP712Domain(...)")
-EIP2612_TYPEHASH: constant(bytes32) = keccak256("Permit(...)")
-ECRECOVER_PRECOMPILE: constant(address) = 0x0000...0001
-ERC1271_MAGIC_VAL: constant(bytes4) = 0x1626ba7e
-VERSION: constant(String[8]) = "v1.0.0"
-```
-
-### Immutable Values
-Set during deployment:
-```vyper
-TOKEN_NAME: immutable(String[64])
-TOKEN_SYMBOL: immutable(String[32])
-TOKEN_DECIMALS: immutable(uint8)
-MIN_HQ_TIME_LOCK: immutable(uint256)
-MAX_HQ_TIME_LOCK: immutable(uint256)
-CACHED_DOMAIN_SEPARATOR: immutable(bytes32)
-NAME_HASH: immutable(bytes32)
-CACHED_CHAIN_ID: immutable(uint256)
-```
-
-## Data Structures
-
-### PendingHq Struct
-Tracks pending RipeHq changes:
-```vyper
-struct PendingHq:
-    newHq: address           # Proposed new RipeHq
-    initiatedBlock: uint256  # When change started
-    confirmBlock: uint256    # When change can be confirmed
-```
-
-## State Variables
-
-### Token State
-- `balanceOf: HashMap[address, uint256]` - Token balances
-- `allowance: HashMap[address, HashMap[address, uint256]]` - Spending allowances
-- `totalSupply: uint256` - Total token supply
-
-### Governance State
-- `ripeHq: address` - Current RipeHq contract
-- `pendingHq: PendingHq` - Pending RipeHq change
-- `hqChangeTimeLock: uint256` - Blocks required for HQ changes
-- `tempGov: address` - Temporary governance (before RipeHq set)
-
-### Security State
-- `blacklisted: HashMap[address, bool]` - Blacklisted addresses
-- `isPaused: bool` - Global pause state
-
-### EIP-712 State
-- `nonces: HashMap[address, uint256]` - Permit nonces
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                         Erc20Token Module                             |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Token Operations Flow                         |  |
-|  |                                                                  |  |
-|  |  transfer/transferFrom:                                          |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Check not paused                                        │ |  |
-|  |  │ 2. Validate amount > 0                                     │ |  |
-|  |  │ 3. Check sender not blacklisted                            │ |  |
-|  |  │ 4. Check recipient not blacklisted                         │ |  |
-|  |  │ 5. Check recipient not token/0x0                           │ |  |
-|  |  │ 6. Verify sufficient balance                               │ |  |
-|  |  │ 7. Update balances                                         │ |  |
-|  |  │ 8. Emit Transfer event                                     │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  Permission Checks:                                              |  |
-|  |  • Minting: RipeHq.canMintGreen() or canMintRipe()             |  |
-|  |  • Blacklist: RipeHq.canSetTokenBlacklist()                    |  |
-|  |  • Pause: RipeHq.governance()                                   |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Permit System (EIP-2612)                      |  |
-|  |                                                                  |  |
-|  |  Off-chain Signature:                                            |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ User signs: Permit(owner, spender, value, nonce, deadline) │ |  |
-|  |  │                        ↓                                     │ |  |
-|  |  │              EIP-712 Structured Data                        │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  On-chain Verification:                                          |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Check deadline not expired                               │ |  |
-|  |  │ 2. Verify nonce matches                                     │ |  |
-|  |  │ 3. EOA: ecrecover signature                                │ |  |
-|  |  │    OR                                                       │ |  |
-|  |  │    Contract: ERC-1271 validation                            │ |  |
-|  |  │ 4. Update allowance                                         │ |  |
-|  |  │ 5. Increment nonce                                          │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    RipeHq Integration                            |  |
-|  |                                                                  |  |
-|  |  Initial Setup (if deployed before RipeHq):                      |  |
-|  |  Token Deploy → tempGov set → finishTokenSetup() → ripeHq set   |  |
-|  |                                                                  |  |
-|  |  RipeHq Migration (Two-Phase):                                   |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ initiateHqChange():                                         │ |  |
-|  |  │ • Validate new HQ (contracts, no pending changes)           │ |  |
-|  |  │ • Set pending with timelock                                 │ |  |
-|  |  │                    ↓ (hqChangeTimeLock blocks)              │ |  |
-|  |  │ confirmHqChange():                                          │ |  |
-|  |  │ • Re-validate new HQ                                        │ |  |
-|  |  │ • Update ripeHq pointer                                     │ |  |
-|  |  │ • Clear pending state                                       │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-                                    ▼
-+------------------------------------------------------------------------+
-|                              RipeHq                                   |
-+------------------------------------------------------------------------+
-| • Permission validation (mint, blacklist, pause)                      |
-| • Governance address resolution                                        |
-| • Protocol-wide configuration                                          |
-+------------------------------------------------------------------------+
-```
-
-## Constructor
-
-### `__init__`
-
-Initializes the ERC20 token with configuration and optional initial supply.
-
-```vyper
-@deploy
-def __init__(
-    _tokenName: String[64],
-    _tokenSymbol: String[32],
-    _tokenDecimals: uint8,
-    _ripeHq: address,
-    _initialGov: address,
-    _minHqTimeLock: uint256,
-    _maxHqTimeLock: uint256,
-    _initialSupply: uint256,
-    _initialSupplyRecipient: address,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_tokenName` | `String[64]` | Full token name (e.g., "Green Token") |
-| `_tokenSymbol` | `String[32]` | Token symbol (e.g., "GREEN") |
-| `_tokenDecimals` | `uint8` | Decimal places (typically 18) |
-| `_ripeHq` | `address` | RipeHq contract (or empty if using tempGov) |
-| `_initialGov` | `address` | Temporary governance (or empty if using RipeHq) |
-| `_minHqTimeLock` | `uint256` | Minimum blocks for HQ changes |
-| `_maxHqTimeLock` | `uint256` | Maximum blocks for HQ changes |
-| `_initialSupply` | `uint256` | Initial token supply to mint |
-| `_initialSupplyRecipient` | `address` | Who receives initial supply |
-
-#### Deployment Modes
-1. **With RipeHq**: Set `_ripeHq`, leave `_initialGov` empty
-2. **With TempGov**: Set `_initialGov`, leave `_ripeHq` empty, call `finishTokenSetup` later
-
-#### Example Usage
-```python
-# Deploy with RipeHq
-green_token = boa.load(
-    "path/to/Erc20Token.vy",
-    "Green Token",
-    "GREEN",
-    18,
-    ripe_hq.address,
-    empty_address,  # No temp gov
-    100,   # Min timelock
-    1000,  # Max timelock
-    10**9 * 10**18,  # 1B initial supply
-    treasury.address
-)
-
-# Deploy with temporary governance
-ripe_token = boa.load(
-    "path/to/Erc20Token.vy",
-    "Ripe Token",
-    "RIPE",
-    18,
-    empty_address,  # No RipeHq yet
-    deployer.address,  # Temp gov
-    100,
-    1000,
-    0,  # No initial supply
-    empty_address
-)
-```
-
-## Core Token Functions
-
-### Transfer Functions
-
-#### `transfer`
-```vyper
-@external
-def transfer(_recipient: address, _amount: uint256) -> bool:
-```
-
-Standard ERC20 transfer with blacklist and pause checks.
-
-**Events Emitted**: `Transfer`
-
-#### `transferFrom`
-```vyper
-@external
-def transferFrom(_sender: address, _recipient: address, _amount: uint256) -> bool:
-```
-
-Transfer on behalf of another address using allowance.
-
-**Events Emitted**: `Transfer`, `Approval`
-
-### Allowance Functions
-
-#### `approve`
-```vyper
-@external
-def approve(_spender: address, _amount: uint256) -> bool:
-```
-
-Set spending allowance with validation.
-
-**Events Emitted**: `Approval`
-
-#### `increaseAllowance`
-```vyper
-@external
-def increaseAllowance(_spender: address, _amount: uint256) -> bool:
-```
-
-Safely increase allowance (prevents race conditions).
-
-**Events Emitted**: `Approval`
-
-#### `decreaseAllowance`
-```vyper
-@external
-def decreaseAllowance(_spender: address, _amount: uint256) -> bool:
-```
-
-Safely decrease allowance (prevents underflow).
-
-**Events Emitted**: `Approval`
-
-### Minting and Burning
-
-#### `mint` (Internal)
-```vyper
-@internal
-def _mint(_recipient: address, _amount: uint256) -> bool:
-```
-
-Mints new tokens. Must be called by inheriting contract with proper permissions.
-
-**Events Emitted**: `Transfer`
-
-#### `burn`
-```vyper
-@external
-def burn(_amount: uint256) -> bool:
-```
-
-Burns tokens from caller's balance.
-
-**Events Emitted**: `Transfer`
-
-## Permit Function (EIP-2612)
-
-### `permit`
-
-Allows token approvals via signatures.
-
-```vyper
-@external
-def permit(
-    _owner: address,
-    _spender: address,
-    _value: uint256,
-    _deadline: uint256,
-    _signature: Bytes[65],
-) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_owner` | `address` | Token owner granting approval |
-| `_spender` | `address` | Address receiving approval |
-| `_value` | `uint256` | Approval amount |
-| `_deadline` | `uint256` | Signature expiration timestamp |
-| `_signature` | `Bytes[65]` | Signature (r,s,v format) |
-
-#### Signature Validation
-- **EOA**: Uses ecrecover with malleability checks
-- **Contract**: Calls ERC-1271 `isValidSignature`
-
-#### Example Usage
-```python
-# Off-chain signature creation
-domain = {
-    'name': 'Green Token',
-    'version': 'v1.0.0',
-    'chainId': 1,
-    'verifyingContract': token.address
-}
-
-message = {
-    'owner': owner.address,
-    'spender': spender.address,
-    'value': amount,
-    'nonce': token.nonces(owner.address),
-    'deadline': deadline
-}
-
-# Sign message
-signature = sign_typed_data(owner_key, domain, types, message)
-
-# On-chain permit
-token.permit(
-    owner.address,
-    spender.address,
-    amount,
-    deadline,
-    signature
-)
-```
-
-**Events Emitted**: `Approval`
-
-## Blacklist Functions
-
-### `setBlacklist`
-
-Adds or removes addresses from blacklist.
-
-```vyper
-@external
-def setBlacklist(_addr: address, _shouldBlacklist: bool) -> bool:
-```
-
-#### Access
-
-Only addresses with `canSetTokenBlacklist` permission in [RipeHq](../../governance/RipeHq.md).
-
-#### Restrictions
-- Cannot blacklist token contract itself
-- Cannot blacklist zero address
-
-**Events Emitted**: `BlacklistModified`
-
-### `burnBlacklistTokens`
-
-Burns tokens from blacklisted addresses.
-
-```vyper
-@external
-def burnBlacklistTokens(_addr: address, _amount: uint256 = max_value(uint256)) -> bool:
-```
-
-#### Access
-
-Only protocol governance.
-
-**Events Emitted**: `Transfer`
-
-#### Parameters
-- `_amount`: Amount to burn (defaults to full balance)
-
-## RipeHq Management
-
-### `initiateHqChange`
-
-Starts migration to new RipeHq contract.
-
-```vyper
-@external
-def initiateHqChange(_newHq: address):
-```
-
-#### Access
-
-Current governance only.
-
-#### Validation
-- New HQ must be valid contract
-- No pending governance changes in either HQ
-- Both tokens must be set in new HQ
-
-**Events Emitted**: `HqChangeInitiated`
-
-### `confirmHqChange`
-
-Completes HQ migration after timelock.
-
-```vyper
-@external
-def confirmHqChange() -> bool:
-```
-
-Re-validates and updates RipeHq pointer.
-
-**Events Emitted**: `HqChangeConfirmed`
-
-### `setHqChangeTimeLock`
-
-Adjusts timelock for future HQ changes.
-
-```vyper
-@external
-def setHqChangeTimeLock(_newTimeLock: uint256) -> bool:
-```
-
-Must be within MIN/MAX bounds.
-
-**Events Emitted**: `HqChangeTimeLockModified`
-
-## Pause Function
-
-### `pause`
-
-Pauses or unpauses all token operations.
-
-```vyper
-@external
-def pause(_shouldPause: bool):
-```
-
-#### Access
-
-Protocol governance only.
-
-#### Effects When Paused
-- No transfers
-- No approvals
-- No minting
-- No burning
-
-**Events Emitted**: `TokenPauseModified`
-
-## Initial Setup Function
-
-### `finishTokenSetup`
-
-Completes token setup when deployed with temporary governance.
-
-```vyper
-@external
-def finishTokenSetup(_newHq: address, _timeLock: uint256 = 0) -> bool:
-```
-
-#### Access
-
-Temporary governance only.
-
-#### Process
-1. Validates new RipeHq
-2. Sets RipeHq pointer
-3. Configures timelock
-4. Clears temporary governance
-
-**Events Emitted**: `InitialRipeHqSet`
-
-## View Functions
-
-### Token Info
-- `name() -> String[64]` - Token name
-- `symbol() -> String[32]` - Token symbol
-- `decimals() -> uint8` - Decimal places
-
-### Domain Separator
-- `DOMAIN_SEPARATOR() -> bytes32` - EIP-712 domain
-
-### Validation
-- `isValidNewRipeHq(_newHq: address) -> bool`
-- `isValidHqChangeTimeLock(_newTimeLock: uint256) -> bool`
-- `hasPendingHqChange() -> bool`
-
-### Timelock Bounds
-- `minHqTimeLock() -> uint256`
-- `maxHqTimeLock() -> uint256`
-
-
-## Security Considerations
-
-### Transfer Security
-- **Blacklist Checks**: All paths check blacklist
-- **Pause Protection**: Transfers blocked when paused
-- **Zero Checks**: Prevents zero amount transfers
-- **Self Transfer**: Prevents token contract as recipient
-
-### Signature Security
-- **Replay Protection**: Nonces prevent replay
-- **Deadline Validation**: Signatures expire
-- **Malleability**: S value validation
-- **Chain ID**: Prevents cross-chain replay
-
-### Governance Security
-- **Time Locks**: All HQ changes delayed
-- **Re-validation**: Checks repeated on confirm
-- **Permission Model**: RipeHq validates all permissions
-
-## Common Integration Patterns
-
-### Basic Token Operations
-```python
-# Transfer tokens
-token.transfer(recipient.address, amount, sender=owner)
-
-# Approve and transferFrom
-token.approve(spender.address, amount, sender=owner)
-token.transferFrom(owner.address, recipient.address, amount, sender=spender)
-```
-
-### Gasless Approvals
-```python
-# Create permit signature off-chain
-sig = create_permit_signature(owner_key, token, spender, amount, deadline)
-
-# Anyone can submit the permit
-token.permit(owner.address, spender.address, amount, deadline, sig)
-```
-
-### Blacklist Management
-```python
-# Add to blacklist
-token.setBlacklist(bad_actor.address, True, sender=authorized)
-
-# Burn blacklisted tokens
-token.burnBlacklistTokens(bad_actor.address, sender=governance)
-```
+`Erc20Token` is the shared implementation behind GREEN, RIPE, and Savings GREEN shares. It provides ERC-20 balances and allowances, EIP-2612/1271 permits, pause and blacklist controls, timelocked RipeHq rotation, protected burns, and the CCIP admin discovery hook.
+
+## Initialization
+
+The module stores immutable name, symbol, decimals, HQ timelock bounds, and
+EIP-712 domain data. Construction forbids setting both `ripeHq` and `initialGov`
+to nonzero addresses. It permits three initial states:
+
+- a nonzero RipeHq with no temporary governor; or
+- a temporary governor with no RipeHq, followed once by `finishTokenSetup`; or
+- both control addresses unset.
+
+The third state is permanently control-orphaned: `tempGov` remains zero, so no
+caller can complete setup, and HQ-dependent mint, pause, blacklist, rotation,
+and CCIP-admin routes have no usable authority. Ordinary holder operations
+remain subject to their own token-state checks.
+
+If `initialSupply` is nonzero and its recipient is neither zero nor the token contract, the constructor mints it and emits the standard transfer-from-zero event. The base module does not require a nonzero initial supply.
+
+## Transfers
+
+`transfer` and `transferFrom` reject:
+
+- a paused token;
+- zero amount;
+- zero or self recipient;
+- blacklisted sender or recipient; and
+- insufficient balance.
+
+`transferFrom` also rejects a blacklisted spender and consumes allowance unless it is `max_value(uint256)`. Infinite allowance is not decremented.
+
+## Approval and revocation behavior
+
+Creating or increasing spend authority requires an unpaused token and non-blacklisted owner and spender.
+
+Revocation is intentionally more available:
+
+- `approve(spender, 0)` requires only a nonzero spender;
+- `permit(..., value = 0, ...)` uses the same reduced spender check, while still requiring a valid, unexpired signature; and
+- `decreaseAllowance` requires only a nonzero spender and floors at zero.
+
+This allows an owner to reduce risk while the token or either party is paused/blacklisted. `increaseAllowance`, including a zero increase, uses the full new-approval checks. Nonzero `approve` and `permit` also use the full checks.
+
+## Permit validation
+
+The domain separator is cached for the chain ID observed at construction and
+recomputed if `chain.id` changes. Nonces increment only after successful
+signature validation.
+
+- Contract owners use ERC-1271 and must return `0x1626ba7e`.
+- EOA signatures must be exactly 65 bytes.
+- `v` is normalized from 0/1 to 27/28 when needed and must end as 27 or 28.
+- `s` must be nonzero and in the lower half of the secp256k1 order.
+- the recovered signer must equal `owner`.
+
+The owner must be nonzero and the deadline must not have passed.
+
+## Minting and burning
+
+Concrete token contracts expose their own mint authorization and call the module's `_mint`. Minting rejects a zero/self or blacklisted recipient and a paused token.
+
+`burn(amount)` is available while unpaused. Balance/supply underflow protects against burning more than the caller owns.
+
+For a token that also exposes an ERC-4626 `asset()` function:
+
+- a blacklisted share owner cannot use the ordinary burn route; and
+- burning the entire outstanding share supply is prohibited while the vault still holds underlying assets.
+
+Bare tokens such as GREEN and RIPE expose no `asset()` function, so a
+blacklisted holder may still burn its own bare-token balance.
+
+That full-supply guard prevents a nonzero underlying balance from becoming permanently unowned.
+
+## Blacklist administration and backing guards
+
+An address authorized by `RipeHq.canSetTokenBlacklist` may set blacklist state, except for zero and the token contract itself. RipeHq governance alone may call `burnBlacklistTokens` for a blacklisted holder.
+
+Two backing guards are critical:
+
+- GREEN governance cannot burn GREEN held by the Savings GREEN vault, because those tokens back sGREEN shares; and
+- for any ERC-4626 token using this module, governance cannot burn the full share supply while underlying remains in the vault.
+
+The blacklist burn amount is capped to the holder's actual balance and must be nonzero.
+
+## RipeHq lifecycle
+
+HQ rotation is block-timelocked and controlled by current RipeHq governance. A candidate must be a contract with settled governance and no pending governance change, expose the required mint/blacklist interfaces, and register a complete nonzero GREEN/sGREEN/RIPE suite containing this token.
+
+When rotating from an existing HQ, the entire token suite must be identical in old and new HQ. This continuity is especially important for the GREEN backing guard, which must continue to recognize the same Savings GREEN contract. The current HQ also cannot have a pending governance change.
+
+Confirmation clears the pending candidate and returns false only when
+revalidation completes and returns false. A reverting or malformed RipeHq
+dependency, or a failed interface probe, reverts the transaction and therefore
+preserves pending state.
+
+`finishTokenSetup(newHq, timeLock = 0)` is a one-time temporary-governor route. Zero time lock selects the immutable minimum; any explicit value must satisfy the immutable min/max bounds. The temporary governor is then cleared.
+
+## Pause control
+
+Current RipeHq governance alone may change `isPaused`, and the value must actually change. Pause blocks transfers, new approvals, minting, ordinary burns, and ERC-4626 entry/exit paths that rely on this module. Approval reduction/revocation remains available as described above.
+
+## CCIP admin discovery
+
+A token successfully constructed with a nonzero RipeHq exposes
+`getCCIPAdmin()` immediately. The getter returns the current RipeHq governance
+address.
+Chainlink's TokenAdminRegistry ownership module can use this getter to propose
+the token's CCIP administrator, who in turn can register or replace a token
+pool. In the temporary-governor path, the stored RipeHq is zero and the getter
+reverts until `finishTokenSetup` succeeds. The both-unset initialization state
+remains the permanently orphaned mode described above.
+
+This getter does not register a pool, configure a remote chain, or change rate
+limits. Those operations belong to the Chainlink administration contracts.
+
+## Integration requirements
+
+- Do not assume every approval operation is blocked during pause; reductions are deliberately permitted.
+- Preserve the full GREEN/sGREEN/RIPE suite across any HQ rotation.
+- Never burn Savings GREEN's backing GREEN through blacklist administration.
+- Treat `getCCIPAdmin` as an admin-discovery hook, not proof of CCIP activation.
+
+<!-- BEGIN GENERATED API REFERENCE: Erc20Token -->
+## Exact API reference
+
+> Generated from `contracts/tokens/modules/Erc20Token.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(string _tokenName, string _tokenSymbol, uint8 _tokenDecimals, address _ripeHq, address _initialGov, uint256 _minHqTimeLock, uint256 _maxHqTimeLock, uint256 _initialSupply, address _initialSupplyRecipient)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `burnBlacklistTokens(address _addr, uint256 _amount)` | `1–2` | `_amount = max_value(uint256)` |
+| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+
+### Functions
+
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `DOMAIN_SEPARATOR()` | `view` | `bytes32` | `bytes32` |
+| `TOKEN_DECIMALS()` | `view` | `uint8` | — |
+| `TOKEN_NAME()` | `view` | `string` | — |
+| `TOKEN_SYMBOL()` | `view` | `string` | — |
+| `VERSION()` | `view` | `string` | — |
+| `allowance(address arg0, address arg1)` | `view` | `uint256` | — |
+| `approve(address _spender, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `balanceOf(address arg0)` | `view` | `uint256` | — |
+| `blacklisted(address arg0)` | `view` | `bool` | — |
+| `burn(uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `burnBlacklistTokens(address _addr)` | `nonpayable` | `bool` | `bool` |
+| `burnBlacklistTokens(address _addr, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `cancelHqChange()` | `nonpayable` | — | — |
+| `confirmHqChange()` | `nonpayable` | `bool` | `bool` |
+| `decimals()` | `view` | `uint8` | `uint8` |
+| `decreaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `finishTokenSetup(address _newHq)` | `nonpayable` | `bool` | `bool` |
+| `finishTokenSetup(address _newHq, uint256 _timeLock)` | `nonpayable` | `bool` | `bool` |
+| `getCCIPAdmin()` | `view` | `address` | `address` |
+| `hasPendingHqChange()` | `view` | `bool` | `bool` |
+| `hqChangeTimeLock()` | `view` | `uint256` | — |
+| `increaseAllowance(address _spender, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `initiateHqChange(address _newHq)` | `nonpayable` | — | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidHqChangeTimeLock(uint256 _newTimeLock)` | `view` | `bool` | `bool` |
+| `isValidNewRipeHq(address _newHq)` | `view` | `bool` | `bool` |
+| `maxHqTimeLock()` | `view` | `uint256` | `uint256` |
+| `minHqTimeLock()` | `view` | `uint256` | `uint256` |
+| `name()` | `view` | `string` | `String[64]` |
+| `nonces(address arg0)` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingHq()` | `view` | `(address newHq, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `permit(address _owner, address _spender, uint256 _value, uint256 _deadline, bytes _signature)` | `nonpayable` | `bool` | `bool` |
+| `ripeHq()` | `view` | `address` | — |
+| `setBlacklist(address _addr, bool _shouldBlacklist)` | `nonpayable` | `bool` | `bool` |
+| `setHqChangeTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | `bool` |
+| `symbol()` | `view` | `string` | `String[32]` |
+| `totalSupply()` | `view` | `uint256` | — |
+| `transfer(address _recipient, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+| `transferFrom(address _sender, address _recipient, uint256 _amount)` | `nonpayable` | `bool` | `bool` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `Approval` | `address owner indexed, address spender indexed, uint256 amount` |
+| `BlacklistModified` | `address addr indexed, bool isBlacklisted` |
+| `HqChangeCancelled` | `address cancelledHq indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `HqChangeConfirmed` | `address prevHq indexed, address newHq indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `HqChangeInitiated` | `address prevHq indexed, address newHq indexed, uint256 confirmBlock` |
+| `HqChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `InitialRipeHqSet` | `address hq indexed, uint256 timeLock` |
+| `TokenPauseModified` | `bool isPaused` |
+| `Transfer` | `address sender indexed, address recipient indexed, uint256 amount` |
+
+### Structs declared by this source
+
+- `PendingHq(newHq: address, initiatedBlock: uint256, confirmBlock: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `already set`
+- `blacklisted`
+- `cannot burn 0 tokens`
+- `cannot burn vault backing`
+- `cannot set initial gov and ripe hq`
+- `cannot strand vault assets`
+- `cannot transfer 0 amount`
+- `insufficient allowance`
+- `insufficient funds`
+- `invalid blacklist recipient`
+- `invalid ecrecover response length`
+- `invalid interface`
+- `invalid new hq`
+- `invalid recipient`
+- `invalid ripe hq`
+- `invalid s value`
+- `invalid s value (zero)`
+- `invalid signature`
+- `invalid signature length`
+- `invalid spender`
+- `invalid time lock`
+- `invalid v parameter`
+- `no change`
+- `no pending change`
+- `no perms`
+- `not blacklisted`
+- `owner blacklisted`
+- `pending gov change`
+- `permit expired`
+- `recipient blacklisted`
+- `sender blacklisted`
+- `spender blacklisted`
+- `time lock not reached`
+- `token paused`
+
+<!-- END GENERATED API REFERENCE: Erc20Token -->

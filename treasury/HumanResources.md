@@ -1,531 +1,181 @@
-# HumanResources Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/HumanResources.vy)
-
-## Overview
-
-HumanResources re-imagines contributor compensation by bringing payroll onchain, managing token-based vesting schedules for protocol team members. Unlike traditional systems, it creates transparent, immutable compensation
-agreements through individually deployed Contributor contracts.
-
-**Key Functions**:
-- **Contract Deployment**: Creates personalized Contributor contracts with customized vesting schedules, cliff periods, and unlock timelines
-- **Compensation Management**: Handles RIPE token minting and distribution according to vesting schedules through the Ripe Gov Vault
-- **Security Controls**: Two-phase deployment with time-locks prevents rushed decisions and ensures careful compensation commitments
-- **Lifecycle Management**: Facilitates minting paychecks, transferring vested tokens, and handling cancellations with refunds
-- **Protocol Tracking**: Provides aggregate visibility into total compensation committed and claimed for sustainable tokenomics
-
-The system uses Vyper's create_from_blueprint for gas-efficient deployments, implements sophisticated validation based on protocol-wide HR limits, supports manager/owner separation, and includes emergency cancellation functions.
-
-## Architecture & Dependencies
-
-HumanResources is built as a Department with modular architecture:
-
-### Core Module Dependencies
-- **LocalGov**: Provides governance functionality with access control
-- **DeptBasics**: Department fundamentals (can mint RIPE only)
-- **TimeLock**: Time-locked changes for contributor deployment
-
-### Addys Module
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Key Features**:
-  - Access to all protocol contract addresses
-  - Resolution of Ledger, RipeGovVault, VaultBook, etc.
-  - Validation for authorized callers
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### External Contract Interfaces
-- **Ledger**: Tracks contributors and available RIPE for HR
-- **RipeGovVault**: Manages vested RIPE token positions
-- **RipeToken**: RIPE token minting and burning
-- **Teller**: Deposits tokens into vaults
-- **Lootbox**: Updates deposit points for engagement
-- **VaultBook**: Resolves vault addresses
-- **MissionControl**: Provides HR configuration and templates
-
-### Module Initialization
-```vyper
-initializes: addys
-initializes: deptBasics[addys := addys]
-initializes: gov
-initializes: timeLock[gov := gov]
-```
-
-### Department Configuration
-```vyper
-# In constructor
-deptBasics.__init__(False, False, True)  # canMintGreen=False, canMintRipe=True
-```
-
-## Data Structures
-
-### ContributorTerms Struct
-Complete specification for a contributor's compensation:
-```vyper
-struct ContributorTerms:
-    owner: address              # Who receives the tokens
-    manager: address            # Who can manage the position
-    compensation: uint256       # Total RIPE tokens allocated
-    startDelay: uint256         # Delay before vesting starts
-    vestingLength: uint256      # Total vesting duration
-    cliffLength: uint256        # Cliff period before any vesting
-    unlockLength: uint256       # When tokens become transferable
-    depositLockDuration: uint256 # Lock duration in Ripe Gov Vault
-```
-
-### HrConfig Struct (from MissionControl)
-Protocol-wide HR limits and configuration:
-```vyper
-struct HrConfig:
-    contribTemplate: address    # Blueprint for Contributor contracts
-    maxCompensation: uint256    # Maximum allowed compensation
-    minCliffLength: uint256     # Minimum cliff period
-    minVestingLength: uint256   # Minimum vesting duration
-    maxVestingLength: uint256   # Maximum vesting duration
-    maxStartDelay: uint256      # Maximum delay before start
-```
-
-## State Variables
-
-### Pending Operations
-- `pendingContributor: HashMap[uint256, ContributorTerms]` - Maps action ID to pending terms
-
-### Constants
-- `RIPE_GOV_VAULT_ID: constant(uint256) = 2` - Vault for contributor positions
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                      HumanResources Contract                          |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                 Contributor Deployment Flow                      |  |
-|  |                                                                  |  |
-|  |  initiateNewContributor():                                      |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Validate contributor terms against HR config             │ |  |
-|  |  │ 2. Check available RIPE balance for compensation            │ |  |
-|  |  │ 3. Create time-locked action with ContributorTerms          │ |  |
-|  |  │ 4. Store pending contributor with action ID                 │ |  |
-|  |  │ 5. Emit NewContributorInitiated event                       │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                            ↓ (timelock)                          |  |
-|  |  confirmNewContributor():                                        |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ 1. Re-validate terms (config may have changed)              │ |  |
-|  |  │ 2. Deploy Contributor contract from blueprint                │ |  |
-|  |  │ 3. Update Ledger with new contributor                       │ |  |
-|  |  │ 4. Clear pending data                                        │ |  |
-|  |  │ 5. Emit NewContributorConfirmed event                       │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Compensation Timeline                         |  |
-|  |                                                                  |  |
-|  |  Start    Cliff        Unlock           End                      |  |
-|  |    │        │             │              │                       |  |
-|  |    ▼        ▼             ▼              ▼                       |  |
-|  |  ──┬────────┬─────────────┬──────────────┬──                    |  |
-|  |    │   No   │   Vesting   │   Vesting    │                      |  |
-|  |    │ Vesting│   No Xfer   │   Can Xfer   │                      |  |
-|  |    └────────┴─────────────┴──────────────┘                      |  |
-|  |                                                                  |  |
-|  |  • Start: Vesting begins (block.timestamp + startDelay)         |  |
-|  |  • Cliff: First tokens become claimable                         |  |
-|  |  • Unlock: Vested tokens become transferable                    |  |
-|  |  • End: Full compensation vested                                |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Token Flow Management                         |  |
-|  |                                                                  |  |
-|  |  cashRipeCheck (from Contributor):                              |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ HR mints RIPE → Deposits to Ripe Gov Vault → Locked tokens  │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  transferContributorRipeTokens (from Contributor):              |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ Ripe Gov Vault → Transfer position → Update Lootbox points  │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  refundAfterCancelPaycheck (from Contributor):                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ Return unvested to Ledger → Optionally burn tokens         │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-                  ┌─────────────────┴─────────────────┐
-                  ▼                                   ▼
-+----------------------------------+  +----------------------------------+
-|        Contributor Contracts     |  |      Protocol Components         |
-+----------------------------------+  +----------------------------------+
-| • Individual vesting contracts   |  | • Ledger: Tracks allocations    |
-| • Owner/Manager permissions      |  | • Ripe Gov Vault: Holds tokens  |
-| • Cliff and unlock enforcement   |  | • MissionControl: HR config      |
-| • Delegation capabilities        |  | • Lootbox: Engagement points     |
-+----------------------------------+  +----------------------------------+
-```
-
-## Constructor
-
-### `__init__`
-
-Initializes HumanResources with governance and timelock settings.
-
-```vyper
-@deploy
-def __init__(
-    _ripeHq: address,
-    _minConfigTimeLock: uint256,
-    _maxConfigTimeLock: uint256,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract for protocol integration |
-| `_minConfigTimeLock` | `uint256` | Minimum blocks for contributor deployment |
-| `_maxConfigTimeLock` | `uint256` | Maximum blocks for contributor deployment |
-
-#### Deployment Behavior
-- Initializes as a Department that can only mint RIPE
-- Sets up governance through RipeHq
-- Configures timelock bounds for operations
-
-#### Example Usage
-```python
-hr = boa.load(
-    "contracts/core/HumanResources.vy",
-    ripe_hq.address,
-    100,   # Min 100 blocks for changes
-    1000   # Max 1000 blocks for changes
-)
-```
-
-## Contributor Management Functions
-
-### `initiateNewContributor`
-
-Starts the process of deploying a new Contributor contract with specified terms.
-
-```vyper
-@external
-def initiateNewContributor(
-    _owner: address,
-    _manager: address,
-    _compensation: uint256,
-    _startDelay: uint256,
-    _vestingLength: uint256,
-    _cliffLength: uint256,
-    _unlockLength: uint256,
-    _depositLockDuration: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_owner` | `address` | Who receives the vested tokens |
-| `_manager` | `address` | Who can manage the contributor contract |
-| `_compensation` | `uint256` | Total RIPE tokens to vest |
-| `_startDelay` | `uint256` | Seconds until vesting starts |
-| `_vestingLength` | `uint256` | Total vesting duration in seconds |
-| `_cliffLength` | `uint256` | Cliff period in seconds |
-| `_unlockLength` | `uint256` | When tokens become transferable |
-| `_depositLockDuration` | `uint256` | Lock duration in blocks for vault |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Action ID for the pending deployment |
-
-#### Access
-
-Only callable by governance
-
-#### Validation
-- Compensation must not exceed available RIPE for HR
-- Terms must comply with HrConfig limits
-- Cliff ≤ Unlock ≤ Vesting length
-- Addresses must be valid
-
-#### Events Emitted
-
-- `NewContributorInitiated` - Contains all terms and confirmation block
-
-#### Example Usage
-```python
-# Deploy contributor with 1M RIPE over 4 years
-action_id = hr.initiateNewContributor(
-    alice.address,      # owner
-    alice.address,      # manager (can be different)
-    10**6 * 10**18,     # 1M RIPE
-    0,                  # Start immediately
-    4 * 365 * 86400,    # 4 year vesting
-    365 * 86400,        # 1 year cliff
-    2 * 365 * 86400,    # 2 year unlock
-    26000,              # ~3 month lock in vault
-    sender=governance
-)
-```
-
-### `confirmNewContributor`
-
-Confirms and deploys a pending Contributor contract after timelock.
-
-```vyper
-@external
-def confirmNewContributor(_aid: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_aid` | `uint256` | Action ID from initiation |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if deployment successful |
-
-#### Process Flow
-1. **Re-validation**: Terms still valid with current config
-2. **Timelock Check**: Sufficient time has passed
-3. **Blueprint Deploy**: Creates Contributor from template
-4. **Ledger Update**: Registers contributor and compensation
-5. **Cleanup**: Clears pending data
-
-#### Events Emitted
-
-- `NewContributorConfirmed` - Includes deployed address and terms
-
-### `cancelNewContributor`
-
-Cancels a pending contributor deployment.
-
-```vyper
-@external
-def cancelNewContributor(_aid: uint256) -> bool:
-```
-
-## Contributor Operations
-
-### `cashRipeCheck`
-
-Called by Contributor contracts to mint and deposit vested RIPE.
-
-```vyper
-@external
-def cashRipeCheck(_amount: uint256, _lockDuration: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_amount` | `uint256` | Amount of RIPE to mint |
-| `_lockDuration` | `uint256` | Lock duration in blocks |
-
-#### Access
-
-Only callable by registered HR contributors
-
-#### Process
-1. Mints RIPE tokens to HumanResources
-2. Approves Teller for deposit
-3. Deposits into Ripe Gov Vault for caller
-4. Resets approval to zero
-
-### `transferContributorRipeTokens`
-
-Transfers a contributor's vested position to their owner.
-
-```vyper
-@external
-def transferContributorRipeTokens(_owner: address, _lockDuration: uint256) -> uint256:
-```
-
-#### Process
-1. Validates caller is HR contributor
-2. Transfers position in Ripe Gov Vault
-3. Updates Ledger for new owner
-4. Updates Lootbox points
-
-### `refundAfterCancelPaycheck`
-
-Handles refunds when a contributor's paycheck is cancelled.
-
-```vyper
-@external
-def refundAfterCancelPaycheck(_amount: uint256, _shouldBurnPosition: bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_amount` | `uint256` | Unvested amount to refund |
-| `_shouldBurnPosition` | `bool` | Whether to burn existing position |
-
-## Validation Functions
-
-### `areValidContributorTerms`
-
-Public validation of contributor terms.
-
-```vyper
-@view
-@external
-def areValidContributorTerms(
-    _owner: address,
-    _manager: address,
-    _compensation: uint256,
-    _startDelay: uint256,
-    _vestingLength: uint256,
-    _cliffLength: uint256,
-    _unlockLength: uint256,
-    _depositLockDuration: uint256,
-) -> bool:
-```
-
-#### Validation Rules
-1. **Template Exists**: HR config has contributor template
-2. **Compensation Valid**: 
-   - Greater than zero
-   - Within available RIPE balance
-   - Below max compensation limit
-3. **Time Periods**:
-   - Cliff > 0 and >= minimum
-   - Vesting > 0 and within min/max
-   - Unlock ≤ Vesting
-   - Cliff ≤ Unlock
-   - Start delay ≤ maximum
-4. **Addresses**: Owner and manager not empty
-
-## View Functions
-
-### `canModifyHrContributor`
-
-Checks if an address can modify contributor contracts.
-
-```vyper
-@view
-@external
-def canModifyHrContributor(_addr: address) -> bool:
-```
-
-Returns true for Switchboard addresses.
-
-### `hasRipeBalance`
-
-Checks if a contributor has RIPE in the gov vault.
-
-```vyper
-@view
-@external
-def hasRipeBalance(_contributor: address) -> bool:
-```
-
-### `getTotalClaimed`
-
-Returns total RIPE claimed by all contributors.
-
-```vyper
-@view
-@external
-def getTotalClaimed() -> uint256:
-```
-
-Iterates through all contributors summing claimed amounts.
-
-### `getTotalCompensation`
-
-Returns total RIPE allocated to all contributors.
-
-```vyper
-@view
-@external
-def getTotalCompensation() -> uint256:
-```
-
-## Events
-
-### Deployment Events
-- `NewContributorInitiated` - Deployment started
-- `NewContributorConfirmed` - Contributor deployed
-- `NewContributorCancelled` - Deployment cancelled
-
-All events include complete ContributorTerms and action details.
-
-## Security Considerations
-
-### Access Control
-- **Governance Only**: Contributor deployment restricted
-- **Contributor Registry**: Only registered contributors can mint
-- **Switchboard Override**: Emergency admin capabilities
-
-### Economic Security
-- **Balance Checks**: Cannot exceed available RIPE
-- **Time Locks**: Prevents rushed deployments
-- **Validation**: Re-checks on confirmation
-
-### Integration Safety
-- **Blueprint Deploy**: Gas-efficient, deterministic
-- **Approval Management**: Resets after operations
-- **Event Logging**: Full transparency
-
-## Common Integration Patterns
-
-### Deploying a Contributor
-```python
-# 1. Check available balance
-available = ledger.ripeAvailForHr()
-print(f"Available for HR: {available / 10**18} RIPE")
-
-# 2. Initiate deployment
-aid = hr.initiateNewContributor(
-    contributor.address,
-    manager.address,
-    compensation,
-    0,  # Start immediately
-    4 * 365 * 86400,  # 4 years
-    365 * 86400,      # 1 year cliff
-    365 * 86400,      # 1 year unlock
-    26000,            # 3 month lock
-    sender=governance
-)
-
-# 3. Wait for timelock
-wait_blocks(timelock_duration)
-
-# 4. Confirm deployment
-success = hr.confirmNewContributor(aid, sender=governance)
-```
-
-### Monitoring Contributors
-```python
-# Get all contributors
-num_contributors = ledger.numContributors()
-for i in range(1, num_contributors + 1):
-    addr = ledger.contributors(i)
-    comp = contributor_contract.compensation()
-    claimed = contributor_contract.totalClaimed()
-    print(f"Contributor {addr}: {comp/10**18} allocated, {claimed/10**18} claimed")
-
-# Protocol totals
-total_comp = hr.getTotalCompensation()
-total_claimed = hr.getTotalClaimed()
-print(f"Total: {total_comp/10**18} allocated, {total_claimed/10**18} claimed")
-```
+# HumanResources
+
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/HumanResources.vy)
+
+## Purpose
+
+`HumanResources` governs creation of [Contributor](./Contributor.md) vesting instances and provides their privileged RIPE mint, governance-vault transfer, and cancellation accounting routes. It can mint RIPE but not GREEN.
+
+## Timelocked contributor creation
+
+Governance calls `initiateNewContributor` to store proposed terms under an action ID. `confirmNewContributor` revalidates those terms after the configured timelock and creates a clone from the currently configured contributor blueprint. If terms have become invalid before confirmation, the pending action is cancelled and confirmation returns false.
+
+Validation includes:
+
+- a configured contributor template and valid owner/manager;
+- nonzero compensation within the HR reserve and configured cap;
+- nonzero cliff and vesting lengths within configured bounds;
+- `cliffLength <= unlockLength <= vestingLength`;
+- start-delay and arithmetic overflow bounds; and
+- a contributor lock agreement satisfying `0 < depositLockDuration <=` the
+  current RipeGov maximum.
+
+A contributor agreement may be below the current general RipeGov minimum lock.
+Once confirmed, later changes to the general minimum or maximum do not rewrite
+its agreed lock term.
+
+## Paychecks and current RipeGov vault
+
+Only a registered Contributor instance may call `cashRipeCheck`, `transferContributorRipeTokens`, or `refundAfterCancelPaycheck`. Cashing a check mints the exact RIPE amount and deposits it through Teller into MissionControl's current `coreRipeGovVaultId`. There is no hardcoded current vault ID.
+
+Contributor-position transfers preserve the supplied agreement lock, update Ledger membership, and checkpoint Lootbox points for sender and recipient.
+
+## Historical contributor positions
+
+`legacyContributorRipeGovVaultId` lets an existing contributor continue to address a balance held in a recognized historical RipeGov vault. The general `getRipeGovVaultId(0)` lookup resolves to the current core vault. Contributor settlement routes given vault ID zero first consult the contributor's legacy mapping and fall back to the current core vault only when that mapping is also zero. Any nonzero ID must pass MissionControl's historical/current RipeGov classification.
+
+`setLegacyContributorRipeGovVaultId` may be called by Switchboard or by that contributor's owner or manager. A nonzero choice must identify a registered RipeGov vault in which the contributor actually has RIPE. The mapping is used for balance, transfer, refund, and burn routing and is cleared when the defaulted legacy position is consumed.
+
+## Cancellation accounting
+
+When a contributor cancels its paycheck, HumanResources credits no more than the uint256-safe remaining HR reserve capacity. If the position must be burned, it withdraws through the selected RipeGov vault, burns no more RIPE than it actually received, checkpoints Lootbox, and performs Teller housekeeping.
+
+`getTotalClaimed` and `getTotalCompensation` aggregate registered contributors and saturate at `max_value(uint256)` instead of overflowing.
+
+## Authority and lifecycle
+
+Governance controls pending contributor creation/cancellation through the
+timelock. Switchboard is recognized by Contributor instances as the external HR
+modifier for freeze and cancellation actions. Department pause state gates
+creation and contributor settlement routes. Events distinguish initiation,
+confirmation, cancellation, and historical-vault selection; callers should not
+treat an initiated action as completed creation.
+
+<!-- BEGIN GENERATED API REFERENCE: HumanResources -->
+## Exact API reference
+
+> Generated from `contracts/core/HumanResources.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, uint256 _minConfigTimeLock, uint256 _maxConfigTimeLock)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `1–2` | `_timeLock = 0` |
+| `getRipeGovVaultId(uint256 _vaultId)` | `0–1` | `_vaultId = 0` |
+| `hasRipeBalance(address _contributor, uint256 _vaultId)` | `1–2` | `_vaultId = 0` |
+| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition, uint256 _vaultId)` | `2–3` | `_vaultId = 0` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `0–1` | `_newTimeLock = 0` |
+| `transferContributorRipeTokens(address _owner, uint256 _lockDuration, uint256 _vaultId)` | `2–3` | `_vaultId = 0` |
+
+### Functions
+
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `actionId()` | `view` | `uint256` | — |
+| `actionTimeLock()` | `view` | `uint256` | — |
+| `areValidContributorTerms(address _owner, address _manager, uint256 _compensation, uint256 _startDelay, uint256 _vestingLength, uint256 _cliffLength, uint256 _unlockLength, uint256 _depositLockDuration)` | `view` | `bool` | `bool` |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` | — |
+| `canGovern(address _addr)` | `view` | `bool` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `canModifyHrContributor(address _addr)` | `view` | `bool` | `bool` |
+| `cancelGovernanceChange()` | `nonpayable` | — | — |
+| `cancelNewContributor(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `cashRipeCheck(uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `bool` | `bool` |
+| `confirmGovernanceChange()` | `nonpayable` | — | — |
+| `confirmNewContributor(uint256 _aid)` | `nonpayable` | `bool` | `bool` |
+| `expiration()` | `view` | `uint256` | — |
+| `finishRipeHqSetup(address _newGov)` | `nonpayable` | `bool` | — |
+| `finishRipeHqSetup(address _newGov, uint256 _timeLock)` | `nonpayable` | `bool` | — |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getGovernors()` | `view` | `address[]` | — |
+| `getRipeGovVaultId()` | `view` | `uint256` | `uint256` |
+| `getRipeGovVaultId(uint256 _vaultId)` | `view` | `uint256` | `uint256` |
+| `getRipeHq()` | `view` | `address` | — |
+| `getRipeHqFromGov()` | `view` | `address` | — |
+| `getTotalClaimed()` | `view` | `uint256` | `uint256` |
+| `getTotalCompensation()` | `view` | `uint256` | `uint256` |
+| `govChangeTimeLock()` | `view` | `uint256` | — |
+| `governance()` | `view` | `address` | — |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` | — |
+| `hasPendingGovChange()` | `view` | `bool` | — |
+| `hasRipeBalance(address _contributor)` | `view` | `bool` | `bool` |
+| `hasRipeBalance(address _contributor, uint256 _vaultId)` | `view` | `bool` | `bool` |
+| `initiateNewContributor(address _owner, address _manager, uint256 _compensation, uint256 _startDelay, uint256 _vestingLength, uint256 _cliffLength, uint256 _unlockLength, uint256 _depositLockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `isValidGovTimeLock(uint256 _newTimeLock)` | `view` | `bool` | — |
+| `legacyContributorRipeGovVaultId(address arg0)` | `view` | `uint256` | — |
+| `maxActionTimeLock()` | `view` | `uint256` | — |
+| `maxGovChangeTimeLock()` | `view` | `uint256` | — |
+| `minActionTimeLock()` | `view` | `uint256` | — |
+| `minGovChangeTimeLock()` | `view` | `uint256` | — |
+| `numGovChanges()` | `view` | `uint256` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `pendingActions(uint256 arg0)` | `view` | `(uint256 initiatedBlock, uint256 confirmBlock, uint256 expiration)` | — |
+| `pendingContributor(uint256 arg0)` | `view` | `(address owner, address manager, uint256 compensation, uint256 startDelay, uint256 vestingLength, uint256 cliffLength, uint256 unlockLength, uint256 depositLockDuration)` | — |
+| `pendingGov()` | `view` | `(address newGov, uint256 initiatedBlock, uint256 confirmBlock)` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition)` | `nonpayable` | — | — |
+| `refundAfterCancelPaycheck(uint256 _amount, bool _shouldBurnPosition, uint256 _vaultId)` | `nonpayable` | — | — |
+| `relinquishGov()` | `nonpayable` | — | — |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` | — |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` | — |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` | — |
+| `setGovTimeLock(uint256 _numBlocks)` | `nonpayable` | `bool` | — |
+| `setLegacyContributorRipeGovVaultId(address _contributor, uint256 _vaultId)` | `nonpayable` | — | — |
+| `startGovernanceChange(address _newGov)` | `nonpayable` | — | — |
+| `transferContributorRipeTokens(address _owner, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `transferContributorRipeTokens(address _owner, uint256 _lockDuration, uint256 _vaultId)` | `nonpayable` | `uint256` | `uint256` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `ActionTimeLockSet` | `uint256 newTimeLock, uint256 prevTimeLock` |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+| `ExpirationSet` | `uint256 expiration` |
+| `GovChangeCancelled` | `address cancelledGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeConfirmed` | `address prevGov indexed, address newGov indexed, uint256 initiatedBlock, uint256 confirmBlock` |
+| `GovChangeStarted` | `address prevGov indexed, address newGov indexed, uint256 confirmBlock` |
+| `GovChangeTimeLockModified` | `uint256 prevTimeLock, uint256 newTimeLock` |
+| `GovRelinquished` | `address prevGov indexed` |
+| `LegacyContributorRipeGovVaultSet` | `address contributor indexed, uint256 vaultId, address changedBy indexed` |
+| `NewContributorCancelled` | `address owner indexed, address manager indexed, uint256 compensation, uint256 startDelay, uint256 vestingLength, uint256 cliffLength, uint256 unlockLength, uint256 depositLockDuration, uint256 confirmationBlock, uint256 actionId` |
+| `NewContributorConfirmed` | `address contributorAddr indexed, address owner indexed, address manager indexed, uint256 compensation, uint256 startDelay, uint256 vestingLength, uint256 cliffLength, uint256 unlockLength, uint256 depositLockDuration, uint256 actionId` |
+| `NewContributorInitiated` | `address owner indexed, address manager indexed, uint256 compensation, uint256 startDelay, uint256 vestingLength, uint256 cliffLength, uint256 unlockLength, uint256 depositLockDuration, uint256 confirmationBlock, uint256 actionId` |
+| `RipeHqSetupFinished` | `address prevGov indexed, address newGov indexed, uint256 timeLock` |
+
+### Structs declared by this source
+
+- `ContributorTerms(owner: address, manager: address, compensation: uint256, startDelay: uint256, vestingLength: uint256, cliffLength: uint256, unlockLength: uint256, depositLockDuration: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `cannot cancel action`
+- `contract paused`
+- `could not deploy`
+- `invalid terms`
+- `invalid vault id`
+- `no balance`
+- `no pending contributor`
+- `no perms`
+- `not a contributor`
+- `ripe approval failed`
+- `ripe burn failed`
+- `time lock not reached`
+
+<!-- END GENERATED API REFERENCE: HumanResources -->

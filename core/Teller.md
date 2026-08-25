@@ -1,1641 +1,393 @@
-# Teller Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/Teller.vy)
-
-## Overview
-
-Teller is the primary gateway to the Ripe Protocol, serving as a unified interface for all user operations. Like a comprehensive banking teller, it orchestrates complex multi-contract operations while providing user-friendly
-interfaces and robust permission management.
-
-**Unified Operations**:
-- **Asset Management**: Deposits, withdrawals with automatic vault selection, configurable limits, and batch operations
-- **Credit Services**: Borrowing against collateral and debt repayment with support for both Green and Savings Green tokens
-- **Market Participation**: Liquidations, auction purchases, stability pool interactions, and collateral redemption
-- **Rewards & Governance**: Loot claiming, Ripe bond purchases, and governance vault management
-- **Delegation System**: Comprehensive permissions allowing authorized proxy operations with Underscore wallet integration
-
-The contract abstracts protocol complexity through automatic vault selection, batch processing for gas efficiency, flexible payment handling, sophisticated permission hierarchies, and comprehensive event logging while maintaining security through thoughtful validation layers. It interfaces with [CreditEngine](CreditEngine.md) for borrowing operations, [VaultBook](../core-modules/VaultBook.md) for vault validation, and [Lootbox](../treasury/Lootbox.md) for rewards coordination.
-
-## Architecture & Modules
-
-Teller is built using a modular architecture with the following components:
-
-### Addys Module
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Key Features**:
-  - Access to all protocol contract addresses
-  - Validation of caller permissions
-  - Centralized address management
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### DeptBasics Module
-- **Location**: `contracts/modules/DeptBasics.vy`
-- **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
-- **Key Features**:
-  - Pause mechanism for emergency stops
-  - No minting capabilities (Teller is interface only)
-- **Exported Interface**: Department basics via `deptBasics.__interface__`
-
-### Module Initialization
-```vyper
-initializes: addys
-initializes: deptBasics[addys := addys]
-```
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                         Teller Contract                                |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    User Interface Layer                          |  |
-|  |                                                                  |  |
-|  |  Single Entry Point for All User Operations:                    |  |
-|  |  - Deposits & Withdrawals                                        |  |
-|  |  - Borrowing & Repayment                                         |  |
-|  |  - Liquidations & Auctions                                       |  |
-|  |  - Stability Pool Operations                                     |  |
-|  |  - Reward Claims & Bond Purchases                                |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                   Permission & Validation                        |  |
-|  |                                                                  |  |
-|  |  Access Controls:                                                |  |
-|  |  - User ownership verification                                   |  |
-|  |  - Delegation system support                                     |  |
-|  |  - Underscore wallet integration                                 |  |
-|  |  - Operation-specific permissions                                |  |
-|  |                                                                  |  |
-|  |  Validation Logic:                                               |  |
-|  |  - Deposit limits (per-user, global)                            |  |
-|  |  - Asset compatibility checks                                    |  |
-|  |  - Vault capacity validation                                     |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Operation Routing                          |  |
-|  |                                                                  |  |
-|  |  Smart Contract Orchestration:                                   |  |
-|  |  - Automatic vault selection                                     |  |
-|  |  - Multi-contract operation coordination                         |  |
-|  |  - Batch processing optimization                                 |  |
-|  |  - Event emission & logging                                      |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| Vault System     |    | CreditEngine      |    | AuctionHouse     |
-| * Asset storage  |    | * Borrowing       |    | * Liquidations   |
-| * User deposits  |    | * Debt management |    | * Auctions       |
-| * Yield tracking |    | * Collateral calc |    | * Price discover |
-+------------------+    +-------------------+    +------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| StabVault        |    | Lootbox           |    | BondRoom         |
-| * Stability pool |    | * Reward claims   |    | * Bond sales     |
-| * Green claims   |    | * Points tracking |    | * Ripe purchase  |
-+------------------+    +-------------------+    +------------------+
-```
-
-## Data Structures
-
-### TellerDepositConfig Struct
-Deposit validation configuration:
-```vyper
-struct TellerDepositConfig:
-    canDepositGeneral: bool          # Global deposits enabled
-    canDepositAsset: bool            # Asset deposits enabled
-    doesVaultSupportAsset: bool      # Vault-asset compatibility
-    isUserAllowed: bool              # User whitelist check
-    perUserDepositLimit: uint256     # Per-user deposit cap
-    globalDepositLimit: uint256      # Protocol-wide cap
-    perUserMaxAssetsPerVault: uint256  # Asset diversity limit
-    perUserMaxVaults: uint256        # Vault count limit
-    canAnyoneDeposit: bool           # Allow proxy deposits
-    minDepositBalance: uint256       # Minimum position size
-```
-
-### TellerWithdrawConfig Struct
-Withdrawal validation configuration:
-```vyper
-struct TellerWithdrawConfig:
-    canWithdrawGeneral: bool         # Global withdrawals enabled
-    canWithdrawAsset: bool           # Asset withdrawals enabled
-    isUserAllowed: bool              # User whitelist check
-    canWithdrawForUser: bool         # Allow proxy withdrawals
-    minDepositBalance: uint256       # Minimum remaining balance
-```
-
-### DepositAction Struct
-Batch deposit specification:
-```vyper
-struct DepositAction:
-    asset: address                   # Asset to deposit
-    amount: uint256                  # Amount to deposit
-    vaultAddr: address               # Target vault address
-    vaultId: uint256                 # Target vault ID
-```
-
-### WithdrawalAction Struct
-Batch withdrawal specification:
-```vyper
-struct WithdrawalAction:
-    asset: address                   # Asset to withdraw
-    amount: uint256                  # Amount to withdraw
-    vaultAddr: address               # Source vault address
-    vaultId: uint256                 # Source vault ID
-```
-
-## State Variables
-
-### Constants
-- `MAX_BALANCE_ACTION: uint256 = 20` - Batch operation limit
-- `MAX_CLAIM_USERS: uint256 = 25` - Batch claim limit
-- `MAX_COLLATERAL_REDEMPTIONS: uint256 = 20` - Redemption batch limit
-- `MAX_AUCTION_PURCHASES: uint256 = 20` - Auction batch limit
-- `MAX_LIQ_USERS: uint256 = 50` - Liquidation batch limit
-- `MAX_STAB_CLAIMS: uint256 = 15` - Stability pool claim limit
-- `MAX_STAB_REDEMPTIONS: uint256 = 15` - Stability pool redemption limit
-- `MAX_DELEVERAGE_USERS: uint256 = 25` - Deleverage batch limit
-- `MAX_DELEVERAGE_ASSETS: uint256 = 25` - Assets per deleverage limit
-- `STABILITY_POOL_ID: uint256 = 1` - Stability pool vault ID
-- `RIPE_GOV_VAULT_ID: uint256 = 2` - Governance vault ID
-- `CURVE_PRICES_ID: uint256 = 2` - Curve prices registry ID
-
-### Inherited State Variables
-From [DeptBasics](../core-modules/DeptBasics.md):
-- `isPaused: bool` - Department pause state
-
-## Constructor
-
-### `__init__`
-
-Initializes Teller as the protocol's user interface layer.
-
-```vyper
-@deploy
-def __init__(_ripeHq: address, _shouldPause: bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract address |
-| `_shouldPause` | `bool` | Whether to start paused |
-
-#### Returns
-
-*Constructor does not return any values*
-
-#### Access
-
-Called only during deployment
-
-#### Example Usage
-```python
-# Deploy Teller
-teller = boa.load(
-    "contracts/core/Teller.vy",
-    ripe_hq.address,
-    False  # Don't start paused
-)
-```
-
-**Example Output**: Contract deployed as protocol interface layer
-
-## Deposit Functions
-
-### `deposit`
-
-Deposits assets into vaults with automatic vault selection.
-
-```vyper
-@nonreentrant
-@external
-def deposit(
-    _asset: address,
-    _amount: uint256 = max_value(uint256),
-    _user: address = msg.sender,
-    _vaultAddr: address = empty(address),
-    _vaultId: uint256 = 0,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to deposit |
-| `_amount` | `uint256` | Amount to deposit (max for all balance) |
-| `_user` | `address` | Recipient user (defaults to caller) |
-| `_vaultAddr` | `address` | Specific vault address (optional) |
-| `_vaultId` | `uint256` | Specific vault ID (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount deposited |
-
-#### Access
-
-Public function with permission checks
-
-#### Events Emitted
-
-- `TellerDeposit` - Complete deposit details including user, depositor, asset, amount, and vault info
-
-#### Example Usage
-```python
-# Simple deposit - auto-selects vault
-amount_deposited = teller.deposit(
-    usdc.address,
-    1000_000000  # 1000 USDC
-)
-
-# Deposit for another user (if permitted)
-amount_deposited = teller.deposit(
-    weth.address,
-    5_000000000000000000,  # 5 ETH
-    recipient.address,
-    vault_addr,
-    vault_id
-)
-```
-
-**Example Output**: Validates permissions, transfers tokens, updates vault balances
-
-### `depositMany`
-
-Batch deposits multiple assets/amounts in single transaction.
-
-```vyper
-@nonreentrant
-@external
-def depositMany(_user: address, _deposits: DynArray[DepositAction, MAX_BALANCE_ACTION]) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | Recipient user |
-| `_deposits` | `DynArray[DepositAction, 20]` | Deposit specifications |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Number of deposits executed |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Batch deposit multiple assets
-deposits = [
-    DepositAction(usdc.address, 1000_000000, vault1, 0),
-    DepositAction(weth.address, 5e18, vault2, 0),
-    DepositAction(wbtc.address, 2e8, vault3, 0)
-]
-count = teller.depositMany(user.address, deposits)
-```
-
-### `depositFromTrusted`
-
-Internal deposit function for protocol contracts.
-
-```vyper
-@external
-def depositFromTrusted(
-    _user: address,
-    _vaultId: uint256,
-    _asset: address,
-    _amount: uint256,
-    _lockDuration: uint256,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User receiving deposit |
-| `_vaultId` | `uint256` | Target vault ID |
-| `_asset` | `address` | Asset to deposit |
-| `_amount` | `uint256` | Amount to deposit |
-| `_lockDuration` | `uint256` | Lock duration (for governance vault) |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Amount deposited |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-## Withdrawal Functions
-
-### `withdraw`
-
-Withdraws assets from vaults with health checks.
-
-```vyper
-@nonreentrant
-@external
-def withdraw(
-    _asset: address,
-    _amount: uint256 = max_value(uint256),
-    _user: address = msg.sender,
-    _vaultAddr: address = empty(address),
-    _vaultId: uint256 = 0,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to withdraw |
-| `_amount` | `uint256` | Amount to withdraw (max for all) |
-| `_user` | `address` | User to withdraw from |
-| `_vaultAddr` | `address` | Specific vault address (optional) |
-| `_vaultId` | `uint256` | Specific vault ID (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount withdrawn |
-
-#### Access
-
-Public function with permission checks
-
-#### Events Emitted
-
-- `TellerWithdrawal` - Complete withdrawal details including depletion status
-
-#### Example Usage
-```python
-# Withdraw USDC
-amount_withdrawn = teller.withdraw(
-    usdc.address,
-    500_000000  # 500 USDC
-)
-
-# Withdraw all of an asset
-amount_withdrawn = teller.withdraw(
-    weth.address,
-    sender=user.address
-)
-```
-
-### `withdrawMany`
-
-Batch withdrawals in single transaction.
-
-```vyper
-@nonreentrant
-@external
-def withdrawMany(_user: address, _withdrawals: DynArray[WithdrawalAction, MAX_BALANCE_ACTION]) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to withdraw from |
-| `_withdrawals` | `DynArray[WithdrawalAction, 20]` | Withdrawal specifications |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Number of withdrawals executed |
-
-#### Access
-
-Public function with permission checks
-
-## Rebalance Functions
-
-### `rebalance`
-
-Swaps collateral by depositing one asset and withdrawing another while maintaining debt health.
-
-```vyper
-@external
-def rebalance(
-    _depositAsset: address,
-    _depositVaultId: uint256,
-    _withdrawAsset: address,
-    _withdrawVaultId: uint256,
-    _depositAmount: uint256 = max_value(uint256),
-    _withdrawAmount: uint256 = max_value(uint256),
-    _user: address = msg.sender,
-) -> (uint256, uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_depositAsset` | `address` | Asset to deposit |
-| `_depositVaultId` | `uint256` | Vault ID to deposit into |
-| `_withdrawAsset` | `address` | Asset to withdraw |
-| `_withdrawVaultId` | `uint256` | Vault ID to withdraw from |
-| `_depositAmount` | `uint256` | Amount to deposit (max for all) |
-| `_withdrawAmount` | `uint256` | Amount to withdraw (max for all) |
-| `_user` | `address` | User to rebalance for |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(uint256, uint256)` | (withdrawnAmount, depositedAmount) |
-
-#### Access
-
-Public function with permission checks
-
-#### Events Emitted
-
-- `TellerRebalance` - Rebalance details including both deposit and withdrawal info
-
-#### Example Usage
-```python
-# Rebalance from WETH to USDC
-withdrawn, deposited = teller.rebalance(
-    usdc.address,     # Deposit USDC
-    1,                # Into vault 1
-    weth.address,     # Withdraw WETH
-    1,                # From vault 1
-    1000e6,           # Deposit 1000 USDC
-    1e18,             # Withdraw 1 WETH
-    user.address
-)
-```
-
-## Credit Functions
-
-### `borrow`
-
-Borrows Green tokens against collateral.
-
-```vyper
-@nonreentrant
-@external
-def borrow(
-    _greenAmount: uint256 = max_value(uint256),
-    _user: address = msg.sender,
-    _wantsSavingsGreen: bool = True,
-    _shouldEnterStabPool: bool = False,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_greenAmount` | `uint256` | Amount to borrow (max = maximum borrowable) |
-| `_user` | `address` | User to borrow for (default: caller) |
-| `_wantsSavingsGreen` | `bool` | Receive as sGreen (default: True) |
-| `_shouldEnterStabPool` | `bool` | Auto-deposit to stability pool |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Amount borrowed after fees |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Borrow max Green tokens as sGreen (defaults)
-amount_borrowed = teller.borrow()
-
-# Borrow specific amount
-amount_borrowed = teller.borrow(
-    1000e18,       # 1000 Green
-    user.address,
-    True,          # Want sGreen
-    False          # Don't enter stability pool
-)
-```
-
-### `repay`
-
-Repays debt using Green or Savings Green tokens.
-
-```vyper
-@nonreentrant
-@external
-def repay(
-    _paymentAmount: uint256 = max_value(uint256),
-    _user: address = msg.sender,
-    _isPaymentSavingsGreen: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_paymentAmount` | `uint256` | Amount to repay (max = full debt) |
-| `_user` | `address` | User whose debt to repay (default: caller) |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if debt health restored |
-
-#### Access
-
-Public function with permission checks
-
-## Liquidation Functions
-
-### `liquidateUser`
-
-Liquidates a single unhealthy position. The caller (msg.sender) acts as the keeper and receives the liquidation rewards.
-
-```vyper
-@nonreentrant
-@external
-def liquidateUser(
-    _liqUser: address,
-    _wantsSavingsGreen: bool = True,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_liqUser` | `address` | User to liquidate |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen (default: True) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Keeper rewards received |
-
-#### Access
-
-Public function
-
-#### Example Usage
-```python
-# Liquidate unhealthy position (caller is keeper)
-keeper_rewards = teller.liquidateUser(
-    underwater_user.address,
-    True  # Want sGreen rewards
-)
-
-# Liquidate with default sGreen rewards
-keeper_rewards = teller.liquidateUser(underwater_user.address)
-```
-
-### `liquidateManyUsers`
-
-Batch liquidates multiple positions. The caller (msg.sender) acts as the keeper and receives the liquidation rewards.
-
-```vyper
-@nonreentrant
-@external
-def liquidateManyUsers(
-    _liqUsers: DynArray[address, MAX_LIQ_USERS],
-    _wantsSavingsGreen: bool = True,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_liqUsers` | `DynArray[address, 50]` | Users to liquidate |
-| `_wantsSavingsGreen` | `bool` | Receive rewards as sGreen (default: True) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total keeper rewards |
-
-#### Access
-
-Public function
-
-## Auction Functions
-
-### `buyFungibleAuction`
-
-Purchases collateral from liquidation auction.
-
-```vyper
-@nonreentrant
-@external
-def buyFungibleAuction(
-    _liqUser: address,
-    _vaultId: uint256,
-    _asset: address,
-    _paymentAmount: uint256 = max_value(uint256),
-    _isPaymentSavingsGreen: bool = False,
-    _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-    _recipient: address = msg.sender,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_liqUser` | `address` | User being liquidated |
-| `_vaultId` | `uint256` | Vault containing asset |
-| `_asset` | `address` | Asset to purchase |
-| `_paymentAmount` | `uint256` | Max Green/sGreen to spend (default: max available) |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
-| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
-| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Green spent on purchase |
-
-#### Access
-
-Public function
-
-### `buyManyFungibleAuctions`
-
-Batch purchases from multiple auctions.
-
-```vyper
-@nonreentrant
-@external
-def buyManyFungibleAuctions(
-    _purchases: DynArray[FungAuctionPurchase, MAX_AUCTION_PURCHASES],
-    _paymentAmount: uint256 = max_value(uint256),
-    _isPaymentSavingsGreen: bool = False,
-    _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-    _recipient: address = msg.sender,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_purchases` | `DynArray[FungAuctionPurchase, 20]` | Auction purchase specs |
-| `_paymentAmount` | `uint256` | Total Green/sGreen budget (default: max available) |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
-| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
-| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total Green spent |
-
-#### Access
-
-Public function
-
-## Stability Pool Functions
-
-### `convertToSavingsGreenAndDepositIntoStabPool`
-
-Converts Green tokens to Savings Green and deposits into the stability pool.
-
-```vyper
-@nonreentrant
-@external
-def convertToSavingsGreenAndDepositIntoStabPool(
-    _user: address,
-    _greenAmount: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to deposit for |
-| `_greenAmount` | `uint256` | Amount of Green to convert and deposit |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Amount of Savings Green deposited |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Convert 1000 Green to sGreen and deposit into stability pool
-amount_deposited = teller.convertToSavingsGreenAndDepositIntoStabPool(
-    user.address,
-    1000_000000000000000000  # 1000 Green
-)
-```
-
-### `claimFromStabilityPool`
-
-Claims rewards from a single stability pool position.
-
-```vyper
-@nonreentrant
-@external
-def claimFromStabilityPool(
-    _vaultId: uint256,
-    _stabAsset: address,
-    _claimAsset: address,
-    _maxUsdValue: uint256 = max_value(uint256),
-    _user: address = msg.sender,
-    _shouldAutoDeposit: bool = False,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_vaultId` | `uint256` | Stability pool vault ID |
-| `_stabAsset` | `address` | Stability asset (GREEN/sGREEN) |
-| `_claimAsset` | `address` | Asset to claim |
-| `_maxUsdValue` | `uint256` | Maximum USD value to claim |
-| `_user` | `address` | User claiming rewards |
-| `_shouldAutoDeposit` | `bool` | Auto-deposit claimed assets |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | USD value of assets claimed |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Claim stability pool rewards
-claim_value = teller.claimFromStabilityPool(
-    1,                # Vault ID
-    sgreen.address,   # Stability asset
-    weth.address,     # Claim WETH
-    1000e18,          # Max $1000
-    user.address,
-    False             # Don't auto-deposit
-)
-```
-
-### `claimManyFromStabilityPool`
-
-Batch claims rewards from a stability pool position.
-
-```vyper
-@nonreentrant
-@external
-def claimManyFromStabilityPool(
-    _vaultId: uint256,
-    _claims: DynArray[StabPoolClaim, MAX_STAB_CLAIMS],
-    _user: address = msg.sender,
-    _shouldAutoDeposit: bool = False,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_vaultId` | `uint256` | Stability pool vault ID |
-| `_claims` | `DynArray[StabPoolClaim, 15]` | List of claim specifications |
-| `_user` | `address` | User claiming rewards |
-| `_shouldAutoDeposit` | `bool` | Auto-deposit claimed assets |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total USD value of assets claimed |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Claim multiple assets from stability pool
-claims = [
-    StabPoolClaim(sgreen.address, weth.address, 500e18),
-    StabPoolClaim(sgreen.address, usdc.address, 500e18),
-]
-total_value = teller.claimManyFromStabilityPool(
-    1,          # Vault ID
-    claims,
-    user.address,
-    False       # Don't auto-deposit
-)
-```
-
-### `redeemFromStabilityPool`
-
-Redeems collateral from liquidations using GREEN tokens.
-
-```vyper
-@nonreentrant
-@external
-def redeemFromStabilityPool(
-    _vaultId: uint256,
-    _claimAsset: address,
-    _paymentAmount: uint256 = max_value(uint256),
-    _recipient: address = msg.sender,
-    _shouldAutoDeposit: bool = False,
-    _isPaymentSavingsGreen: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_vaultId` | `uint256` | Stability pool vault ID |
-| `_claimAsset` | `address` | Collateral asset to redeem |
-| `_paymentAmount` | `uint256` | GREEN payment amount |
-| `_recipient` | `address` | Collateral recipient |
-| `_shouldAutoDeposit` | `bool` | Auto-deposit collateral |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGREEN |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGREEN |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | GREEN spent on redemption |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Redeem collateral from stability pool
-green_spent = teller.redeemFromStabilityPool(
-    1,                # Vault ID
-    weth.address,     # Claim WETH
-    500e18,           # 500 GREEN budget
-    user.address,     # Recipient
-    False,            # Don't auto-deposit
-    False,            # Pay with GREEN
-    True              # Refund as sGREEN
-)
-```
-
-### `redeemManyFromStabilityPool`
-
-Batch redeems collateral from stability pools.
-
-```vyper
-@nonreentrant
-@external
-def redeemManyFromStabilityPool(
-    _vaultId: uint256,
-    _redemptions: DynArray[StabPoolRedemption, MAX_STAB_REDEMPTIONS],
-    _paymentAmount: uint256 = max_value(uint256),
-    _recipient: address = msg.sender,
-    _shouldAutoDeposit: bool = False,
-    _isPaymentSavingsGreen: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_vaultId` | `uint256` | Stability pool vault ID |
-| `_redemptions` | `DynArray[StabPoolRedemption, 15]` | Redemption specs |
-| `_paymentAmount` | `uint256` | GREEN payment amount |
-| `_recipient` | `address` | Collateral recipient |
-| `_shouldAutoDeposit` | `bool` | Auto-deposit collateral |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGREEN |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGREEN |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total GREEN spent on redemptions |
-
-#### Access
-
-Public function with permission checks
-
-## Collateral Redemption Functions
-
-### `redeemCollateral`
-
-Redeems collateral from unhealthy positions using Green tokens.
-
-```vyper
-@nonreentrant
-@external
-def redeemCollateral(
-    _user: address,
-    _vaultId: uint256,
-    _asset: address,
-    _paymentAmount: uint256 = max_value(uint256),
-    _isPaymentSavingsGreen: bool = False,
-    _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-    _recipient: address = msg.sender,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User with unhealthy position to redeem from |
-| `_vaultId` | `uint256` | Vault containing collateral |
-| `_asset` | `address` | Collateral asset to redeem |
-| `_paymentAmount` | `uint256` | Max Green/sGreen to spend (default: max available) |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
-| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
-| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Green amount used for redemption |
-
-#### Access
-
-Public function
-
-#### Example Usage
-```python
-# Redeem ETH from unhealthy position
-green_spent = teller.redeemCollateral(
-    unhealthy_user.address,
-    1,  # Vault ID
-    weth.address,
-    500_000000000000000000,  # 500 Green budget
-    False,  # Paying with Green
-    False,  # Withdraw collateral
-    True,   # Refund excess as sGreen
-    redeemer.address
-)
-```
-
-### `redeemCollateralFromMany`
-
-Batch redeems collateral from multiple unhealthy positions.
-
-```vyper
-@nonreentrant
-@external
-def redeemCollateralFromMany(
-    _redemptions: DynArray[CollateralRedemption, MAX_COLLATERAL_REDEMPTIONS],
-    _paymentAmount: uint256 = max_value(uint256),
-    _isPaymentSavingsGreen: bool = False,
-    _shouldTransferBalance: bool = False,
-    _shouldRefundSavingsGreen: bool = True,
-    _recipient: address = msg.sender,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_redemptions` | `DynArray[CollateralRedemption, 20]` | Redemption specifications |
-| `_paymentAmount` | `uint256` | Total Green/sGreen budget (default: max available) |
-| `_isPaymentSavingsGreen` | `bool` | Paying with sGreen (default: False) |
-| `_shouldTransferBalance` | `bool` | Transfer balance vs withdraw to recipient (default: False) |
-| `_shouldRefundSavingsGreen` | `bool` | Refund excess as sGreen (default: True) |
-| `_recipient` | `address` | Collateral recipient (default: msg.sender) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total Green spent |
-
-#### Access
-
-Public function
-
-#### Example Usage
-```python
-# Redeem from multiple positions
-redemptions = [
-    CollateralRedemption(user1.address, 1, weth.address, 100e18),
-    CollateralRedemption(user2.address, 1, wbtc.address, 50e18)
-]
-total_spent = teller.redeemCollateralFromMany(
-    redemptions,
-    1000_000000000000000000,  # 1000 Green budget
-    True,   # Paying with sGreen
-    False,  # Withdraw
-    True,   # Refund as sGreen
-    redeemer.address
-)
-```
-
-## Deleverage Functions
-
-The deleverage functions allow users to reduce their debt by liquidating their own collateral. See [Deleverage](./Deleverage.md) for detailed documentation.
-
-### `deleverageUser`
-
-Deleverages a single user's position.
-
-```vyper
-@external
-def deleverageUser(
-    _user: address = msg.sender,
-    _targetRepayAmount: uint256 = max_value(uint256)
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to deleverage |
-| `_targetRepayAmount` | `uint256` | Target debt reduction (max for all available) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount repaid |
-
-#### Access
-
-Public function
-
-#### Example Usage
-```python
-# Deleverage own position
-repaid = teller.deleverageUser(user.address, 500e18)
-```
-
-### `deleverageManyUsers`
-
-Batch deleverages multiple users.
-
-```vyper
-@external
-def deleverageManyUsers(
-    _users: DynArray[DeleverageUserRequest, MAX_DELEVERAGE_USERS]
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_users` | `DynArray[DeleverageUserRequest, 25]` | Users and target amounts |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total amount repaid |
-
-### `deleverageWithSpecificAssets`
-
-Deleverages using specific assets in a specified order. Requires trusted caller or delegation.
-
-```vyper
-@external
-def deleverageWithSpecificAssets(
-    _assets: DynArray[DeleverageAsset, MAX_DELEVERAGE_ASSETS],
-    _user: address = msg.sender
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_assets` | `DynArray[DeleverageAsset, 25]` | Ordered list of assets to use |
-| `_user` | `address` | User to deleverage |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total amount repaid |
-
-#### Access
-
-Public function - requires user to be caller or have delegation
-
-## Permission Management Functions
-
-### `setUserConfig`
-
-Sets user's general permission configuration.
-
-```vyper
-@external
-def setUserConfig(
-    _user: address,
-    _canAnyoneDeposit: bool,
-    _canAnyoneRepayDebt: bool,
-    _canAnyoneBondForUser: bool,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to configure |
-| `_canAnyoneDeposit` | `bool` | Allow proxy deposits |
-| `_canAnyoneRepayDebt` | `bool` | Allow proxy debt repayment |
-| `_canAnyoneBondForUser` | `bool` | Allow proxy bond purchases |
-
-#### Access
-
-Only callable by user or authorized delegates
-
-#### Events Emitted
-
-- `UserConfigSet` - New configuration details
-
-### `setUserDelegation`
-
-Sets operation-specific delegation permissions.
-
-```vyper
-@external
-def setUserDelegation(
-    _user: address,
-    _delegate: address,
-    _canWithdraw: bool,
-    _canBorrow: bool,
-    _canClaimFromStabPool: bool,
-    _canClaimLoot: bool,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User granting permissions |
-| `_delegate` | `address` | Delegate receiving permissions |
-| `_canWithdraw` | `bool` | Allow withdrawal operations |
-| `_canBorrow` | `bool` | Allow borrowing operations |
-| `_canClaimFromStabPool` | `bool` | Allow stability pool claims |
-| `_canClaimLoot` | `bool` | Allow reward claims |
-
-#### Access
-
-Only callable by user or authorized delegates
-
-#### Events Emitted
-
-- `UserDelegationSet` - Delegation configuration details
-
-## Utility Functions
-
-### `performHousekeeping`
-
-Performs protocol housekeeping tasks for a user. This includes checking/updating the user's last touch timestamp, updating the Curve price snapshot, and optionally updating the user's debt position.
-
-```vyper
-@external
-def performHousekeeping(
-    _isHigherRisk: bool,
-    _user: address,
-    _shouldUpdateDebt: bool,
-    _a: addys.Addys = empty(addys.Addys),
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_isHigherRisk` | `bool` | Whether the operation is higher risk (affects last touch and debt health checks) |
-| `_user` | `address` | User to perform housekeeping for |
-| `_shouldUpdateDebt` | `bool` | Whether to update the user's debt position |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Returns
-
-*No return value*
-
-#### Access
-
-Only callable by valid Ripe protocol addresses (trusted contracts)
-
-#### Notes
-
-- Higher risk operations enforce stricter validation (one-action-per-block for non-Underscore wallets)
-- Updates the GREEN reference pool snapshot via CurvePrices
-- When `_shouldUpdateDebt` is True and `_isHigherRisk` is True, asserts that debt health is maintained
-- This function is called internally by most Teller operations but is also exposed for other protocol contracts
-
-### `isUnderscoreWalletOwner`
-
-Checks if caller owns an Underscore smart wallet.
-
-```vyper
-@view
-@external
-def isUnderscoreWalletOwner(_user: address, _caller: address, _mc: address = empty(address)) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | Smart wallet address |
-| `_caller` | `address` | Potential owner |
-| `_mc` | `address` | MissionControl address (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if caller owns the wallet |
-
-#### Access
-
-Public view function
-
-## Reward Claiming Functions
-
-### `claimLoot`
-
-Claims RIPE token rewards from the Lootbox contract.
-
-```vyper
-@nonreentrant
-@external
-def claimLoot(
-    _user: address = msg.sender,
-    _shouldStake: bool = True,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User claiming rewards |
-| `_shouldStake` | `bool` | Auto-stake RIPE to governance vault |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total RIPE rewards claimed |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Claim and auto-stake RIPE
-ripe_rewards = teller.claimLoot(user.address, True)
-
-# Claim without staking
-ripe_rewards = teller.claimLoot(user.address, False)
-```
-
-### `claimLootForManyUsers`
-
-Batch claims RIPE token rewards for multiple users.
-
-```vyper
-@nonreentrant
-@external
-def claimLootForManyUsers(
-    _users: DynArray[address, MAX_CLAIM_USERS],
-    _shouldStake: bool = True,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_users` | `DynArray[address, 25]` | Users to claim for |
-| `_shouldStake` | `bool` | Auto-stake RIPE to governance vault |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total RIPE rewards claimed for all users |
-
-#### Access
-
-Public function with permission checks for each user
-
-#### Example Usage
-```python
-# Claim and stake for multiple users
-users = [user1.address, user2.address, user3.address]
-total_ripe = teller.claimLootForManyUsers(users, True)
-```
-
-## Ripe Governance Vault Functions
-
-### `depositIntoGovVault`
-
-Deposits assets into the governance vault with an optional lock duration.
-
-```vyper
-@nonreentrant
-@external
-def depositIntoGovVault(
-    _asset: address,
-    _amount: uint256,
-    _lockDuration: uint256,
-    _user: address = msg.sender,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to deposit (typically RIPE) |
-| `_amount` | `uint256` | Amount to deposit |
-| `_lockDuration` | `uint256` | Lock duration in seconds |
-| `_user` | `address` | User to deposit for |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Amount deposited |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Deposit RIPE with 1 year lock
-amount = teller.depositIntoGovVault(
-    ripe.address,
-    1000e18,              # 1000 RIPE
-    365 * 24 * 60 * 60,   # 1 year lock
-    user.address
-)
-```
-
-### `adjustLock`
-
-Adjusts lock duration for a specific asset in the governance vault.
-
-```vyper
-@nonreentrant
-@external
-def adjustLock(
-    _asset: address,
-    _newLockDuration: uint256,
-    _user: address = msg.sender,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to adjust lock for |
-| `_newLockDuration` | `uint256` | New lock duration in seconds |
-| `_user` | `address` | User adjusting lock |
-
-#### Returns
-
-*No return value*
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Extend lock to 1 year duration
-teller.adjustLock(
-    ripe.address,
-    365 * 24 * 60 * 60,  # 1 year
-    user.address
-)
-```
-
-### `releaseLock`
-
-Releases unlocked tokens from the governance vault.
-
-```vyper
-@nonreentrant
-@external
-def releaseLock(
-    _asset: address,
-    _user: address = msg.sender,
-):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to release |
-| `_user` | `address` | User releasing lock |
-
-#### Returns
-
-*No return value*
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Release all unlocked RIPE
-teller.releaseLock(
-    ripe.address,
-    user.address
-)
-```
-
-## Bond Purchase Functions
-
-### `purchaseRipeBond`
-
-Purchases Ripe bonds from the BondRoom with optional lock duration.
-
-```vyper
-@nonreentrant
-@external
-def purchaseRipeBond(
-    _paymentAsset: address,
-    _paymentAmount: uint256 = max_value(uint256),
-    _lockDuration: uint256 = 0,
-    _recipient: address = msg.sender,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_paymentAsset` | `address` | Asset to pay with (GREEN or sGREEN) |
-| `_paymentAmount` | `uint256` | Amount to spend (max for all balance) |
-| `_lockDuration` | `uint256` | Lock duration for purchased RIPE (0 for no lock) |
-| `_recipient` | `address` | Recipient of RIPE tokens |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | RIPE tokens received from bond |
-
-#### Access
-
-Public function with permission checks
-
-#### Example Usage
-```python
-# Purchase Ripe bond with Green
-ripe_received = teller.purchaseRipeBond(
-    green.address,
-    1000e18,                 # 1000 GREEN
-    365 * 24 * 60 * 60,      # 1 year lock
-    user.address
-)
-
-# Purchase with sGREEN, no lock
-ripe_received = teller.purchaseRipeBond(
-    sgreen.address,
-    500e18,
-    0,
-    user.address
-)
-```
-
-## Underscore Wallet Utilities
-
-### `setUndyLegoAccess`
-
-Utility function for Underscore smart wallets to grant full protocol access to a Lego strategy contract. This function sets both user config (allowing anyone to deposit, repay debt, and bond) and delegation permissions (withdraw, borrow, claim from stability pool, claim loot) for the specified Lego address.
-
-```vyper
-@external
-def setUndyLegoAccess(_legoAddr: address) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_legoAddr` | `address` | Lego strategy contract address to grant access |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if access was granted successfully, False if validation failed |
-
-#### Access
-
-Only callable by Underscore smart wallets (msg.sender must be a valid Underscore wallet or vault)
-
-#### Notes
-
-- This function fails gracefully (returns False) rather than reverting to avoid bricking Underscore wallets
-- Returns False if MissionControl address is empty, if `_legoAddr` is empty, or if caller is not an Underscore wallet/vault
-- Automatically sets user config to allow anyone to deposit, repay debt, and bond for the caller
-- Automatically grants full delegation to the Lego address (withdraw, borrow, claim from stability pool, claim loot)
-
-#### Example Usage
-```python
-# Called from within an Underscore smart wallet to grant Lego access
-# The wallet grants permissions for itself to the specified Lego contract
-success = teller.setUndyLegoAccess(lego_contract.address)
-```
-
-## Key Validation Logic
-
-### Deposit Limits
-
-The contract enforces multiple deposit limits:
-
-1. **Per-User Limits**: Maximum deposit per user per asset
-2. **Global Limits**: Protocol-wide deposit caps per asset
-3. **Vault Limits**: Maximum assets per vault, maximum vaults per user
-4. **Minimum Balance**: Ensures positions meet minimum thresholds
-
-### Permission Hierarchy
-
-Access control follows this hierarchy:
-
-1. **Direct User**: Always has full permissions
-2. **Ripe Departments**: Trusted protocol contracts bypass most limits
-3. **Delegated Users**: Specific operation permissions
-4. **Underscore Owners**: Smart wallet ownership verification
-5. **General Permissions**: Configurable proxy permissions
-
-### Automatic Vault Selection
-
-When no vault is specified:
-
-```
-vaultId = getFirstVaultIdForAsset(asset)
-vaultAddr = getAddr(vaultId)
-```
-
-This provides seamless UX by automatically routing to appropriate vaults.
+# Teller
+
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/Teller.vy)
+
+## Purpose
+
+`Teller` is the primary user gateway. It validates caller authority and action timing, coordinates exact token custody, and delegates accounting to VaultBook, CreditEngine, AuctionHouse, CreditRedeem, Stability Pool, Deleverage, Lootbox, BondRoom, and governance-vault components.
+
+Teller is deliberately thin on persistent business state: downstream departments remain authoritative for debt, auctions, balances, rewards, and configuration.
+
+## Vault operations
+
+- `deposit`, `depositMany`, and `depositFromTrusted` validate the current vault/asset registration and deposit permission before crediting a user.
+- `withdraw` and `withdrawMany` apply authority, balance, and CreditEngine maximum-withdrawal checks.
+- `rebalance` moves eligible value between vaults under current configuration.
+
+Deposits use measured custody and a transient guard. When Teller already holds the input, the request must consume that exact amount; validation does not silently clamp a partial deposit. Registration and support are rechecked at the point of use, and the credited vault amount must reconcile with custody.
+
+For generic deposits and withdrawals, `_vaultId == 0` is a resolution sentinel,
+not vault ID zero. If both the vault address and ID are omitted, TellerUtils uses
+MissionControl's first configured vault for the asset. If a vault address is
+supplied with ID zero, TellerUtils resolves its registered ID; a nonzero ID is
+resolved through VaultBook and, when an address is also supplied, the two must
+match.
+
+## Credit and liquidation operations
+
+Teller exposes user routes for borrowing, repayment, collateral redemption,
+liquidation, fungible-auction purchases, and deleveraging. The following
+operations use batch selectors; a one-item batch handles a single operation:
+
+- `redeemCollateralFromMany`
+- `buyManyFungibleAuctions`
+- `claimManyFromStabilityPool`
+- `redeemManyFromStabilityPool`
+- `deleverageManyUsers`
+- `deleverageWithSpecificAssets`
+
+Credit-redemption and auction-purchase rows may be skipped individually, but
+their batch reverts when aggregate GREEN spent is zero. The general deleverage
+batch similarly reverts when no user repays anything. Liquidation differs:
+`liquidateManyUsers` returns zero when every user is skipped, although Teller's
+final caller-housekeeping step can still independently revert. General
+deleverage batches accept at most 25 users, and specific-asset deleverage
+accepts at most 25 asset rows.
+
+`deleverageManyUsers` is not an owner-only convenience call. Teller forwards
+the actual caller, and Deleverage permits an untrusted caller to process a
+non-liquidating, non-quarantined near-redemption account under a calculated
+repayment cap. A registered Ripe caller, a registered Underscore self-call, or
+cross-user `canBorrow` delegation selects the trusted general branch. The
+`deleverageWithSpecificAssets` route has no permissionless branch and requires
+self, registered-Ripe, or `canBorrow` authority.
+
+Unused GREEN from batch redemption or auction purchase is returned to the
+actual payer under the selected GREEN/sGREEN handling. Downstream checks at
+execution determine the final result; a Teller call does not reserve a price,
+debt amount, or collateral balance in advance.
+
+### Defaults that change execution
+
+- Default deposit and withdrawal amounts are `max_value(uint256)`, which asks
+  the route for the maximum it can execute under the current balance, limits,
+  and checks; it is not an unconditional whole-balance instruction.
+- `borrow()` requests the current maximum, prefers sGREEN, and does not enter
+  the Stability Pool. `repay()` requests the current maximum, pays in GREEN,
+  and prefers any refund in sGREEN.
+- Liquidation keeper rewards prefer sGREEN by default. `claimLoot` and
+  `claimLootForManyUsers` default to staking the RIPE payout.
+- Stability Pool claims default to external delivery rather than automatic
+  deposit.
+- Collateral redemption and fungible-auction purchases default to GREEN
+  payment, external token delivery (`_shouldTransferBalance == false`), an
+  sGREEN-preferred refund, and `msg.sender` as recipient.
+
+The sGREEN Booleans select a preference, not a guaranteed output token.
+CreditEngine, AuctionHouse, CreditRedeem, and StabVault's redemption-refund
+helper deliver raw GREEN when the handled amount is at or below `10**9` base
+units because wrapping that dust can fail.
+
+## Stability, rewards, governance, and bonds
+
+Additional routes convert sGREEN and Stability positions, claim/redeem across Stability vaults, claim Lootbox rewards, deposit into governance vaults, and manage governance locks.
+
+Lock operations are vault-aware: `adjustLock` and `releaseLock` include a vault
+ID so integrations do not assume a single fixed RipeGov vault. For these two
+routes, `_vaultId == 0` means MissionControl's current core RipeGov vault; a
+nonzero value must be a current or historical RipeGov vault ID. Bond purchases
+also resolve the current core RipeGov vault dynamically. `purchaseRipeBond`
+takes an explicit payment amount and an optional `minRipePayout`; Teller checks
+the minimum after BondRoom returns, so a short payout reverts atomically.
+`_minRipePayout` defaults to zero, so payout-slippage protection is opt-in and
+callers that omit it accept any otherwise-valid nonzero payout. Omitted
+`_lockDuration` is zero and omitted `_recipient` is `msg.sender`.
+
+## User configuration and Underscore
+
+`setUserConfig` defaults `canAnyoneDeposit`, `canAnyoneRepayDebt`, and
+`canAnyoneBondForUser` to `false`; those third-party permissions are opt-in.
+
+> **Integration warning:** Every call writes the complete three-flag struct. An
+> omitted trailing flag is written as `false`, not preserved from the user's
+> previous config. In particular, `setUserConfig(user)` clears all three
+> permissions; clients must resubmit every intended value.
+
+`setUserDelegation(delegate)` defaults `_user` to `msg.sender` and all four
+delegation flags to `true`. For example, specifying only
+`_canWithdraw = false` still grants borrow, Stability-claim, and Lootbox-claim
+authority. Every call replaces the complete four-flag struct rather than
+preserving omitted values. A zero delegate or self-delegation returns `false`
+without writing state or emitting `UserDelegationSet`; clients should check the
+return value.
+
+`setUndyLegoAccess` lets an Underscore wallet or vault caller record all three
+public-action settings and, for a different nonzero target, withdrawal, borrow,
+Stability-claim, and Lootbox delegation. It does not prove that target's
+current registry/LegoBook membership. The recorded delegations are directly
+actionable wherever MissionControl reads `userDelegation`; only routes that
+separately call `isUnderscoreOwnerOrLego` also require current Underscore
+membership.
+
+`setUndyLegoAccess` is deliberately fail-soft: a missing MissionControl address,
+a zero Lego address, or a caller that is not a current Underscore wallet or
+vault returns `false` without applying access. A self-target is a narrower edge:
+the public settings are written, the internal self-delegation returns `false`
+without an event, that result is ignored, and the outer call returns `true`.
+Consequently, even a `true` result does not by itself prove a delegation was
+written; clients should read MissionControl state or observe
+`UserDelegationSet` when that distinction matters.
+
+## `lastTouch` route matrix
+
+`_performHousekeeping` has three materially different `lastTouch` outcomes. The
+table names the account whose Ledger row is affected, which is not always the
+economic target of the operation.
+
+| Class | Routes and affected account | `lastTouch` effect |
+| --- | --- | --- |
+| Gated | `withdraw`, `withdrawMany`, `rebalance`, `borrow`, `claimManyFromStabilityPool`, and `releaseLock` for their `_user`; any valid Ripe caller using `performHousekeeping(True, user, ...)` | On success, always writes the current action block. It first rejects an existing touch in that action block only when MissionControl enables the check, the call is higher-risk, and the affected account is not a current Underscore wallet or vault. |
+| Always write, never same-action gated | Self-targeted `deposit`, `depositMany`, `repay`, `redeemCollateralFromMany` (recipient), `buyManyFungibleAuctions` (recipient), `convertToSavingsGreenAndDepositIntoStabPool`, `redeemManyFromStabilityPool` (recipient), `claimLoot`, `depositIntoGovVault`, and `purchaseRipeBond`; `adjustLock` for its `_user`; `liquidateUser`/`liquidateManyUsers` and `claimLootForManyUsers` for `msg.sender`; `Deleverage.swapCollateral` for its `_user`; any valid Ripe caller using `performHousekeeping(False, user, ...)` | Calls `checkAndUpdateLastTouch(..., False)`: it writes and enforces Ledger pause/lock state, but does not reject a prior same-action-block touch. |
+| Never write the target | Third-party targets of the conditional low-risk routes in the prior row; liquidation subjects; collateral-redemption borrowers; fungible-auction sellers; the individual target rows in `claimLootForManyUsers` (the separate final write is only for `msg.sender`, including when that address is also a row); `depositFromTrusted` and the five low-level migration selectors; Teller's `deleverageManyUsers` and `deleverageWithSpecificAssets`; direct `Deleverage.deleverageWithVolAssets` and `Deleverage.deleverageForWithdrawal` | No target `lastTouch` write. Conditional third-party Teller housekeeping still checks Ledger pause/lock state; routes with no housekeeping do not gain that check implicitly. A coordinating department may perform separate housekeeping, as VaultMigrator does after a successful move. |
+
+The action block is Ledger's constructor-selected clock: native EVM
+`block.number` when `ACTION_BLOCK_SOURCE` is zero, otherwise
+`ArbSys(0x64).arbBlockNumber()`. It is separate from other duration
+calculations. `isUnderscoreWalletOwner` exposes the owner test used by
+integrations.
+
+After its receipt-measurement guard, every `_performHousekeeping` call applies
+the selected Ledger branch: either it checks and writes `lastTouch`, or it
+checks Ledger pause and account lock state without writing. Teller then resolves
+its constructor-bound Curve source ID through PriceDesk's registry and, when
+that address is nonzero, calls
+`addGreenRefPoolSnapshot()` before the optional debt update. A `false` snapshot
+return is ignored, while registry/interface/permission or downstream Curve
+reverts propagate and roll back the enclosing Teller action. A successful call
+can update Curve source state and emit its snapshot event even on a route whose
+primary purpose is unrelated to pricing.
+
+## Migration routes
+
+The migration deposit/withdrawal entry points are callable only by [VaultMigrator](./VaultMigrator.md) and require the prescribed paused/unpaused states. They are not general user escape hatches and should not be called as ordinary vault routes.
+
+## Constructor and dynamic roles
+
+The constructor binds a Curve price-source ID. Core, preferred Stability, and
+RipeGov vault IDs are read from MissionControl when their routes execute.
+
+## Security properties
+
+- Exact custody and nonreentrant/transient guards prevent partial-credit and reentry inconsistencies.
+- Teller revalidates current registry and permission state before downstream calls.
+- Department contracts, not Teller or front-end quotes, remain authoritative for final accounting.
+- Batch-only actions use a one-row batch when operating on one item.
+
+<!-- BEGIN GENERATED API REFERENCE: Teller -->
+## Exact API reference
+
+> Generated from `contracts/core/Teller.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, bool _shouldPause, uint256 _curvePricesId)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `adjustLock(address _asset, uint256 _newLockDuration, address _user, uint256 _vaultId)` | `2–4` | `_user = msg.sender`, `_vaultId = 0` |
+| `borrow(uint256 _greenAmount, address _user, bool _wantsSavingsGreen, bool _shouldEnterStabPool)` | `0–4` | `_greenAmount = max_value(uint256)`, `_user = msg.sender`, `_wantsSavingsGreen = True`, `_shouldEnterStabPool = False` |
+| `buyManyFungibleAuctions(tuple[] _purchases, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, address _recipient)` | `1–6` | `_paymentAmount = max_value(uint256)`, `_isPaymentSavingsGreen = False`, `_shouldTransferBalance = False`, `_shouldRefundSavingsGreen = True`, `_recipient = msg.sender` |
+| `claimLoot(address _user, bool _shouldStake)` | `0–2` | `_user = msg.sender`, `_shouldStake = True` |
+| `claimLootForManyUsers(address[] _users, bool _shouldStake)` | `1–2` | `_shouldStake = True` |
+| `claimManyFromStabilityPool(uint256 _vaultId, tuple[] _claims, address _user, bool _shouldAutoDeposit)` | `2–4` | `_user = msg.sender`, `_shouldAutoDeposit = False` |
+| `convertToSavingsGreenAndDepositIntoStabPool(address _user, uint256 _greenAmount)` | `0–2` | `_user = msg.sender`, `_greenAmount = max_value(uint256)` |
+| `deleverageWithSpecificAssets(tuple[] _assets, address _user)` | `1–2` | `_user = msg.sender` |
+| `deposit(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId)` | `1–5` | `_amount = max_value(uint256)`, `_user = msg.sender`, `_vaultAddr = empty(address)`, `_vaultId = 0` |
+| `depositFromTrusted(address _user, uint256 _vaultId, address _asset, uint256 _amount, uint256 _lockDuration, Addys _a)` | `5–6` | `_a = empty(addys.Addys)` |
+| `depositIntoGovVault(address _asset, uint256 _amount, uint256 _lockDuration, address _user)` | `3–4` | `_user = msg.sender` |
+| `depositOnVaultMigration(address _user, address _asset, uint256 _amount, uint256 _targetVaultId, address _targetVault, Addys _a)` | `5–6` | `_a = empty(addys.Addys)` |
+| `exportPositionForLegacyRipeGovMigration(address _user, address _asset, address _sourceVault, address _targetVault, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `exportPositionForMigration(address _user, address _asset, address _sourceVault, address _targetVault, Addys _a)` | `4–5` | `_a = empty(addys.Addys)` |
+| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `2–3` | `_mc = empty(address)` |
+| `liquidateManyUsers(address[] _liqUsers, bool _wantsSavingsGreen)` | `1–2` | `_wantsSavingsGreen = True` |
+| `liquidateUser(address _liqUser, bool _wantsSavingsGreen)` | `1–2` | `_wantsSavingsGreen = True` |
+| `performHousekeeping(bool _isHigherRisk, address _user, bool _shouldUpdateDebt, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+| `purchaseRipeBond(address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _recipient, uint256 _minRipePayout)` | `2–5` | `_lockDuration = 0`, `_recipient = msg.sender`, `_minRipePayout = 0` |
+| `rebalance(address _depositAsset, uint256 _depositVaultId, address _withdrawAsset, uint256 _withdrawVaultId, uint256 _depositAmount, uint256 _withdrawAmount, address _user)` | `4–7` | `_depositAmount = max_value(uint256)`, `_withdrawAmount = max_value(uint256)`, `_user = msg.sender` |
+| `redeemCollateralFromMany(tuple[] _redemptions, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, address _recipient)` | `1–6` | `_paymentAmount = max_value(uint256)`, `_isPaymentSavingsGreen = False`, `_shouldTransferBalance = False`, `_shouldRefundSavingsGreen = True`, `_recipient = msg.sender` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, tuple[] _redemptions, uint256 _paymentAmount, address _recipient, bool _shouldAutoDeposit, bool _isPaymentSavingsGreen, bool _shouldRefundSavingsGreen)` | `2–7` | `_paymentAmount = max_value(uint256)`, `_recipient = msg.sender`, `_shouldAutoDeposit = False`, `_isPaymentSavingsGreen = False`, `_shouldRefundSavingsGreen = True` |
+| `releaseLock(address _asset, address _user, uint256 _vaultId)` | `1–3` | `_user = msg.sender`, `_vaultId = 0` |
+| `repay(uint256 _paymentAmount, address _user, bool _isPaymentSavingsGreen, bool _shouldRefundSavingsGreen)` | `0–4` | `_paymentAmount = max_value(uint256)`, `_user = msg.sender`, `_isPaymentSavingsGreen = False`, `_shouldRefundSavingsGreen = True` |
+| `setUserConfig(address _user, bool _canAnyoneDeposit, bool _canAnyoneRepayDebt, bool _canAnyoneBondForUser)` | `0–4` | `_user = msg.sender`, `_canAnyoneDeposit = False`, `_canAnyoneRepayDebt = False`, `_canAnyoneBondForUser = False` |
+| `setUserDelegation(address _delegate, address _user, bool _canWithdraw, bool _canBorrow, bool _canClaimFromStabPool, bool _canClaimLoot)` | `1–6` | `_user = msg.sender`, `_canWithdraw = True`, `_canBorrow = True`, `_canClaimFromStabPool = True`, `_canClaimLoot = True` |
+| `withdraw(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId)` | `1–5` | `_amount = max_value(uint256)`, `_user = msg.sender`, `_vaultAddr = empty(address)`, `_vaultId = 0` |
+| `withdrawOnVaultMigration(address _user, address _asset, address _sourceVault, Addys _a)` | `3–4` | `_a = empty(addys.Addys)` |
+
+### Functions
+
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `adjustLock(address _asset, uint256 _newLockDuration)` | `nonpayable` | — | — |
+| `adjustLock(address _asset, uint256 _newLockDuration, address _user)` | `nonpayable` | — | — |
+| `adjustLock(address _asset, uint256 _newLockDuration, address _user, uint256 _vaultId)` | `nonpayable` | — | — |
+| `borrow()` | `nonpayable` | `uint256` | `uint256` |
+| `borrow(uint256 _greenAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `borrow(uint256 _greenAmount, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `borrow(uint256 _greenAmount, address _user, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `borrow(uint256 _greenAmount, address _user, bool _wantsSavingsGreen, bool _shouldEnterStabPool)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _paymentAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _paymentAmount, bool _isPaymentSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `buyManyFungibleAuctions((address,uint256,address,uint256)[] _purchases, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, address _recipient)` | `nonpayable` | `uint256` | `uint256` |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `claimLoot()` | `nonpayable` | `uint256` | `uint256` |
+| `claimLoot(address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLoot(address _user, bool _shouldStake)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForManyUsers(address[] _users)` | `nonpayable` | `uint256` | `uint256` |
+| `claimLootForManyUsers(address[] _users, bool _shouldStake)` | `nonpayable` | `uint256` | `uint256` |
+| `claimManyFromStabilityPool(uint256 _vaultId, (address,address,uint256)[] _claims)` | `nonpayable` | `uint256` | `uint256` |
+| `claimManyFromStabilityPool(uint256 _vaultId, (address,address,uint256)[] _claims, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `claimManyFromStabilityPool(uint256 _vaultId, (address,address,uint256)[] _claims, address _user, bool _shouldAutoDeposit)` | `nonpayable` | `uint256` | `uint256` |
+| `convertToSavingsGreenAndDepositIntoStabPool()` | `nonpayable` | `uint256` | `uint256` |
+| `convertToSavingsGreenAndDepositIntoStabPool(address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `convertToSavingsGreenAndDepositIntoStabPool(address _user, uint256 _greenAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageManyUsers((address,uint256)[] _users)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageWithSpecificAssets((uint256,address,uint256)[] _assets)` | `nonpayable` | `uint256` | `uint256` |
+| `deleverageWithSpecificAssets((uint256,address,uint256)[] _assets, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `deposit(address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `deposit(address _asset, uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `deposit(address _asset, uint256 _amount, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `deposit(address _asset, uint256 _amount, address _user, address _vaultAddr)` | `nonpayable` | `uint256` | `uint256` |
+| `deposit(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `depositFromTrusted(address _user, uint256 _vaultId, address _asset, uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `depositFromTrusted(address _user, uint256 _vaultId, address _asset, uint256 _amount, uint256 _lockDuration, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `depositIntoGovVault(address _asset, uint256 _amount, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `depositIntoGovVault(address _asset, uint256 _amount, uint256 _lockDuration, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `depositMany(address _user, (address,uint256,address,uint256)[] _deposits)` | `nonpayable` | `uint256` | `uint256` |
+| `depositOnVaultMigration(address _user, address _asset, uint256 _amount, uint256 _targetVaultId, address _targetVault)` | `nonpayable` | `uint256` | `uint256` |
+| `depositOnVaultMigration(address _user, address _asset, uint256 _amount, uint256 _targetVaultId, address _targetVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `exportPositionForLegacyRipeGovMigration(address _user, address _asset, address _sourceVault, address _targetVault)` | `nonpayable` | `uint256` | `uint256` |
+| `exportPositionForLegacyRipeGovMigration(address _user, address _asset, address _sourceVault, address _targetVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `exportPositionForMigration(address _user, address _asset, address _sourceVault, address _targetVault)` | `nonpayable` | `(uint256 amount, uint256 govPoints, uint256 unlock, (uint256 minLockDuration, uint256 maxLockDuration, uint256 maxLockBoost, bool canExit, uint256 exitFee) lastTerms)` | `RipeGovMigrationData` |
+| `exportPositionForMigration(address _user, address _asset, address _sourceVault, address _targetVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256 amount, uint256 govPoints, uint256 unlock, (uint256 minLockDuration, uint256 maxLockDuration, uint256 maxLockBoost, bool canExit, uint256 exitFee) lastTerms)` | `RipeGovMigrationData` |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `importPositionForMigration(address _user, address _asset, address _sourceVault, uint256 _targetVaultId, address _targetVault, (uint256,uint256,uint256,(uint256,uint256,uint256,bool,uint256)) _migration, address _ledger)` | `nonpayable` | `uint256` | `uint256` |
+| `isPaused()` | `view` | `bool` | — |
+| `isUnderscoreWalletOwner(address _user, address _caller)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `view` | `bool` | `bool` |
+| `liquidateManyUsers(address[] _liqUsers)` | `nonpayable` | `uint256` | `uint256` |
+| `liquidateManyUsers(address[] _liqUsers, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `liquidateUser(address _liqUser)` | `nonpayable` | `uint256` | `uint256` |
+| `liquidateUser(address _liqUser, bool _wantsSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `performHousekeeping(bool _isHigherRisk, address _user, bool _shouldUpdateDebt)` | `nonpayable` | — | — |
+| `performHousekeeping(bool _isHigherRisk, address _user, bool _shouldUpdateDebt, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | — | — |
+| `purchaseRipeBond(address _paymentAsset, uint256 _paymentAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration)` | `nonpayable` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _recipient)` | `nonpayable` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _recipient, uint256 _minRipePayout)` | `nonpayable` | `uint256` | `uint256` |
+| `rebalance(address _depositAsset, uint256 _depositVaultId, address _withdrawAsset, uint256 _withdrawVaultId)` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `rebalance(address _depositAsset, uint256 _depositVaultId, address _withdrawAsset, uint256 _withdrawVaultId, uint256 _depositAmount)` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `rebalance(address _depositAsset, uint256 _depositVaultId, address _withdrawAsset, uint256 _withdrawVaultId, uint256 _depositAmount, uint256 _withdrawAmount)` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `rebalance(address _depositAsset, uint256 _depositVaultId, address _withdrawAsset, uint256 _withdrawVaultId, uint256 _depositAmount, uint256 _withdrawAmount, address _user)` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _paymentAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _paymentAmount, bool _isPaymentSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemCollateralFromMany((address,uint256,address,uint256)[] _redemptions, uint256 _paymentAmount, bool _isPaymentSavingsGreen, bool _shouldTransferBalance, bool _shouldRefundSavingsGreen, address _recipient)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, (address,uint256)[] _redemptions)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, (address,uint256)[] _redemptions, uint256 _paymentAmount)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, (address,uint256)[] _redemptions, uint256 _paymentAmount, address _recipient)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, (address,uint256)[] _redemptions, uint256 _paymentAmount, address _recipient, bool _shouldAutoDeposit)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, (address,uint256)[] _redemptions, uint256 _paymentAmount, address _recipient, bool _shouldAutoDeposit, bool _isPaymentSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `redeemManyFromStabilityPool(uint256 _vaultId, (address,uint256)[] _redemptions, uint256 _paymentAmount, address _recipient, bool _shouldAutoDeposit, bool _isPaymentSavingsGreen, bool _shouldRefundSavingsGreen)` | `nonpayable` | `uint256` | `uint256` |
+| `releaseLock(address _asset)` | `nonpayable` | — | — |
+| `releaseLock(address _asset, address _user)` | `nonpayable` | — | — |
+| `releaseLock(address _asset, address _user, uint256 _vaultId)` | `nonpayable` | — | — |
+| `repay()` | `nonpayable` | `bool` | `bool` |
+| `repay(uint256 _paymentAmount)` | `nonpayable` | `bool` | `bool` |
+| `repay(uint256 _paymentAmount, address _user)` | `nonpayable` | `bool` | `bool` |
+| `repay(uint256 _paymentAmount, address _user, bool _isPaymentSavingsGreen)` | `nonpayable` | `bool` | `bool` |
+| `repay(uint256 _paymentAmount, address _user, bool _isPaymentSavingsGreen, bool _shouldRefundSavingsGreen)` | `nonpayable` | `bool` | `bool` |
+| `setUndyLegoAccess(address _legoAddr)` | `nonpayable` | `bool` | `bool` |
+| `setUserConfig()` | `nonpayable` | `bool` | `bool` |
+| `setUserConfig(address _user)` | `nonpayable` | `bool` | `bool` |
+| `setUserConfig(address _user, bool _canAnyoneDeposit)` | `nonpayable` | `bool` | `bool` |
+| `setUserConfig(address _user, bool _canAnyoneDeposit, bool _canAnyoneRepayDebt)` | `nonpayable` | `bool` | `bool` |
+| `setUserConfig(address _user, bool _canAnyoneDeposit, bool _canAnyoneRepayDebt, bool _canAnyoneBondForUser)` | `nonpayable` | `bool` | `bool` |
+| `setUserDelegation(address _delegate)` | `nonpayable` | `bool` | `bool` |
+| `setUserDelegation(address _delegate, address _user)` | `nonpayable` | `bool` | `bool` |
+| `setUserDelegation(address _delegate, address _user, bool _canWithdraw)` | `nonpayable` | `bool` | `bool` |
+| `setUserDelegation(address _delegate, address _user, bool _canWithdraw, bool _canBorrow)` | `nonpayable` | `bool` | `bool` |
+| `setUserDelegation(address _delegate, address _user, bool _canWithdraw, bool _canBorrow, bool _canClaimFromStabPool)` | `nonpayable` | `bool` | `bool` |
+| `setUserDelegation(address _delegate, address _user, bool _canWithdraw, bool _canBorrow, bool _canClaimFromStabPool, bool _canClaimLoot)` | `nonpayable` | `bool` | `bool` |
+| `withdraw(address _asset)` | `nonpayable` | `uint256` | `uint256` |
+| `withdraw(address _asset, uint256 _amount)` | `nonpayable` | `uint256` | `uint256` |
+| `withdraw(address _asset, uint256 _amount, address _user)` | `nonpayable` | `uint256` | `uint256` |
+| `withdraw(address _asset, uint256 _amount, address _user, address _vaultAddr)` | `nonpayable` | `uint256` | `uint256` |
+| `withdraw(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId)` | `nonpayable` | `uint256` | `uint256` |
+| `withdrawMany(address _user, (address,uint256,address,uint256)[] _withdrawals)` | `nonpayable` | `uint256` | `uint256` |
+| `withdrawOnVaultMigration(address _user, address _asset, address _sourceVault)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+| `withdrawOnVaultMigration(address _user, address _asset, address _sourceVault, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `(uint256, bool)` | `(uint256, bool)` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+| `TellerDeposit` | `address user indexed, address depositor indexed, address asset indexed, uint256 amount, address vaultAddr, uint256 vaultId` |
+| `TellerRebalance` | `address user indexed, address caller indexed, address depositAsset indexed, address withdrawAsset, uint256 depositAmount, uint256 withdrawAmount, uint256 depositVaultId, uint256 withdrawVaultId` |
+| `TellerWithdrawal` | `address user indexed, address asset indexed, address caller indexed, uint256 amount, address vaultAddr, uint256 vaultId, bool isDepleted` |
+| `UserConfigSet` | `address user indexed, bool canAnyoneDeposit, bool canAnyoneRepayDebt, bool canAnyoneBondForUser, address caller indexed` |
+| `UserDelegationSet` | `address user indexed, address delegate indexed, bool canWithdraw, bool canBorrow, bool canClaimFromStabPool, bool canClaimLoot, address caller indexed` |
+
+### Structs declared by this source
+
+- `RipeGovMigrationData(amount: uint256, govPoints: uint256, unlock: uint256, lastTerms: cs.LockTerms)`
+- `DepositLedgerData(isParticipatingInVault: bool, numUserVaults: uint256)`
+- `DepositAction(asset: address, amount: uint256, vaultAddr: address, vaultId: uint256)`
+- `TellerWithdrawConfig(canWithdrawGeneral: bool, canWithdrawAsset: bool, isUserAllowed: bool, canWithdrawForUser: bool, minDepositBalance: uint256)`
+- `WithdrawalAction(asset: address, amount: uint256, vaultAddr: address, vaultId: uint256)`
+- `CollateralRedemption(user: address, vaultId: uint256, asset: address, maxGreenAmount: uint256)`
+- `FungAuctionPurchase(liqUser: address, vaultId: uint256, asset: address, maxGreenAmount: uint256)`
+- `StabPoolClaim(stabAsset: address, claimAsset: address, maxUsdValue: uint256)`
+- `StabPoolRedemption(claimAsset: address, maxGreenAmount: uint256)`
+- `DeleverageUserRequest(user: address, targetRepayAmount: uint256)`
+- `DeleverageAsset(vaultId: uint256, asset: address, targetRepayAmount: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `account locked`
+- `bad debt health`
+- `cannot delegate to owner`
+- `cannot deposit 0`
+- `cannot deposit 0 green`
+- `cannot transfer 0 amount`
+- `cannot withdraw 0`
+- `contract paused`
+- `could not transfer`
+- `custody mismatch`
+- `deposit failed`
+- `empty batch`
+- `green approval failed`
+- `invalid recipient`
+- `invalid vault`
+- `invalid vault id`
+- `minimum payout not met`
+- `no perms`
+- `not activated`
+- `not owner of underscore wallet`
+- `only ripe addr allowed`
+- `only vault migrator allowed`
+- `receipt measurement active`
+- `receipt window active`
+- `savings green redeem failed`
+- `teller not paused`
+- `token transfer failed`
+- `too small a balance`
+
+<!-- END GENERATED API REFERENCE: Teller -->

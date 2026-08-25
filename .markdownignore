@@ -1,0 +1,7 @@
+# Repository Markdown that is intentionally not published through GitBook.
+.github/**
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+CHANGELOG.md
+reference/ImplementationBaseline.md

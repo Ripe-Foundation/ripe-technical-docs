@@ -1,507 +1,100 @@
-# BasicVault Module Technical Documentation
+# BasicVault module
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/vaults/modules/BasicVault.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/vaults/modules/BasicVault.vy)
 
 ## Overview
 
-BasicVault is the foundational vault module in Ripe Protocol, providing essential deposit, withdrawal, and transfer operations for all vault types. It handles the core mechanics of asset movement while maintaining accurate balance tracking through integration with VaultData.
+`BasicVault` uses exact nominal token balances: one recorded unit equals one
+asset unit. It binds those nominal balances to real custody and fails closed
+when the vault is under-backed.
 
-**Core Functions**:
-- **Asset Operations**: Secure deposits, withdrawals, and internal transfers with balance accounting
-- **State Management**: User balances and asset registrations via VaultData interface
-- **Protocol Integration**: Utility functions for Teller, CreditEngine, Lootbox, and AuctionHouse
+## Deposit custody binding
 
-Built as a base layer for other vault modules, BasicVault implements pause-aware operations for emergency control and validates all token transfers. It serves as the fundamental building block that specialized vaults like SharesVault and StabVault extend with additional functionality.
+The trusted caller transfers tokens into the concrete vault before calling the module. `_depositTokensInVault(user, asset, amount)` requires:
 
-## Architecture & Dependencies
-
-BasicVault is built as a foundational module that depends on VaultData for all state management:
-
-### VaultData Module
-- **Location**: `contracts/vaults/modules/VaultData.vy`
-- **Purpose**: Provides comprehensive state management for vault operations
-- **Key Features**:
-  - User balance tracking (`userBalances`)
-  - Asset registration and enumeration
-  - Pause state management
-  - Total balance accounting
-  - User asset indexing and iteration
-- **Relationship**: BasicVault uses VaultData for all balance modifications and state queries
-
-### Module Dependencies
-```vyper
-uses: vaultData
-import contracts.vaults.modules.VaultData as vaultData
+```text
+actual custody before >= recorded total before + amount
 ```
 
-## System Architecture Diagram
+It then credits exactly `amount`; the accounting credit is never clipped to the
+raw balance present. Zero amount or zero user/asset is rejected.
 
-```
-+------------------------------------------------------------------------+
-|                        BasicVault Module                              |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Core Operations                             |  |
-|  |                                                                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ _depositTokensInVault(_user, _asset, _amount)               │ |  |
-|  |  │ 1. Check vault not paused                                   │ |  |
-|  |  │ 2. Validate user, asset, and amount                         │ |  |
-|  |  │ 3. Calculate actual deposit (min of amount and balance)     │ |  |
-|  |  │ 4. Call vaultData._addBalanceOnDeposit()                    │ |  |
-|  |  │    - Updates user balance                                   │ |  |
-|  |  │    - Updates total balance                                  │ |  |
-|  |  │    - Registers user asset if needed                         │ |  |
-|  |  │    - Registers vault asset if needed                        │ |  |
-|  |  │ 5. Return actual deposit amount                             │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ _withdrawTokensFromVault(_user, _asset, _amount, _recipient)│ |  |
-|  |  │ 1. Check vault not paused                                   │ |  |
-|  |  │ 2. Validate user, asset, recipient, and amount              │ |  |
-|  |  │ 3. Call vaultData._reduceBalanceOnWithdrawal()              │ |  |
-|  |  │    - Reduces user balance                                   │ |  |
-|  |  │    - Updates total balance                                  │ |  |
-|  |  │    - Returns actual amount and depletion status            │ |  |
-|  |  │ 4. Transfer tokens to recipient                             │ |  |
-|  |  │ 5. Return withdrawal amount and depletion status           │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  |                                                                  |  |
-|  |  ┌─────────────────────────────────────────────────────────────┐ |  |
-|  |  │ _transferBalanceWithinVault(_asset, _from, _to, _amount)    │ |  |
-|  |  │ 1. Check vault not paused                                   │ |  |
-|  |  │ 2. Validate from/to users, asset, and amount               │ |  |
-|  |  │ 3. Reduce balance from sender (no token transfer)          │ |  |
-|  |  │ 4. Add balance to recipient (no token transfer)            │ |  |
-|  |  │ 5. Return transfer amount and sender depletion status      │ |  |
-|  |  └─────────────────────────────────────────────────────────────┘ |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Integration Support Functions                 |  |
-|  |                                                                  |  |
-|  |  For Teller:                                                     |  |
-|  |  * _getVaultDataOnDeposit() -> VaultDataOnDeposit struct         |  |
-|  |                                                                  |  |
-|  |  For Lootbox:                                                    |  |
-|  |  * _getUserLootBoxShare() -> user asset balance                  |  |
-|  |  * _getUserAssetAtIndexAndHasBalance() -> asset and balance flag |  |
-|  |                                                                  |  |
-|  |  For CreditEngine:                                               |  |
-|  |  * _getUserAssetAndAmountAtIndex() -> asset and amount           |  |
-|  |                                                                  |  |
-|  |  For AuctionHouse:                                               |  |
-|  |  * _getUserAssetAtIndexAndHasBalance() -> asset and balance flag |  |
-|  |                                                                  |  |
-|  |  General Utilities:                                              |  |
-|  |  * _getTotalAmountForUser() -> user's asset balance             |  |
-|  |  * _getTotalAmountForVault() -> vault's total asset balance     |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-                                    |
-                                    v
-+------------------------------------------------------------------------+
-|                        VaultData Module                               |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  State Storage:                   Asset Management:                    |
-|  * userBalances                   * userAssets (indexed)               |
-|  * totalBalances                  * indexOfUserAsset                   |
-|  * isPaused                       * numUserAssets                      |
-|                                   * vaultAssets (indexed)              |
-|  Balance Operations:              * indexOfAsset                       |
-|  * _addBalanceOnDeposit()         * numAssets                          |
-|  * _reduceBalanceOnWithdrawal()                                        |
-|                                   Registration:                        |
-|  Query Functions:                 * _registerUserAsset()               |
-|  * isUserInVaultAsset()           * _registerVaultAsset()              |
-|  * doesUserHaveBalance()          * deregisterUserAsset()              |
-|  * getNumUserAssets()             * deregisterVaultAsset()             |
-+------------------------------------------------------------------------+
+The check permits pre-existing surplus custody, but a deposit cannot create an accounting liability not backed at call time.
+
+## Exact withdrawal delivery
+
+Before reducing user accounting, withdrawal requires current custody at least equal to the recorded total. It snapshots recipient and vault balances, reduces the user's nominal amount, transfers the selected amount, then requires:
+
+```text
+vaultBefore - vaultAfter == withdrawalAmount
+recipientAfter - recipientBefore == withdrawalAmount
 ```
 
-## Core Functions
-
-### `_depositTokensInVault`
-
-Handles token deposits into the vault with balance tracking and asset registration.
-
-```vyper
-@internal
-def _depositTokensInVault(
-    _user: address,
-    _asset: address,
-    _amount: uint256,
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User making the deposit |
-| `_asset` | `address` | Asset being deposited |
-| `_amount` | `uint256` | Amount to deposit |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount deposited |
-
-#### Access
-
-Internal function (called by extending vault contracts)
-
-#### Process Flow
-1. **Pause Check**: Ensures vault is not paused
-2. **Validation**: Validates user, asset, and amount parameters
-3. **Amount Calculation**: Uses minimum of requested amount and contract's asset balance
-4. **Balance Update**: Calls `vaultData._addBalanceOnDeposit()` which:
-   - Updates user's asset balance
-   - Updates vault's total asset balance
-   - Registers user asset if first deposit
-   - Registers vault asset if first time seeing asset
-5. **Return**: Returns actual deposited amount
-
-#### Example Integration
-```python
-# In an extending vault contract
-@external
-def deposit(_asset: address, _amount: uint256):
-    # Transfer tokens to vault first
-    assert extcall IERC20(_asset).transferFrom(msg.sender, self, _amount)
-    
-    # Process deposit through BasicVault
-    deposited = self._depositTokensInVault(msg.sender, _asset, _amount)
-    
-    # Emit deposit event
-    log Deposit(user=msg.sender, asset=_asset, amount=deposited)
-```
-
-### `_withdrawTokensFromVault`
-
-Handles token withdrawals from the vault with balance reduction and token transfers.
-
-```vyper
-@internal
-def _withdrawTokensFromVault(
-    _user: address,
-    _asset: address,
-    _amount: uint256,
-    _recipient: address,
-) -> (uint256, bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User making the withdrawal |
-| `_asset` | `address` | Asset being withdrawn |
-| `_amount` | `uint256` | Amount to withdraw |
-| `_recipient` | `address` | Address to receive the tokens |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount withdrawn |
-| `bool` | True if user's asset balance is now depleted |
-
-#### Access
-
-Internal function (called by extending vault contracts)
-
-#### Process Flow
-1. **Pause Check**: Ensures vault is not paused
-2. **Validation**: Validates all address parameters and amount
-3. **Balance Reduction**: Calls `vaultData._reduceBalanceOnWithdrawal()` which:
-   - Reduces user's asset balance
-   - Updates vault's total asset balance
-   - Returns actual withdrawal amount and depletion status
-4. **Token Transfer**: Transfers tokens from vault to recipient
-5. **Return**: Returns withdrawal amount and depletion status
-
-#### Example Integration
-```python
-# In an extending vault contract
-@external
-def withdraw(_asset: address, _amount: uint256, _recipient: address):
-    # Process withdrawal through BasicVault
-    withdrawn, is_depleted = self._withdrawTokensFromVault(
-        msg.sender, _asset, _amount, _recipient
-    )
-    
-    # Handle post-withdrawal logic if user balance is depleted
-    if is_depleted:
-        self._handleUserAssetDepletion(msg.sender, _asset)
-    
-    # Emit withdrawal event
-    log Withdraw(user=msg.sender, asset=_asset, amount=withdrawn)
-```
-
-### `_transferBalanceWithinVault`
-
-Transfers asset balances between users within the vault without moving tokens.
-
-```vyper
-@internal
-def _transferBalanceWithinVault(
-    _asset: address,
-    _fromUser: address,
-    _toUser: address,
-    _transferAmount: uint256,
-) -> (uint256, bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset being transferred |
-| `_fromUser` | `address` | User sending the balance |
-| `_toUser` | `address` | User receiving the balance |
-| `_transferAmount` | `uint256` | Amount to transfer |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Actual amount transferred |
-| `bool` | True if sender's asset balance is now depleted |
-
-#### Access
-
-Internal function (called by extending vault contracts)
-
-#### Process Flow
-1. **Pause Check**: Ensures vault is not paused
-2. **Validation**: Validates all address parameters and amount
-3. **Balance Transfer**: 
-   - Reduces sender's balance via `vaultData._reduceBalanceOnWithdrawal()` (no total update)
-   - Increases recipient's balance via `vaultData._addBalanceOnDeposit()` (no total update)
-   - Registers recipient's asset if needed
-4. **Return**: Returns transfer amount and sender depletion status
+Fee-on-transfer, rebasing-during-transfer, or otherwise non-exact delivery is rejected atomically. The module returns the actual nominal amount and whether the user's position was depleted.
 
-#### Example Integration
-```python
-# Used in liquidation or internal rebalancing
-def _transferCollateralToLiquidator(_user: address, _asset: address, _amount: uint256):
-    transferred, is_depleted = self._transferBalanceWithinVault(
-        _asset, _user, liquidator.address, _amount
-    )
-    return transferred, is_depleted
-```
+## Internal balance transfers
 
-## Integration Support Functions
+AuctionHouse and CreditEngine can move accounting between users without moving custody. The users must be distinct and nonzero, the asset/amount must be nonzero, and actual custody must cover the recorded total before the move.
 
-### `_getVaultDataOnDeposit`
+## Under-backing and downstream quarantine
 
-Provides vault data needed by Teller contract for deposit operations.
+If raw custody is below the recorded total for an asset:
 
-```vyper
-@view
-@internal
-def _getVaultDataOnDeposit(_user: address, _asset: address) -> Vault.VaultDataOnDeposit:
-```
+- `getUserLootBoxShare` returns zero;
+- `getTotalAmountForUser` returns zero;
+- `getTotalAmountForVault` returns zero; and
+- `getUserAssetAndAmountAtIndex` returns the **registered asset address with amount zero**.
 
-#### Parameters
+Preserving the asset address is intentional. CreditEngine reads that asset's
+current debt terms while treating its usable amount as zero. When LTV is
+positive, a remaining nominal balance with zero vault-wide usable amount feeds
+the `hasQuarantinedAsset` flag and blocks unsafe risk paths. CreditEngine skips
+zero-LTV assets before the quarantine scan, so an under-backed zero-LTV position
+still returns zero usable/reward amount but does not quarantine account debt.
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User making deposit |
-| `_asset` | `address` | Asset being deposited |
+`getUserAssetAtIndexAndHasBalance` remains a nominal registration/balance query; it is not the usable-collateral view.
 
-#### Returns
+## Integration requirements
 
-| Type | Description |
-|------|-------------|
-| `Vault.VaultDataOnDeposit` | Struct with position info, asset counts, and balances |
+- Transfer the exact deposit amount into custody before crediting it.
+- Do not support fee-on-transfer semantics through BasicVault.
+- Use CreditEngine-facing amount views for collateral safety; do not replace them with nominal balance getters.
+- Treat an asset-plus-zero result as under-backed/unusable, not absent; consult
+  current debt terms before classifying the account as quarantined.
 
-#### Struct Fields
-- `hasPosition: bool` - Whether user already has this asset
-- `numAssets: uint256` - Number of assets user has in vault
-- `userBalance: uint256` - User's current balance of this asset
-- `totalBalance: uint256` - Vault's total balance of this asset
+<!-- BEGIN GENERATED API REFERENCE: BasicVault -->
+## Exact source-declared API reference
 
-#### Access
+> Generated from declarations in `contracts/vaults/modules/BasicVault.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
-Internal view function (used by Teller)
+### Deployment/module initializer declared by this source
 
-### `_getUserLootBoxShare`
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
 
-Returns a user's asset balance for Lootbox reward calculations.
+- `def __init__()`
 
-```vyper
-@view
-@internal
-def _getUserLootBoxShare(_user: address, _asset: address) -> uint256:
-```
+### External functions declared by this source
 
-#### Parameters
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| None | — | — | — |
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to query |
-| `_asset` | `address` | Asset to query |
+### Source-declared revert reasons
 
-#### Returns
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
 
-| Type | Description |
-|------|-------------|
-| `uint256` | User's balance of the asset |
+- `contract paused`
+- `insufficient vault backing`
+- `invalid deposit amount`
+- `invalid recipient delivery`
+- `invalid transfer amount`
+- `invalid transfer users`
+- `invalid user or asset`
+- `invalid user, asset, or recipient`
+- `invalid users or asset`
+- `invalid vault outflow`
+- `invalid withdrawal amount`
+- `no withdrawal amount`
+- `token transfer failed`
 
-#### Access
-
-Internal view function (used by Lootbox)
-
-### `_getUserAssetAndAmountAtIndex`
-
-Returns asset and amount at a specific index for a user (used by CreditEngine).
-
-```vyper
-@view
-@internal
-def _getUserAssetAndAmountAtIndex(_user: address, _index: uint256) -> (address, uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to query |
-| `_index` | `uint256` | Asset index to query |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `address` | Asset address at index |
-| `uint256` | User's balance of that asset |
-
-#### Access
-
-Internal view function (used by CreditEngine)
-
-### `_getUserAssetAtIndexAndHasBalance`
-
-Returns asset and balance status at a specific index for a user.
-
-```vyper
-@view
-@internal
-def _getUserAssetAtIndexAndHasBalance(_user: address, _index: uint256) -> (address, bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to query |
-| `_index` | `uint256` | Asset index to query |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `address` | Asset address at index |
-| `bool` | Whether user has non-zero balance |
-
-#### Access
-
-Internal view function (used by Lootbox and AuctionHouse)
-
-## Utility Functions
-
-### `_getTotalAmountForUser`
-
-Returns a user's total balance for a specific asset.
-
-```vyper
-@view
-@internal
-def _getTotalAmountForUser(_user: address, _asset: address) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_user` | `address` | User to query |
-| `_asset` | `address` | Asset to query |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | User's balance of the asset |
-
-#### Access
-
-Internal view function
-
-### `_getTotalAmountForVault`
-
-Returns the vault's total balance for a specific asset.
-
-```vyper
-@view
-@internal
-def _getTotalAmountForVault(_asset: address) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_asset` | `address` | Asset to query |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Vault's total balance of the asset |
-
-#### Access
-
-Internal view function
-
-## Key Features
-
-### Pause-Aware Operations
-All core functions check `vaultData.isPaused` before proceeding, allowing for emergency stops.
-
-### Automatic Asset Registration
-- User assets are automatically registered on first deposit
-- Vault assets are automatically registered when first seen
-- Proper indexing maintained for efficient iteration
-
-### Balance Consistency
-- User balances and vault total balances are kept in sync
-- Withdrawal amounts are capped by available balances
-- Transfer operations maintain balance invariants
-
-### Integration Points
-- Designed for extension by other vault modules
-- Provides utility functions for protocol contract integration
-- Maintains clean separation between balance logic and token transfers
-
-## Security Considerations
-
-### Validation Checks
-- All address parameters validated against empty addresses
-- Amount parameters validated against zero
-- Asset existence validated before operations
-
-### Pause Protection
-- All state-modifying operations respect pause state
-- Emergency pause capability through VaultData module
-
-### Balance Safety
-- Withdrawal amounts capped by user balance
-- Token transfer amounts capped by contract balance
-- Internal transfers don't affect vault total balances
+<!-- END GENERATED API REFERENCE: BasicVault -->

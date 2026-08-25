@@ -1,491 +1,142 @@
-# BondRoom Technical Documentation
+# BondRoom
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/BondRoom.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/BondRoom.vy)
 
-## Overview
+## Purpose
 
-BondRoom is the decentralized bond marketplace for the Ripe Protocol, enabling users to purchase discounted Ripe tokens in exchange for stable assets. The contract implements a sophisticated bond mechanism with epoch-based
-availability, dynamic pricing curves, and automated treasury management.
+`BondRoom` sells RIPE for an approved payment asset under an epoch-based price schedule. [Teller](../core/Teller.md) is the only caller of `purchaseRipeBond`; Teller supplies the actual user/caller identities and enforces the user's `minRipePayout` after BondRoom returns.
 
-**Core Features**:
-- **Epoch-Based Sales**: Time-boxed periods with limited availability to ensure predictable supply release and fair access
-- **Dynamic Pricing**: Linear pricing curves within epochs (high to low) with lock-up bonuses up to 10x and boost mechanics integration
-- **Automated Treasury**: Allocates bond proceeds between treasury growth and bad debt repayment based on protocol health
+## Purchase flow
 
-The contract uses atomic execution for all bond purchases, maintains strict accounting through the [Ledger](../core/Ledger.md), supports whitelist restrictions, and provides configurable parameters for sustainable token distribution. Bond proceeds are transferred to [Endaoment](Endaoment.md) and coordinated with [MissionControl](../governance/MissionControl.md) for dynamic pricing.
+The execution path verifies that bonding is enabled, the payment asset matches current configuration, the recipient is eligible, and third-party bonding is permitted. When the recipient differs from the caller, the configured public permission or current Underscore-owner relationship must authorize the action.
 
-## Architecture & Modules
+BondRoom refreshes an expired epoch before reading its available capacity. The purchase block must satisfy `epochStart <= block.number < epochEnd`. The RIPE-per-unit rate increases from the configured minimum toward the maximum as the epoch progresses.
 
-BondRoom is built using a modular architecture with the following components:
+Payment is denominated in whole units of the payment token:
 
-### Addys Module
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Key Features**:
-  - Access to all protocol contract addresses
-  - Validation of caller permissions
-  - Centralized address management
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### DeptBasics Module
-- **Location**: `contracts/modules/DeptBasics.vy`
-- **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
-- **Key Features**:
-  - Pause mechanism for emergency stops
-  - Ripe token minting capability (for bond payouts)
-  - No Green minting capability
-- **Exported Interface**: Department basics via `deptBasics.__interface__`
-
-### Module Initialization
-```vyper
-initializes: addys
-initializes: deptBasics[addys := addys]
+```text
+one unit = 10 ** paymentToken.decimals()
 ```
 
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                         BondRoom Contract                              |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Bond Purchase Flow                          |  |
-|  |                                                                  |  |
-|  |  1. User Initiates Purchase                                      |  |
-|  |     - Specify payment asset & amount                             |  |
-|  |     - Optional lock duration for bonus                           |  |
-|  |                                                                  |  |
-|  |  2. Epoch & Availability Check                                   |  |
-|  |     - Refresh epoch if expired                                   |  |
-|  |     - Check remaining availability                               |  |
-|  |     - Calculate purchase amount (min of request/available)       |  |
-|  |                                                                  |  |
-|  |  3. Price Calculation                                             |  |
-|  |     - Base: ripePerUnit = min + (progress * (max - min))         |  |
-|  |     - Lock bonus: up to maxRipePerUnitLockBonus                  |  |
-|  |     - Boost bonus: from BondBooster contract                     |  |
-|  |                                                                  |  |
-|  |  4. Bad Debt Handling (if exists)                                |  |
-|  |     - Calculate USD value of payment                             |  |
-|  |     - Allocate portion to bad debt repayment                     |  |
-|  |     - Reduce user's Ripe payout proportionally                   |  |
-|  |                                                                  |  |
-|  |  5. Token Distribution                                            |  |
-|  |     - Payment → Endaoment treasury                               |  |
-|  |     - Ripe → User (direct) or Gov Vault (if locked)             |  |
-|  |     - Refund excess payment to caller                            |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                      Epoch Management                            |  |
-|  |                                                                  |  |
-|  |  Epoch States:                                                   |  |
-|  |  - Not Started: No epochs configured yet                         |  |
-|  |  - Active: Current block within [start, end)                     |  |
-|  |  - Expired: Past end block, needs refresh                        |  |
-|  |  - Auto-Restart: Triggered when epoch sells out                  |  |
-|  |                                                                  |  |
-|  |  Pricing Curve (within epoch):                                   |  |
-|  |   Price                                                           |  |
-|  |     ^                                                             |  |
-|  |  max|.                                                            |  |
-|  |     | '.                                                          |  |
-|  |     |   '.                                                        |  |
-|  |     |     '.                                                      |  |
-|  |  min|-------'                                                     |  |
-|  |     +---------> Progress (0% to 100%)                            |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| MissionControl   |    | Ledger            |    | Endaoment        |
-| * Bond configs   |    | * Epoch tracking  |    | * Receives       |
-| * User settings  |    | * Bad debt data   |    |   payments       |
-| * Pricing params |    | * Bond accounting |    | * Treasury mgmt  |
-+------------------+    +-------------------+    +------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| BondBooster      |    | Teller            |    | Ripe Token       |
-| * Activity boost |    | * Deposit handler |    | * Minted for     |
-| * Unit tracking  |    | * Lock management |    |   bond payouts   |
-+------------------+    +-------------------+    +------------------+
-```
-
-## Data Structures
-
-### PurchaseRipeBondConfig Struct
-Configuration for bond purchases (from MissionControl):
-```vyper
-struct PurchaseRipeBondConfig:
-    asset: address                    # Payment asset accepted
-    amountPerEpoch: uint256          # Max payment amount per epoch
-    canBond: bool                    # Global bond toggle
-    minRipePerUnit: uint256          # Min Ripe per payment unit
-    maxRipePerUnit: uint256          # Max Ripe per payment unit
-    maxRipePerUnitLockBonus: uint256 # Max lock bonus percentage
-    epochLength: uint256             # Blocks per epoch
-    shouldAutoRestart: bool          # Auto-restart on sellout
-    restartDelayBlocks: uint256      # Delay before new epoch
-    minLockDuration: uint256         # Min lock for bonus
-    maxLockDuration: uint256         # Max lock duration
-    canAnyoneBondForUser: bool       # Allow proxy purchases
-    isUserAllowed: bool              # Whitelist check
-```
-
-### RipeBondData Struct
-Current bond sale state (from Ledger):
-```vyper
-struct RipeBondData:
-    paymentAmountAvailInEpoch: uint256  # Remaining in current epoch
-    ripeAvailForBonds: uint256          # Total Ripe available
-    badDebt: uint256                    # Outstanding bad debt
-```
+The amount is capped by user input, actual BondRoom custody, and remaining epoch capacity, then rounded down to whole units. Any excess or fractional remainder is returned to the actual caller. Successful proceeds go to EndaomentFunds.
 
-## State Variables
+## Payout, boosts, and locks
 
-### Contract State
-- `bondBooster: public(address)` - Optional boost calculator contract
-
-### Constants
-- `HUNDRED_PERCENT: uint256 = 100_00` - 100.00% in basis points
-- `RIPE_GOV_VAULT_ID: uint256 = 2` - Governance vault for locked Ripe
-
-### Inherited State Variables
-From [DeptBasics](../core-modules/DeptBasics.md):
-- `isPaused: bool` - Department pause state
-- `canMintRipe: bool` - Set to `True` for bond payouts
-
-## Constructor
-
-### `__init__`
-
-Initializes BondRoom with Ripe minting capability and optional boost contract.
-
-```vyper
-@deploy
-def __init__(_ripeHq: address, _bondBooster: address):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_ripeHq` | `address` | RipeHq contract address |
-| `_bondBooster` | `address` | Optional boost calculator (can be empty) |
-
-#### Returns
-
-*Constructor does not return any values*
-
-#### Access
-
-Called only during deployment
-
-#### Example Usage
-```python
-# Deploy BondRoom with boost mechanics
-bond_room = boa.load(
-    "contracts/core/BondRoom.vy",
-    ripe_hq.address,
-    bond_booster.address
-)
-```
-
-**Example Output**: Contract deployed with Ripe minting enabled for bonds
-
-## Bond Purchase Functions
-
-### `purchaseRipeBond`
-
-Purchases Ripe bonds using payment assets with optional lock-up.
-
-```vyper
-@external
-def purchaseRipeBond(
-    _recipient: address,
-    _paymentAsset: address,
-    _paymentAmount: uint256,
-    _lockDuration: uint256,
-    _caller: address,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_recipient` | `address` | Recipient of Ripe tokens |
-| `_paymentAsset` | `address` | Asset used for payment |
-| `_paymentAmount` | `uint256` | Amount to spend (max) |
-| `_lockDuration` | `uint256` | Lock duration in blocks (0 for no lock) |
-| `_caller` | `address` | Transaction initiator |
-| `_a` | `addys.Addys` | Cached addresses (optional) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Total Ripe tokens received |
-
-#### Access
-
-Only callable by Teller contract
-
-#### Events Emitted
-
-- `RipeBondPurchased` - Comprehensive purchase details including:
-  - Payment and recipient information
-  - Base payout and all bonuses
-  - Bad debt allocation
-  - Epoch progress
-  - Refund amount
-
-#### Example Usage
-```python
-# Purchase bonds with 1000 USDC, lock for 30 days
-ripe_received = bond_room.purchaseRipeBond(
-    user.address,
-    usdc.address,
-    1000_000000,  # 1000 USDC
-    30 * 6650,    # ~30 days in blocks
-    user.address,
-    sender=teller.address
-)
-```
-
-**Example Output**: Mints and distributes Ripe based on pricing and bonuses
-
-### `previewRipeBondPayout`
-
-Previews potential Ripe payout for given parameters.
-
-```vyper
-@view
-@external
-def previewRipeBondPayout(
-    _recipient: address, 
-    _lockDuration: uint256 = 0, 
-    _paymentAmount: uint256 = max_value(uint256)
-) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_recipient` | `address` | Potential recipient (for boost calculation) |
-| `_lockDuration` | `uint256` | Lock duration for bonus preview |
-| `_paymentAmount` | `uint256` | Payment amount (defaults to max available) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Estimated Ripe payout |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Preview payout for 1000 USDC with 30-day lock
-estimated_ripe = bond_room.previewRipeBondPayout(
-    user.address,
-    30 * 6650,    # 30 days
-    1000_000000   # 1000 USDC
-)
-# Returns: Estimated Ripe tokens including all bonuses
-```
-
-### `previewNextEpoch`
-
-Gets the current or next epoch time boundaries.
-
-```vyper
-@view
-@external
-def previewNextEpoch() -> (uint256, uint256):
-```
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(uint256, uint256)` | (epochStart, epochEnd) block numbers |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check current epoch timing
-start_block, end_block = bond_room.previewNextEpoch()
-# Returns: (15000000, 15100000) if epoch is active
-```
-
-## Epoch Management Functions
-
-### `startBondEpochAtBlock`
-
-Manually starts a new bond epoch at specified block.
-
-```vyper
-@external
-def startBondEpochAtBlock(_block: uint256):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_block` | `uint256` | Starting block (uses current if in past) |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Example Usage
-```python
-# Start epoch at block 15000000
-bond_room.startBondEpochAtBlock(
-    15000000,
-    sender=bond_manager.address
-)
-```
-
-### `refreshBondEpoch`
-
-Updates epoch if current one has expired.
-
-```vyper
-@external 
-def refreshBondEpoch() -> (uint256, uint256):
-```
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(uint256, uint256)` | Updated (epochStart, epochEnd) |
-
-#### Access
-
-Only callable by valid Ripe addresses
-
-#### Example Usage
-```python
-# Refresh expired epoch
-start, end = bond_room.refreshBondEpoch(
-    sender=credit_engine.address
-)
-```
-
-### `getLatestEpochBlockTimes`
-
-Calculates what the current epoch should be based on configuration.
-
-```vyper
-@view
-@external
-def getLatestEpochBlockTimes(
-    _prevStartBlock: uint256, 
-    _prevEndBlock: uint256, 
-    _epochLength: uint256
-) -> (uint256, uint256, bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_prevStartBlock` | `uint256` | Previous epoch start |
-| `_prevEndBlock` | `uint256` | Previous epoch end |
-| `_epochLength` | `uint256` | Length of epochs in blocks |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `(uint256, uint256, bool)` | (newStart, newEnd, didChange) |
-
-#### Access
-
-Public view function
-
-## Bond Booster Functions
-
-### `setBondBooster`
-
-Updates the bond booster contract address.
-
-```vyper
-@external
-def setBondBooster(_bondBooster: address):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_bondBooster` | `address` | New booster contract (can be empty) |
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `BondBoosterSet` - New booster address
-
-#### Example Usage
-```python
-# Set new booster contract
-bond_room.setBondBooster(
-    new_booster.address,
-    sender=bond_config.address
-)
-```
-
-## Key Mathematical Functions
-
-### Dynamic Pricing Formula
-
-The contract implements linear interpolation for bond pricing within epochs:
-
-```
-ripePerUnit = minRipePerUnit + (epochProgress * (maxRipePerUnit - minRipePerUnit))
-```
-
-Where:
-- epochProgress = (currentBlock - epochStart) / (epochEnd - epochStart)
-- Prices start high (maxRipePerUnit) and decrease to minRipePerUnit
-
-### Lock Bonus Calculation
-
-Lock bonuses scale linearly with lock duration:
-
-```
-lockBonusRatio = maxLockBonusRatio * (lockDuration - minLock) / (maxLock - minLock)
-ripeLockBonus = baseRipePayout * lockBonusRatio / 100%
-```
-
-### Bad Debt Allocation
-
-When bad debt exists, bond proceeds are allocated proportionally:
-
-```
-If paymentValue <= badDebt:
-    ripeForBadDebt = totalRipePayout (all goes to bad debt)
-Else:
-    ripeForBadDebt = totalRipePayout * badDebt / paymentValue
-```
+The base RIPE payout may receive:
+
+- a user-specific BondBooster bonus, subject to remaining booster units; and
+- a lock-duration bonus derived from current bond configuration.
+
+If a booster is used, its minimum lock duration is applied before the lock bonus is calculated, subject to the bond configuration's maximum. A nonzero final lock deposits the payout into MissionControl's current core RipeGov vault; an unlocked payout is minted directly to the recipient. The implementation does not assume that the current governance vault has a fixed numeric ID.
+
+When protocol bad debt exists, the purchase can allocate some RIPE/payment value to debt clearing before recording the user's net bond allocation. Epoch capacity is reduced by the payment consumed regardless of that allocation.
+
+Teller's bond interface includes the payment amount and `minRipePayout`. Its
+trailing defaults are zero requested lock duration, `msg.sender` as recipient,
+and zero minimum payout. A caller must pass a nonzero minimum to obtain
+payout-slippage protection and must select a lock or recipient explicitly when
+the defaults are not intended.
+
+## Epoch lifecycle and previews
+
+`previewRipeBondPayout` is a limited estimate of epoch pricing, the
+epoch-payment cap, rounding, booster, and lock-bonus arithmetic. It does not
+check recipient eligibility, caller authority, actual BondRoom payment custody,
+payment-asset identity, or Ledger's available RIPE bond budget, so it can return
+a nonzero value when execution would revert. It can also revert when an epoch
+has been scheduled for a future start because the preview subtracts that start
+from the current block. It is neither a reservation nor an execution guarantee.
+With only `_recipient` supplied, the preview uses zero requested lock duration
+and `max_value(uint256)` requested payment, which is then capped by remaining
+epoch payment capacity. It does not quote against the caller's token balance or
+custody.
+`previewNextEpoch`, `getLatestEpochBlockTimes`, and `refreshBondEpoch` expose
+epoch projections/state transitions. Switchboard can choose the booster and
+schedule an epoch start; registered Ripe addresses may refresh an elapsed epoch
+under the configured rules.
+
+An epoch length and amount must be nonzero. The end block is exclusive. When remaining capacity is smaller than one payment unit and auto-restart is enabled, BondRoom schedules the next epoch using the configured restart delay.
+
+The principal purchase event is `RipeBondPurchased`; `BondBoosterSet` records booster replacement.
+
+<!-- BEGIN GENERATED API REFERENCE: BondRoom -->
+## Exact API reference
+
+> Generated from `contracts/core/BondRoom.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq, address _bondBooster)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `previewRipeBondPayout(address _recipient, uint256 _lockDuration, uint256 _paymentAmount)` | `1–3` | `_lockDuration = 0`, `_paymentAmount = max_value(uint256)` |
+| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller, Addys _a)` | `5–6` | `_a = empty(addys.Addys)` |
+
+### Functions
+
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `bondBooster()` | `view` | `address` | — |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getLatestEpochBlockTimes(uint256 _prevStartBlock, uint256 _prevEndBlock, uint256 _epochLength)` | `view` | `(uint256, uint256, bool)` | `(uint256, uint256, bool)` |
+| `getRipeHq()` | `view` | `address` | — |
+| `isPaused()` | `view` | `bool` | — |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `previewNextEpoch()` | `view` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `previewRipeBondPayout(address _recipient)` | `view` | `uint256` | `uint256` |
+| `previewRipeBondPayout(address _recipient, uint256 _lockDuration)` | `view` | `uint256` | `uint256` |
+| `previewRipeBondPayout(address _recipient, uint256 _lockDuration, uint256 _paymentAmount)` | `view` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller)` | `nonpayable` | `uint256` | `uint256` |
+| `purchaseRipeBond(address _recipient, address _paymentAsset, uint256 _paymentAmount, uint256 _lockDuration, address _caller, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `nonpayable` | `uint256` | `uint256` |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `refreshBondEpoch()` | `nonpayable` | `(uint256, uint256)` | `(uint256, uint256)` |
+| `setBondBooster(address _bondBooster)` | `nonpayable` | — | — |
+| `startBondEpochAtBlock(uint256 _block)` | `nonpayable` | — | — |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `BondBoosterSet` | `address bondBooster` |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+| `RipeBondPurchased` | `address recipient indexed, address paymentAsset indexed, uint256 paymentAmount, uint256 lockDuration, uint256 ripePerUnit, uint256 totalRipePayout, uint256 baseRipePayout, uint256 ripeLockBonus, uint256 ripeBoostBonus, uint256 ripeForBadDebt, uint256 epochProgress, uint256 refundAmount, uint256 epochStart, uint256 epochEnd, address caller indexed` |
+
+### Structs declared by this source
+
+- `PurchaseRipeBondConfig(asset: address, amountPerEpoch: uint256, canBond: bool, minRipePerUnit: uint256, maxRipePerUnit: uint256, maxRipePerUnitLockBonus: uint256, epochLength: uint256, shouldAutoRestart: bool, restartDelayBlocks: uint256, minLockDuration: uint256, maxLockDuration: uint256, canAnyoneBondForUser: bool, isUserAllowed: bool)`
+- `RipeBondData(paymentAmountAvailInEpoch: uint256, ripeAvailForBonds: uint256, badDebt: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `asset mismatch`
+- `asset transfer failed`
+- `bonds disabled`
+- `cannot bond for user`
+- `contract paused`
+- `invalid amount per epoch`
+- `invalid epoch length`
+- `invalid user`
+- `invalid vault id`
+- `max ripe per unit is zero`
+- `must have base ripe payout`
+- `no more available in epoch`
+- `no perms`
+- `not enough ripe avail`
+- `not within epoch window`
+- `only Teller allowed`
+- `ripe approval failed`
+- `user has no asset balance (or zero specified)`
+- `user not on whitelist`
+
+<!-- END GENERATED API REFERENCE: BondRoom -->

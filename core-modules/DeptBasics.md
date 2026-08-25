@@ -1,377 +1,111 @@
-# DeptBasics Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/modules/DeptBasics.vy)
-
-## Overview
-
-DeptBasics is a foundational module providing essential department-level functionality for Ripe Protocol contracts. It standardizes common operations across all departments including pause mechanisms, token recovery, and minting
-capability declarations, ensuring consistency while allowing deployment-time customization.
-
-**Core Capabilities**:
-- **Pause Functionality**: Circuit breaker for emergencies, allowing Switchboard-authorized contracts to halt operations
-- **Token Recovery**: Secure retrieval of accidentally sent tokens with batch support for efficiency
-- **Minting Declarations**: Immutable capability flags for Green/Ripe token minting, supporting RipeHq's two-factor authentication
-
-The module implements the Department interface standard, integrates with Addys for validation, and promotes operational consistency across all protocol departments.
-
-## System Architecture Diagram
-
-```
-+---------------------------------------------------------------+
-|                      DeptBasics Module                        |
-+---------------------------------------------------------------+
-|                                                               |
-|  +----------------------------------------------------------+ |
-|  |                   Core Capabilities                      | |
-|  |                                                          | |
-|  |  1. Pause Management                                     | |
-|  |     * isPaused state variable                            | |
-|  |     * Toggle via Switchboard-authorized contracts        | |
-|  |     * Emits DepartmentPauseModified events               | |
-|  |                                                          | |
-|  |  2. Token Recovery                                       | |
-|  |     * Recover individual tokens                          | |
-|  |     * Batch recovery (up to 20 tokens)                   | |
-|  |     * Only via Switchboard authorization                 | |
-|  |     * Emits DepartmentFundsRecovered events              | |
-|  |                                                          | |
-|  |  3. Minting Capabilities                                 | |
-|  |     * CAN_MINT_GREEN (immutable)                         | |
-|  |     * CAN_MINT_RIPE (immutable)                          | |
-|  |     * Set once at deployment                             | |
-|  |     * Queried by RipeHq for permissions                  | |
-|  +----------------------------------------------------------+ |
-|                                                               |
-|  +----------------------------------------------------------+ |
-|  |                 Integration Pattern                      | |
-|  |                                                          | |
-|  |  Parent Contract                                         | |
-|  |  initializes: deptBasics[addys := addys]                 | |
-|  |                                                          | |
-|  |  deptBasics.__init__(                                    | |
-|  |      _shouldPause,    // Initial pause state             | |
-|  |      _canMintGreen,   // Green minting capability        | |
-|  |      _canMintRipe     // Ripe minting capability         | |
-|  |  )                                                       | |
-|  +----------------------------------------------------------+ |
-+---------------------------------------------------------------+
-                              |
-                              v
-+---------------------------------------------------------------+
-|               Department Contract Examples                    |
-|                                                               |
-|  +------------------+  +------------------+  +--------------+ |
-|  | PriceDesk        |  | Switchboard      |  | VaultBook    | |
-|  | * No minting     |  | * No minting     |  | * RIPE only  | |
-|  | * Can pause      |  | * Can pause      |  | * Can pause  | |
-|  +------------------+  +------------------+  +--------------+ |
-|                                                               |
-|  +------------------+  +------------------+                   |
-|  | Credit Engine    |  | Treasury         |                   |
-|  | * GREEN minting  |  | * No minting     |                   |
-|  | * Can pause      |  | * Can pause      |                   |
-|  +------------------+  +------------------+                   |
-+---------------------------------------------------------------+
-```
-
-## State Variables
-
-### Public State Variables
-- `isPaused: bool` - Current pause state of the department
-
-### Immutable Variables
-- `CAN_MINT_GREEN: bool` - Whether this department can mint Green tokens
-- `CAN_MINT_RIPE: bool` - Whether this department can mint Ripe tokens
-
-### Constants
-- `MAX_RECOVER_ASSETS: uint256 = 20` - Maximum tokens recoverable in batch operation
-
-## Constructor
-
-### `__init__`
-
-Initializes the DeptBasics module with pause state and minting capabilities.
-
-```vyper
-@deploy
-def __init__(_shouldPause: bool, _canMintGreen: bool, _canMintRipe: bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_shouldPause` | `bool` | Initial pause state for the department |
-| `_canMintGreen` | `bool` | Whether department can mint Green tokens |
-| `_canMintRipe` | `bool` | Whether department can mint Ripe tokens |
+# DeptBasics
 
-#### Returns
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/modules/DeptBasics.vy)
 
-*Constructor does not return any values*
+`DeptBasics` is the shared Department module for pause state, immutable minting
+capability declarations, and recovery of accidentally held ERC-20 balances.
+It implements the standard [`Department`](../interfaces/Department.md)
+interface and is initialized inside a host contract.
 
-#### Access
+## Immutable capabilities
 
-Called only during deployment by parent contract
+The constructor records `CAN_MINT_GREEN` and `CAN_MINT_RIPE`. The public
+`canMintGreen()` and `canMintRipe()` views report those declarations; they do
+not themselves grant minting authority. Root authorization also requires the
+current `RipeHq` registry entry, the corresponding `HqConfig` permission, and
+the global minting enable flag.
 
-#### Example Usage
-```python
-# Initialize for a non-minting department (e.g., PriceDesk)
-deptBasics.__init__(
-    False,  # Not paused initially
-    False,  # Cannot mint Green
-    False   # Cannot mint Ripe
-)
+## Pause behavior
 
-# Initialize for VaultBook (can mint Ripe for rewards)
-deptBasics.__init__(
-    False,  # Not paused initially
-    False,  # Cannot mint Green
-    True    # Can mint Ripe
-)
+`pause(shouldPause)` may be called only by a currently registered Switchboard
+configuration contract and rejects no-op changes. The module stores and emits
+pause state, but it does not automatically guard every host function. Each host
+must explicitly include `isPaused` in the operations that pause is intended to
+block.
 
-# Initialize for Credit Engine (can mint Green)
-deptBasics.__init__(
-    False,  # Not paused initially
-    True,   # Can mint Green
-    False   # Cannot mint Ripe
-)
-```
+## Fund recovery
 
-**Example Output**: Module initialized with specified capabilities
+Only a registered Switchboard configuration contract may recover funds.
 
-## Minting Query Functions
+- `recoverFunds` transfers the host's full balance of one ERC-20.
+- `recoverFundsMany` applies the same operation to at most 20 assets.
+- Recipient and asset must be nonzero, the balance must be nonzero, and the
+  token transfer must return `true` or return no data. An explicit `false`
+  return or a revert fails recovery.
 
-### `canMintGreen`
+Recovery does not check the host's pause flag and therefore remains callable
+while the host is paused. A many-asset recovery is one atomic transaction: if
+any balance lookup or transfer fails, all earlier transfers and events in that
+batch are reverted.
 
-Returns whether this department has Green token minting capability.
+Recovery is a privileged escape hatch, not an accounting-aware withdrawal.
+Contracts whose token balances represent user or protocol liabilities may
+override, restrict, or deliberately disable it.
 
-```vyper
-@view
-@external
-def canMintGreen() -> bool:
-```
+## Security properties
 
-#### Parameters
+- Minting capabilities cannot be changed after construction.
+- Pause and recovery authority follows the current Switchboard registry, not a
+  hardcoded operator address.
+- A removed or replaced Switchboard configuration address immediately loses
+  these module-level permissions.
 
-*Function has no parameters*
+<!-- BEGIN GENERATED API REFERENCE: DeptBasics -->
+## Exact source-declared API reference
 
-#### Returns
+> Generated from declarations in `contracts/modules/DeptBasics.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
-| Type | Description |
-|------|-------------|
-| `bool` | True if department can mint Green tokens |
+### Deployment/module initializer declared by this source
 
-#### Access
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
 
-Public view function
+- `def __init__(_shouldPause: bool, _canMintGreen: bool, _canMintRipe: bool)`
 
-#### Example Usage
-```python
-# Check if Credit Engine can mint Green
-can_mint = credit_engine.canMintGreen()
-# Returns: True
+### External functions declared by this source
 
-# Check if PriceDesk can mint Green
-can_mint = price_desk.canMintGreen()
-# Returns: False
-```
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def canMintGreen() -> bool` | `0` | `view` | `bool` |
+| `def canMintRipe() -> bool` | `0` | `view` | `bool` |
+| `def pause(_shouldPause: bool)` | `1` | `nonpayable` | — |
+| `def recoverFunds(_recipient: address, _asset: address)` | `2` | `nonpayable` | — |
+| `def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS])` | `2` | `nonpayable` | — |
 
-### `canMintRipe`
+### Source-declared call forms
 
-Returns whether this department has Ripe token minting capability.
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-```vyper
-@view
-@external
-def canMintRipe() -> bool:
-```
+| Source call form | Mutability | Returns |
+| --- | --- | --- |
+| `canMintGreen()` | `view` | `bool` |
+| `canMintRipe()` | `view` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — |
+| `recoverFundsMany(address _recipient, DynArray[address, MAX_RECOVER_ASSETS] _assets)` | `nonpayable` | — |
 
-#### Parameters
+### Compiler-generated public getters
 
-*Function has no parameters*
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `isPaused()` | `view` | `bool` |
 
-#### Returns
+### Events declared by this source
 
-| Type | Description |
-|------|-------------|
-| `bool` | True if department can mint Ripe tokens |
+- `DepartmentPauseModified(isPaused: bool)`
+- `DepartmentFundsRecovered(asset: indexed(address), recipient: indexed(address), balance: uint256)`
 
-#### Access
+### Constants declared by this source
 
-Public view function
+- `MAX_RECOVER_ASSETS: uint256 = 20`
 
-#### Example Usage
-```python
-# Check if VaultBook can mint Ripe
-can_mint = vault_book.canMintRipe()
-# Returns: True (for stability pool rewards)
+### Source-declared revert reasons
 
-# Check if Switchboard can mint Ripe
-can_mint = switchboard.canMintRipe()
-# Returns: False
-```
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
 
-## Pause Management Functions
+- `invalid recipient or asset`
+- `no change`
+- `no perms`
+- `nothing to recover`
+- `recovery failed`
 
-### `pause`
-
-Toggles the pause state of the department.
-
-```vyper
-@external
-def pause(_shouldPause: bool):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_shouldPause` | `bool` | New pause state (must be different from current) |
-
-#### Returns
-
-*Function does not return any values*
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `DepartmentPauseModified` - Contains the new pause state
-
-#### Example Usage
-```python
-# Pause a department in emergency
-switchboard.pause(
-    True,
-    sender=emergency_manager.address  # Must be in Switchboard
-)
-
-# Resume operations
-switchboard.pause(
-    False,
-    sender=emergency_manager.address
-)
-```
-
-**Example Output**: Department paused/unpaused, emits `DepartmentPauseModified`
-
-## Recovery Functions
-
-### `recoverFunds`
-
-Recovers tokens accidentally sent to the department contract.
-
-```vyper
-@external
-def recoverFunds(_recipient: address, _asset: address):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_recipient` | `address` | Address to receive recovered funds |
-| `_asset` | `address` | Token contract address to recover |
-
-#### Returns
-
-*Function does not return any values*
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `DepartmentFundsRecovered` - Contains asset address (indexed), recipient (indexed), and balance recovered
-
-#### Example Usage
-```python
-# Recover accidentally sent USDC
-dept_basics.recoverFunds(
-    treasury.address,      # Send to treasury
-    usdc_token.address,    # Token to recover
-    sender=recovery_mgr.address  # Must be in Switchboard
-)
-```
-
-**Example Output**: Transfers full token balance, emits `DepartmentFundsRecovered`
-
-### `recoverFundsMany`
-
-Recovers multiple tokens in a single transaction.
-
-```vyper
-@external
-def recoverFundsMany(_recipient: address, _assets: DynArray[address, MAX_RECOVER_ASSETS]):
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_recipient` | `address` | Address to receive all recovered funds |
-| `_assets` | `DynArray[address, MAX_RECOVER_ASSETS]` | List of token addresses (max 20) |
-
-#### Returns
-
-*Function does not return any values*
-
-#### Access
-
-Only callable by Switchboard-registered contracts
-
-#### Events Emitted
-
-- `DepartmentFundsRecovered` - One event per recovered asset
-
-#### Example Usage
-```python
-# Recover multiple tokens at once
-tokens = [usdc.address, dai.address, weth.address]
-dept_basics.recoverFundsMany(
-    treasury.address,
-    tokens,
-    sender=recovery_mgr.address
-)
-```
-
-**Example Output**: Transfers all token balances, emits event for each
-
-## Usage Pattern
-
-```python
-# Example parent contract implementation
-class DepartmentContract:
-    # Initialize module
-    def __init__(self):
-        deptBasics.__init__(
-            False,  # Not paused
-            True,   # Can mint Green
-            False   # Cannot mint Ripe
-        )
-    
-    # Check pause in operations
-    def sensitive_operation(self):
-        if deptBasics.isPaused:
-            raise "Department is paused"
-        # Perform operation
-    
-    # RipeHq checks minting capability
-    def can_mint_check(self):
-        # RipeHq calls canMintGreen() as part of
-        # two-factor authentication for minting
-        return deptBasics.canMintGreen()
-```
-
-## Integration with RipeHq
-
-RipeHq uses DeptBasics minting declarations as part of its two-factor authentication:
-
-1. **Configuration Check**: RipeHq checks if department has minting permission in HQ config
-2. **Capability Check**: RipeHq calls `canMintGreen()` or `canMintRipe()` on the department
-3. **Both Must Pass**: Minting only allowed if both checks return true
-
-This ensures departments explicitly declare their minting intentions and prevents unauthorized minting even if misconfigured in RipeHq.
+<!-- END GENERATED API REFERENCE: DeptBasics -->

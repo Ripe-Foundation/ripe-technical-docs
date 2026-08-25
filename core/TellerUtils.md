@@ -1,372 +1,147 @@
-# TellerUtils Technical Documentation
-
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/core/TellerUtils.vy)
-
-## Overview
-
-TellerUtils is a utility contract that provides validation logic for deposits and withdrawals in Ripe Protocol, as well as underscore protocol integration checks. It separates complex validation logic from the main [Teller](./Teller.md) contract for better code organization and gas optimization.
-
-**Core Functions**:
-- **Deposit Validation**: Validates deposit requests against protocol limits and permissions
-- **Withdrawal Validation**: Validates withdrawal requests including debt health checks
-- **Vault Resolution**: Resolves vault addresses and IDs from various inputs
-- **Underscore Integration**: Checks for underscore wallet/vault ownership and permissions
-
-## Architecture & Modules
-
-### Addys Module
-
-- **Location**: `contracts/modules/Addys.vy`
-- **Purpose**: Provides protocol-wide address resolution
-- **Documentation**: See [Addys Technical Documentation](../core-modules/Addys.md)
-- **Exported Interface**: Address utilities via `addys.__interface__`
-
-### DeptBasics Module
-
-- **Location**: `contracts/modules/DeptBasics.vy`
-- **Purpose**: Provides department-level functionality
-- **Documentation**: See [DeptBasics Technical Documentation](../core-modules/DeptBasics.md)
-- **Exported Interface**: Department basics via `deptBasics.__interface__`
-
-## System Architecture Diagram
-
-```
-+------------------------------------------------------------------------+
-|                        TellerUtils Contract                             |
-+------------------------------------------------------------------------+
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Deposit Validation                             |  |
-|  |                                                                  |  |
-|  |  * Protocol/asset deposit toggles                                |  |
-|  |  * Vault support for asset                                        |  |
-|  |  * User allowlist check                                           |  |
-|  |  * Per-user and global deposit limits                            |  |
-|  |  * Max vaults and assets per vault limits                        |  |
-|  |  * Minimum deposit balance                                        |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Withdrawal Validation                          |  |
-|  |                                                                  |  |
-|  |  * Protocol/asset withdrawal toggles                             |  |
-|  |  * User allowlist check                                           |  |
-|  |  * Caller permission to withdraw for user                        |  |
-|  |  * Maximum withdrawable based on debt health                     |  |
-|  +------------------------------------------------------------------+  |
-|                                                                        |
-|  +------------------------------------------------------------------+  |
-|  |                    Underscore Integration                         |  |
-|  |                                                                  |  |
-|  |  * Check if address is underscore wallet                         |  |
-|  |  * Check if address is underscore vault                          |  |
-|  |  * Check if caller is underscore wallet owner                    |  |
-|  |  * Check if address is underscore lego                           |  |
-|  +------------------------------------------------------------------+  |
-+------------------------------------------------------------------------+
-                                    |
-        +---------------------------+---------------------------+
-        |                           |                           |
-        v                           v                           v
-+------------------+    +-------------------+    +------------------+
-| MissionControl   |    | CreditEngine      |    | Underscore       |
-| * Deposit config |    | * Max withdraw    |    | * Ledger         |
-| * Vault config   |    | * Debt health     |    | * Vault Registry |
-+------------------+    +-------------------+    +------------------+
-```
-
-## Data Structures
-
-### DepositLedgerData Struct
-
-Data from Ledger for deposit validation:
-
-```vyper
-struct DepositLedgerData:
-    isParticipatingInVault: bool  # User already has position in vault
-    numUserVaults: uint256        # Total number of user's vaults
-```
-
-### TellerDepositConfig Struct
-
-Configuration for deposit validation:
-
-```vyper
-struct TellerDepositConfig:
-    canDepositGeneral: bool           # Global deposit toggle
-    canDepositAsset: bool             # Asset-specific deposit toggle
-    doesVaultSupportAsset: bool       # Vault supports this asset
-    isUserAllowed: bool               # User on allowlist
-    perUserDepositLimit: uint256      # Per-user deposit cap
-    globalDepositLimit: uint256       # Global deposit cap
-    perUserMaxAssetsPerVault: uint256 # Max assets per vault
-    perUserMaxVaults: uint256         # Max vaults per user
-    canAnyoneDeposit: bool            # Anyone can deposit for others
-    minDepositBalance: uint256        # Minimum balance required
-```
-
-### TellerWithdrawConfig Struct
-
-Configuration for withdrawal validation:
-
-```vyper
-struct TellerWithdrawConfig:
-    canWithdrawGeneral: bool    # Global withdrawal toggle
-    canWithdrawAsset: bool      # Asset-specific withdrawal toggle
-    isUserAllowed: bool         # User on allowlist
-    canWithdrawForUser: bool    # Can caller withdraw for user
-    minDepositBalance: uint256  # Minimum balance to maintain
-```
-
-## State Variables
-
-### Constants
-
-- `UNDERSCORE_LEDGER_ID: uint256 = 1` - Registry ID for underscore ledger
-- `UNDERSCORE_LEGOBOOK_ID: uint256 = 3` - Registry ID for underscore lego book
-- `UNDERSCORE_VAULT_REGISTRY_ID: uint256 = 10` - Registry ID for underscore vault registry
-
-## Constructor
-
-### `__init__`
-
-Initializes TellerUtils without minting permissions.
-
-```vyper
-@deploy
-def __init__(_ripeHq: address):
-```
-
-#### Parameters
-
-| Name      | Type      | Description             |
-| --------- | --------- | ----------------------- |
-| `_ripeHq` | `address` | RipeHq contract address |
-
-## Deposit Validation
-
-### `validateOnDeposit`
-
-Validates a deposit request and returns the allowed amount.
-
-```vyper
-@view
-@external
-def validateOnDeposit(
-    _asset: address,
-    _amount: uint256,
-    _user: address,
-    _vaultId: uint256,
-    _vaultAddr: address,
-    _depositor: address,
-    _didAlreadyValidateSender: bool,
-    _areFundsHereAlready: bool,
-    _d: DepositLedgerData,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name                       | Type               | Description                          |
-| -------------------------- | ------------------ | ------------------------------------ |
-| `_asset`                   | `address`          | Asset to deposit                     |
-| `_amount`                  | `uint256`          | Requested deposit amount             |
-| `_user`                    | `address`          | User to deposit for                  |
-| `_vaultId`                 | `uint256`          | Target vault ID                      |
-| `_vaultAddr`               | `address`          | Target vault address                 |
-| `_depositor`               | `address`          | Address initiating deposit           |
-| `_didAlreadyValidateSender`| `bool`             | Skip sender validation               |
-| `_areFundsHereAlready`     | `bool`             | Funds already at Teller              |
-| `_d`                       | `DepositLedgerData`| Ledger data for user                 |
-| `_a`                       | `addys.Addys`      | Cached addresses (optional)          |
-
-#### Returns
-
-| Type      | Description                  |
-| --------- | ---------------------------- |
-| `uint256` | Validated deposit amount     |
-
-#### Validation Steps
-
-1. Check protocol deposits enabled
-2. Check asset deposits enabled
-3. Check vault supports asset
-4. Check user is allowed
-5. Verify depositor can deposit for user (unless Ripe dept or underscore owner)
-6. Check available balance
-7. For non-Ripe departments:
-   - Verify max vaults limit
-   - Verify max assets per vault limit
-   - Check per-user deposit limit
-   - Check global deposit limit
-   - Verify minimum balance requirement
-
-## Withdrawal Validation
-
-### `validateOnWithdrawal`
-
-Validates a withdrawal request and returns the allowed amount.
-
-```vyper
-@view
-@external
-def validateOnWithdrawal(
-    _asset: address,
-    _amount: uint256,
-    _user: address,
-    _vaultAddr: address,
-    _vaultId: uint256,
-    _caller: address,
-    _config: TellerWithdrawConfig,
-    _a: addys.Addys = empty(addys.Addys),
-) -> uint256:
-```
-
-#### Parameters
-
-| Name       | Type                  | Description                     |
-| ---------- | --------------------- | ------------------------------- |
-| `_asset`   | `address`             | Asset to withdraw               |
-| `_amount`  | `uint256`             | Requested withdrawal amount     |
-| `_user`    | `address`             | User withdrawing                |
-| `_vaultAddr`| `address`            | Vault address                   |
-| `_vaultId` | `uint256`             | Vault ID                        |
-| `_caller`  | `address`             | Caller address                  |
-| `_config`  | `TellerWithdrawConfig`| Withdrawal configuration        |
-| `_a`       | `addys.Addys`         | Cached addresses (optional)     |
-
-#### Returns
-
-| Type      | Description                    |
-| --------- | ------------------------------ |
-| `uint256` | Validated withdrawal amount    |
-
-#### Validation Steps
-
-1. Check amount is non-zero
-2. Check protocol withdrawals enabled
-3. Check asset withdrawals enabled
-4. Check user is allowed
-5. Verify caller can withdraw for user (if not same address)
-6. Get max withdrawable from CreditEngine (respects debt health)
-7. Return minimum of requested and max withdrawable
-
-## Vault Resolution
-
-### `getVaultAddrAndId`
-
-Resolves vault address and ID from various inputs.
-
-```vyper
-@view
-@external
-def getVaultAddrAndId(
-    _asset: address,
-    _vaultAddr: address,
-    _vaultId: uint256,
-    _vaultBook: address,
-    _missionControl: address,
-) -> (address, uint256):
-```
-
-#### Parameters
-
-| Name              | Type      | Description                    |
-| ----------------- | --------- | ------------------------------ |
-| `_asset`          | `address` | Asset address                  |
-| `_vaultAddr`      | `address` | Vault address (optional)       |
-| `_vaultId`        | `uint256` | Vault ID (optional)            |
-| `_vaultBook`      | `address` | VaultBook registry address     |
-| `_missionControl` | `address` | MissionControl address         |
-
-#### Returns
-
-| Type      | Description          |
-| --------- | -------------------- |
-| `address` | Resolved vault address|
-| `uint256` | Resolved vault ID    |
-
-#### Resolution Logic
-
-1. If neither vault address nor ID provided: Get first vault for asset from MissionControl
-2. If vault ID provided: Look up address from VaultBook
-3. If vault address provided: Look up ID from VaultBook
-4. Validates consistency if both provided
-
-## Underscore Integration Functions
-
-### `isUnderscoreWalletOrVault`
-
-Checks if an address is an underscore wallet or vault.
-
-```vyper
-@view
-@external
-def isUnderscoreWalletOrVault(_addr: address, _mc: address = empty(address)) -> bool:
-```
-
-### `isUnderscoreWallet`
-
-Checks if an address is an underscore wallet.
-
-```vyper
-@view
-@external
-def isUnderscoreWallet(_user: address, _mc: address = empty(address)) -> bool:
-```
-
-### `isUnderscoreVault`
-
-Checks if an address is an underscore earn vault.
-
-```vyper
-@view
-@external
-def isUnderscoreVault(_user: address, _mc: address = empty(address)) -> bool:
-```
-
-### `isUnderscoreWalletOwner`
-
-Checks if a caller is the owner of an underscore wallet.
-
-```vyper
-@view
-@external
-def isUnderscoreWalletOwner(_user: address, _caller: address, _mc: address = empty(address)) -> bool:
-```
-
-#### Logic
-
-1. Verify user is an underscore wallet
-2. Get wallet config from wallet
-3. Check if caller matches owner in wallet config
-
-### `isUnderscoreAddr`
-
-Checks if an address is in the underscore registry or is an underscore lego.
-
-```vyper
-@view
-@external
-def isUnderscoreAddr(_addr: address, _mc: address = empty(address)) -> bool:
-```
-
-### `isUnderscoreOwnerOrLego`
-
-Checks if caller is either the underscore wallet owner or an underscore lego.
-
-```vyper
-@view
-@external
-def isUnderscoreOwnerOrLego(_user: address, _caller: address, _mc: address = empty(address)) -> bool:
-```
-
-## Security Considerations
-
-1. **Access Control**: Validation functions enforce protocol permissions
-2. **Deposit Limits**: Multiple layers of limits (per-user, global, vault-specific)
-3. **Withdrawal Protection**: Respects debt health via CreditEngine
-4. **Underscore Integration**: Proper validation of underscore wallet ownership
-5. **Trusted Deposits**: Ripe departments bypass user limits
-6. **Pause Respect**: Inherits pause mechanism from DeptBasics
+# TellerUtils
+
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/core/TellerUtils.vy)
+
+## Purpose
+
+`TellerUtils` centralizes validation and resolution helpers used by [Teller](./Teller.md). It is a policy helper, not a custody or accounting authority: Teller and the destination departments still enforce their own access controls and state transitions.
+
+## Deposit validation
+
+`validateOnDeposit` checks the current protocol, asset, vault, and user configuration. Depending on the caller and route, it validates:
+
+- vault and asset registration and enablement;
+- user/delegate deposit permission;
+- available holder balance;
+- per-user vault/asset-count limits;
+- per-user and system deposit caps; and
+- minimum resulting balances.
+
+Registered Ripe depositors can bypass ordinary user limits for protocol
+settlement flows. That helper branch returns the lesser of the request and the
+selected holder's balance: Teller when `_areFundsHereAlready` is true, otherwise
+the depositor. On the ordinary measured-deposit branch, already-held funds must
+equal the requested amount instead of being silently clamped.
+VaultMigrator establishes end-to-end migration exactness separately by checking
+the resulting deposit and custody deltas.
+
+## Withdrawal validation
+
+Withdrawal helpers verify current vault resolution, caller authority, user configuration, balance, and CreditEngine's maximum safe withdrawal. A successful validation is local to the observed state; execution can still revert if a downstream balance or risk condition changes.
+
+Vault resolution checks both the supplied address and ID. Callers should resolve current roles through MissionControl/VaultBook instead of assuming a permanent numeric ID.
+
+## Underscore resolution
+
+Underscore wallet, vault, Lego, and Earn-vault checks resolve the current MissionControl registry first and fail false when required topology is absent. In particular:
+
+- `isUnderscoreAddr` resolves the current MissionControl address before testing membership;
+- a current Underscore wallet owner satisfies `isUnderscoreOwnerOrLego`
+  immediately; and
+- otherwise, the delegated branch requires the caller to be either a current
+  root Underscore-registry member or a current LegoBook member, plus the user's
+  explicit `doesUndyLegoHaveAccess` grant.
+
+Being an arbitrary Underscore-associated address is not sufficient to act for a user.
+
+## Security and integration notes
+
+- Helpers fail closed for missing or malformed current topology.
+- Exact-held-funds validation protects the ordinary branch; protocol-depositor
+  branches require the calling workflow's own post-custody invariants.
+- Results are validation inputs, not durable permissions; mutation paths re-evaluate current state.
+
+<!-- BEGIN GENERATED API REFERENCE: TellerUtils -->
+## Exact API reference
+
+> Generated from `contracts/core/TellerUtils.vy` and its tracked ABI. The ABI inventory includes inherited and exported module members and is the selector-facing reference.
+
+### Constructor
+
+- `constructor(address _ripeHq)`
+
+### Optional-argument call guide
+
+Vyper exposes one ABI selector for each accepted prefix of a default-argument call. Use the canonical full call below for readability; the exact selector table that follows retains every callable arity.
+
+| Canonical full call | Accepted argument counts | Optional trailing arguments |
+| --- | --- | --- |
+| `isUnderscoreAddr(address _addr, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreOwnerOrLego(address _user, address _caller, address _mc)` | `2–3` | `_mc = empty(address)` |
+| `isUnderscoreVault(address _user, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreWallet(address _user, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreWalletOrVault(address _addr, address _mc)` | `1–2` | `_mc = empty(address)` |
+| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `2–3` | `_mc = empty(address)` |
+| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, tuple _d, Addys _a)` | `9–10` | `_a = empty(addys.Addys)` |
+| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, tuple _config, Addys _a)` | `7–8` | `_a = empty(addys.Addys)` |
+
+### Functions
+
+| Signature | Mutability | ABI returns | Source return type |
+| --- | --- | --- | --- |
+| `canMintGreen()` | `view` | `bool` | — |
+| `canMintRipe()` | `view` | `bool` | — |
+| `getAddys()` | `view` | `(address hq, address greenToken, address savingsGreen, address ripeToken, address ledger, address missionControl, address switchboard, address priceDesk, address vaultBook, address auctionHouse, address auctionHouseNft, address boardroom, address bondRoom, address creditEngine, address endaoment, address humanResources, address lootbox, address teller)` | — |
+| `getRipeHq()` | `view` | `address` | — |
+| `getVaultAddrAndId(address _asset, address _vaultAddr, uint256 _vaultId, address _vaultBook, address _missionControl)` | `view` | `(address, uint256)` | `(address, uint256)` |
+| `isPaused()` | `view` | `bool` | — |
+| `isUnderscoreAddr(address _addr)` | `view` | `bool` | `bool` |
+| `isUnderscoreAddr(address _addr, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreOwnerOrLego(address _user, address _caller)` | `view` | `bool` | `bool` |
+| `isUnderscoreOwnerOrLego(address _user, address _caller, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreVault(address _user)` | `view` | `bool` | `bool` |
+| `isUnderscoreVault(address _user, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreWallet(address _user)` | `view` | `bool` | `bool` |
+| `isUnderscoreWallet(address _user, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOrVault(address _addr)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOrVault(address _addr, address _mc)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOwner(address _user, address _caller)` | `view` | `bool` | `bool` |
+| `isUnderscoreWalletOwner(address _user, address _caller, address _mc)` | `view` | `bool` | `bool` |
+| `pause(bool _shouldPause)` | `nonpayable` | — | — |
+| `recoverFunds(address _recipient, address _asset)` | `nonpayable` | — | — |
+| `recoverFundsMany(address _recipient, address[] _assets)` | `nonpayable` | — | — |
+| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, (bool,uint256) _d)` | `view` | `uint256` | `uint256` |
+| `validateOnDeposit(address _asset, uint256 _amount, address _user, uint256 _vaultId, address _vaultAddr, address _depositor, bool _didAlreadyValidateSender, bool _areFundsHereAlready, (bool,uint256) _d, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` | `uint256` |
+| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, (bool,bool,bool,bool,uint256) _config)` | `view` | `uint256` | `uint256` |
+| `validateOnWithdrawal(address _asset, uint256 _amount, address _user, address _vaultAddr, uint256 _vaultId, address _caller, (bool,bool,bool,bool,uint256) _config, (address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address,address) _a)` | `view` | `uint256` | `uint256` |
+
+### Events
+
+| Event | Fields |
+| --- | --- |
+| `DepartmentFundsRecovered` | `address asset indexed, address recipient indexed, uint256 balance` |
+| `DepartmentPauseModified` | `bool isPaused` |
+
+### Structs declared by this source
+
+- `DepositLedgerData(isParticipatingInVault: bool, numUserVaults: uint256)`
+- `TellerDepositConfig(canDepositGeneral: bool, canDepositAsset: bool, doesVaultSupportAsset: bool, isUserAllowed: bool, perUserDepositLimit: uint256, globalDepositLimit: uint256, perUserMaxAssetsPerVault: uint256, perUserMaxVaults: uint256, canAnyoneDeposit: bool, minDepositBalance: uint256)`
+- `TellerWithdrawConfig(canWithdrawGeneral: bool, canWithdrawAsset: bool, isUserAllowed: bool, canWithdrawForUser: bool, minDepositBalance: uint256)`
+
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `asset deposits disabled`
+- `asset withdrawals disabled`
+- `cannot deposit 0`
+- `cannot deposit for user`
+- `cannot deposit, reached global limit`
+- `cannot deposit, reached user limit`
+- `cannot partially deposit held funds`
+- `cannot withdraw 0`
+- `cannot withdraw anything`
+- `invalid asset`
+- `invalid vault addr`
+- `invalid vault id`
+- `not allowed to withdraw for user`
+- `protocol deposits disabled`
+- `protocol withdrawals disabled`
+- `reached max assets per vault`
+- `reached max vaults`
+- `too small a balance`
+- `user not on whitelist`
+- `vault does not support asset`
+- `vault id and vault addr mismatch`
+
+<!-- END GENERATED API REFERENCE: TellerUtils -->

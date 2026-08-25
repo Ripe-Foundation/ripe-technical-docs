@@ -1,541 +1,134 @@
-# TimeLock Technical Documentation
+# TimeLock
 
-[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/master/contracts/modules/TimeLock.vy)
+[📄 View Source Code](https://github.com/Ripe-Foundation/ripe-protocol/blob/5c30234e855cd8cbb54d199aef48e5ee07538244/contracts/modules/TimeLock.vy)
 
-## Overview
+`TimeLock` is the reusable action-delay module inherited by Switchboard
+configuration contracts. It assigns one-based action IDs and stores an
+initiation block, confirmation block, and expiration block for each action.
 
-TimeLock is a flexible time-delay module for managing sensitive operations within the Ripe Protocol. It provides a universal timer mechanism that enforces waiting periods before action execution while preventing stale operations
-through expiration windows, ensuring transparent and secure protocol changes.
+> The module is implementation source. The host contract owns action payloads,
+> permission checks, execution-time validation, and cancellation events.
 
-**Key Features**:
-- **Action Scheduling**: Sequential ID assignment with configurable delays before confirmation
-- **Expiration Management**: Actions expire if not executed within the window, preventing indefinite pending operations
-- **Flexible Configuration**: Adjustable time-lock and expiration parameters within governance-set bounds
+## Action window
 
-The module integrates with LocalGov for access control, maintains pending action mappings, provides validation functions, and includes special setup procedures for initial deployment, promoting secure time-delayed operations
-across protocol components.
+For a new action:
 
-## System Architecture Diagram
-
-```
-+---------------------------------------------------------------+
-|                      TimeLock Module                          |
-+---------------------------------------------------------------+
-|                                                               |
-|  +----------------------------------------------------------+ |
-|  |                   Action Lifecycle                       | |
-|  |                                                          | |
-|  |  1. Initiate Action (returns actionId)                   | |
-|  |     * Records initiatedBlock                             | |
-|  |     * Sets confirmBlock = current + timeLock             | |
-|  |     * Sets expiration = confirmBlock + expirationWindow  | |
-|  |                                                          | |
-|  |  2. Wait for Time-lock Period                            | |
-|  |     * Action cannot be confirmed before confirmBlock     | |
-|  |                                                          | |
-|  |  3. Confirmation Window Opens                            | |
-|  |     * Between confirmBlock and expiration                | |
-|  |     * Action can be confirmed or cancelled               | |
-|  |                                                          | |
-|  |  4. Expiration (if not confirmed)                        | |
-|  |     * After expiration block, action becomes invalid     | |
-|  +----------------------------------------------------------+ |
-|                                                               |
-|  +----------------------------------------------------------+ |
-|  |                  Core Components                         | |
-|  |                                                          | |
-|  |  * pendingActions: actionId -> PendingAction mapping     | |
-|  |  * actionId: Sequential counter (starts at 1)            | |
-|  |  * actionTimeLock: Current time-lock setting             | |
-|  |  * expiration: Window after confirmBlock                 | |
-|  +----------------------------------------------------------+ |
-|                                                               |
-|  +----------------------------------------------------------+ |
-|  |               Governance Integration                     | |
-|  |                                                          | |
-|  |  * Uses LocalGov module for access control               | |
-|  |  * Time-lock and expiration adjustable by governance     | |
-|  |  * Bounded by MIN/MAX_ACTION_TIMELOCK                    | |
-|  +----------------------------------------------------------+ |
-+---------------------------------------------------------------+
-                               |
-                               v
-+---------------------------------------------------------------+
-|                 Parent Contract Integration                   |
-|                                                               |
-|  Example Usage:                                               |
-|  1. Parent calls _initiateAction() -> gets actionId           |
-|  2. Parent stores actionId with operation details             |
-|  3. After time-lock, parent calls _confirmAction(actionId)    |
-|  4. Parent executes operation if confirmation succeeds        |
-+---------------------------------------------------------------+
+```text
+confirmBlock = block.number + actionTimeLock
+expirationBlock = confirmBlock + expiration
 ```
 
-## Data Structures
+The action is confirmable when
+`confirmBlock <= block.number < expirationBlock`. Reaching the expiration block
+makes it expired. Confirmation and cancellation clear the stored
+`PendingAction`; payload cleanup remains the host's responsibility.
 
-### PendingAction Struct
-Tracks timing information for each pending action:
-```vyper
-struct PendingAction:
-    initiatedBlock: uint256    # Block when action was initiated
-    confirmBlock: uint256      # Block when action can be confirmed
-    expiration: uint256        # Block when action expires
-```
+The module guards both additions against `uint256` overflow before storing the
+action.
 
-## State Variables
+## Configuration invariants
 
-### Public State Variables
-- `pendingActions: HashMap[uint256, PendingAction]` - Maps action ID to pending action data
-- `actionId: uint256` - Next available action ID (sequential counter)
-- `actionTimeLock: uint256` - Current time-lock setting in blocks
-- `expiration: uint256` - Expiration window in blocks after confirmation time
+The constructor fixes immutable minimum and maximum action delays. Current
+configuration must satisfy:
 
-### Immutable Variables
-- `MIN_ACTION_TIMELOCK: uint256` - Minimum allowed time-lock period
-- `MAX_ACTION_TIMELOCK: uint256` - Maximum allowed time-lock period
+- `MIN_ACTION_TIMELOCK <= actionTimeLock <= MAX_ACTION_TIMELOCK`;
+- `actionTimeLock <= expiration`;
+- `0 < expiration <= MAX_ACTION_TIMELOCK`; and
+- a new action delay must differ from the current value.
 
-## Constructor
+`setActionTimeLockAfterSetup` is the one-time transition from delay zero to the
+supplied valid value or the immutable minimum. Changing the configured delay or
+expiration does not rewrite already-created `PendingAction` records.
 
-### `__init__`
+## Host integration
 
-Initializes the TimeLock module with time-lock bounds and expiration settings.
+The host normally stores an action-type tag and payload under the returned
+action ID, emits a proposal event using `getActionConfirmationBlock`, and later
+calls `_confirmAction`. A host should re-read state and revalidate any
+state-sensitive invariant at execution rather than relying only on proposal-time
+checks.
 
-```vyper
-@deploy
-def __init__(
-    _minActionTimeLock: uint256,
-    _maxActionTimeLock: uint256,
-    _initialTimeLock: uint256,
-    _expiration: uint256,
-):
-```
+Switchboards use this pattern for debt-term rails, current vault pointers,
+replacement targets, and irreversible point-accrual disables.
 
-#### Parameters
+## Clock semantics
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_minActionTimeLock` | `uint256` | Minimum time-lock blocks allowed |
-| `_maxActionTimeLock` | `uint256` | Maximum time-lock blocks allowed |
-| `_initialTimeLock` | `uint256` | Initial time-lock setting (0 for setup phase) |
-| `_expiration` | `uint256` | Expiration window in blocks after confirm time |
+All delays use EVM `block.number`, not timestamps or Ledger's configurable
+action-block source.
 
-#### Returns
+<!-- BEGIN GENERATED API REFERENCE: TimeLock -->
+## Exact source-declared API reference
 
-*Constructor does not return any values*
+> Generated from declarations in `contracts/modules/TimeLock.vy`. This source has no tracked ABI under `scripts/abis`; the inventory therefore covers deployment/module initializers, external functions and their default-argument call forms, compiler-generated public getters inferred from declarations, events, flags, constants, structs, and source-declared revert reasons found in this source. It does not claim a composed host ABI or canonical runtime selector surface.
 
-#### Access
+### Deployment/module initializer declared by this source
 
-Called only during deployment by parent contract
+A `@deploy` initializer is constructor context when this source is deployed or module-initialization context when composed. It is not a runtime selector.
 
-#### Example Usage
-```python
-# Initialize TimeLock module
-time_lock.__init__(
-    10,    # Min timelock: 10 blocks
-    1000,  # Max timelock: 1000 blocks
-    100,   # Initial timelock: 100 blocks
-    500    # Expiration window: 500 blocks after confirm time
-)
-```
+- `def __init__(_minActionTimeLock: uint256, _maxActionTimeLock: uint256, _initialTimeLock: uint256, _expiration: uint256)`
 
-**Example Output**: Module initialized with actionId counter at 1, time-lock and expiration set
+### External functions declared by this source
 
-## Action Query Functions
+| Source declaration | Accepted arities | Mutability | Returns |
+| --- | --- | --- | --- |
+| `def canConfirmAction(_actionId: uint256) -> bool` | `1` | `view` | `bool` |
+| `def getActionConfirmationBlock(_actionId: uint256) -> uint256` | `1` | `view` | `uint256` |
+| `def hasPendingAction(_actionId: uint256) -> bool` | `1` | `view` | `bool` |
+| `def isExpired(_actionId: uint256) -> bool` | `1` | `view` | `bool` |
+| `def isValidActionTimeLock(_newTimeLock: uint256) -> bool` | `1` | `view` | `bool` |
+| `def maxActionTimeLock() -> uint256` | `0` | `view` | `uint256` |
+| `def minActionTimeLock() -> uint256` | `0` | `view` | `uint256` |
+| `def setActionTimeLock(_newTimeLock: uint256) -> bool` | `1` | `nonpayable` | `bool` |
+| `def setActionTimeLockAfterSetup(_newTimeLock: uint256 = 0) -> bool` | `0–1` | `nonpayable` | `bool` |
+| `def setExpiration(_expiration: uint256) -> bool` | `1` | `nonpayable` | `bool` |
 
-### `canConfirmAction`
+### Source-declared call forms
 
-Checks if an action can be confirmed (time-lock passed, not expired).
+Each row is one source-level call form permitted by the declaration's trailing defaults. These signatures use Vyper source notation; they are not canonical ABI signatures or selector-hash preimages. Without a tracked compiled ABI, this table does not claim the exact runtime selector surface.
 
-```vyper
-@view
-@external
-def canConfirmAction(_actionId: uint256) -> bool:
-```
+| Source call form | Mutability | Returns |
+| --- | --- | --- |
+| `canConfirmAction(uint256 _actionId)` | `view` | `bool` |
+| `getActionConfirmationBlock(uint256 _actionId)` | `view` | `uint256` |
+| `hasPendingAction(uint256 _actionId)` | `view` | `bool` |
+| `isExpired(uint256 _actionId)` | `view` | `bool` |
+| `isValidActionTimeLock(uint256 _newTimeLock)` | `view` | `bool` |
+| `maxActionTimeLock()` | `view` | `uint256` |
+| `minActionTimeLock()` | `view` | `uint256` |
+| `setActionTimeLock(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup()` | `nonpayable` | `bool` |
+| `setActionTimeLockAfterSetup(uint256 _newTimeLock)` | `nonpayable` | `bool` |
+| `setExpiration(uint256 _expiration)` | `nonpayable` | `bool` |
 
-#### Parameters
+### Compiler-generated public getters
 
-| Name | Type | Description |
-|------|------|-------------|
-| `_actionId` | `uint256` | The action ID to check |
+| Getter | Mutability | Source return type |
+| --- | --- | --- |
+| `actionId()` | `view` | `uint256` |
+| `actionTimeLock()` | `view` | `uint256` |
+| `expiration()` | `view` | `uint256` |
+| `pendingActions(uint256 key1)` | `view` | `PendingAction` |
 
-#### Returns
+### Events declared by this source
 
-| Type | Description |
-|------|-------------|
-| `bool` | True if action can be confirmed |
+- `ActionTimeLockSet(newTimeLock: uint256, prevTimeLock: uint256)`
+- `ExpirationSet(expiration: uint256)`
 
-#### Access
+### Structs declared by this source
 
-Public view function
+- `PendingAction(initiatedBlock: uint256, confirmBlock: uint256, expiration: uint256)`
 
-#### Example Usage
-```python
-# Check if action 5 can be confirmed
-can_confirm = time_lock.canConfirmAction(5)
-# Returns: True if confirmBlock reached and not expired
-```
-
-### `isExpired`
-
-Checks if an action has expired.
-
-```vyper
-@view
-@external
-def isExpired(_actionId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_actionId` | `uint256` | The action ID to check |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if action has expired |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check if action 5 has expired
-expired = time_lock.isExpired(5)
-# Returns: True if current block >= expiration block
-```
-
-### `hasPendingAction`
-
-Checks if an action ID has a pending action.
-
-```vyper
-@view
-@external
-def hasPendingAction(_actionId: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_actionId` | `uint256` | The action ID to check |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if action is pending |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check if action 5 is pending
-has_pending = time_lock.hasPendingAction(5)
-# Returns: True if action exists and not yet confirmed/cancelled
-```
-
-### `getActionConfirmationBlock`
-
-Gets the confirmation block for a pending action.
-
-```vyper
-@view
-@external
-def getActionConfirmationBlock(_actionId: uint256) -> uint256:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_actionId` | `uint256` | The action ID |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | The block number when action can be confirmed (0 if not found) |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Get confirmation block for action 5
-confirm_block = time_lock.getActionConfirmationBlock(5)
-# Returns: Block number when confirmation is allowed
-```
-
-## Time-lock Configuration Functions
-
-### `setActionTimeLock`
-
-Updates the time-lock period for future actions.
-
-```vyper
-@external
-def setActionTimeLock(_newTimeLock: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_newTimeLock` | `uint256` | New time-lock period in blocks |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if successfully updated |
-
-#### Access
-
-Only callable by governance (see [LocalGov](./LocalGov.md) for governance details)
-
-#### Events Emitted
-
-- `ActionTimeLockSet` - Contains previous and new time-lock values
-
-#### Example Usage
-```python
-# Update time-lock to 200 blocks
-success = time_lock.setActionTimeLock(
-    200,
-    sender=governance.address
-)
-assert success == True
-```
-
-**Example Output**: Time-lock updated, emits `ActionTimeLockSet`
-
-### `isValidActionTimeLock`
-
-Validates if a proposed time-lock value is acceptable.
-
-```vyper
-@view
-@external
-def isValidActionTimeLock(_newTimeLock: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_newTimeLock` | `uint256` | Proposed time-lock value |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if time-lock value is valid |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-# Check if 200 blocks is valid time-lock
-is_valid = time_lock.isValidActionTimeLock(200)
-# Returns: True if within bounds and different from current
-```
-
-### `minActionTimeLock`
-
-Returns the minimum allowed time-lock period.
-
-```vyper
-@view
-@external
-def minActionTimeLock() -> uint256:
-```
-
-#### Parameters
-
-*Function has no parameters*
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Minimum time-lock in blocks |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-min_lock = time_lock.minActionTimeLock()
-# Returns: 10 (example minimum)
-```
-
-### `maxActionTimeLock`
-
-Returns the maximum allowed time-lock period.
-
-```vyper
-@view
-@external
-def maxActionTimeLock() -> uint256:
-```
-
-#### Parameters
-
-*Function has no parameters*
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `uint256` | Maximum time-lock in blocks |
-
-#### Access
-
-Public view function
-
-#### Example Usage
-```python
-max_lock = time_lock.maxActionTimeLock()
-# Returns: 1000 (example maximum)
-```
-
-### `setActionTimeLockAfterSetup`
-
-Special function to set time-lock after initial setup phase (when time-lock is 0).
-
-```vyper
-@external
-def setActionTimeLockAfterSetup(_newTimeLock: uint256 = 0) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_newTimeLock` | `uint256` | Time-lock value (0 uses minimum) |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if successfully set |
-
-#### Access
-
-Only callable by governance when time-lock is currently 0
-
-#### Events Emitted
-
-- `ActionTimeLockSet` - Contains previous (0) and new time-lock values
-
-#### Example Usage
-```python
-# Complete setup with specific time-lock
-success = time_lock.setActionTimeLockAfterSetup(
-    150,  # Set to 150 blocks
-    sender=governance.address
-)
-
-# Or use minimum
-success = time_lock.setActionTimeLockAfterSetup(
-    0,  # Use minimum
-    sender=governance.address
-)
-```
-
-**Example Output**: Time-lock set from 0 to specified value
-
-## Expiration Configuration Functions
-
-### `setExpiration`
-
-Updates the expiration window for future actions.
-
-```vyper
-@external
-def setExpiration(_expiration: uint256) -> bool:
-```
-
-#### Parameters
-
-| Name | Type | Description |
-|------|------|-------------|
-| `_expiration` | `uint256` | New expiration window in blocks |
-
-#### Returns
-
-| Type | Description |
-|------|-------------|
-| `bool` | True if successfully updated |
-
-#### Access
-
-Only callable by governance (see [LocalGov](./LocalGov.md) for governance details)
-
-#### Events Emitted
-
-- `ExpirationSet` - Contains the new expiration value
-
-#### Example Usage
-```python
-# Update expiration window to 1000 blocks
-success = time_lock.setExpiration(
-    1000,
-    sender=governance.address
-)
-assert success == True
-```
-
-**Example Output**: Expiration updated, emits `ExpirationSet`
-
-## Internal Functions
-
-Note: The TimeLock module includes several internal functions that are called by the parent contract to manage actions:
-
-- `_initiateAction()` - Creates a new pending action and returns its ID
-- `_confirmAction(_actionId)` - Confirms a pending action if timing allows
-- `_cancelAction(_actionId)` - Cancels a pending action
-- `_canConfirmAction(_actionId)` - Internal check for confirmation validity
-- `_isExpired(_actionId)` - Internal check for expiration
-- `_hasPendingAction(_actionId)` - Internal check for pending status
-- `_getActionConfirmationBlock(_actionId)` - Internal getter for confirm block
-
-These functions do not emit events directly but are used by parent contracts to implement time-locked operations.
-
-## Usage Pattern
-
-```python
-# Example parent contract usage
-class ParentContract:
-    def initiate_sensitive_operation(self):
-        # Start time-locked action
-        action_id = self._initiateAction()
-        # Store action_id with operation details
-        self.pending_operations[action_id] = operation_data
-        return action_id
-    
-    def execute_sensitive_operation(self, action_id):
-        # Verify action can be confirmed
-        if not self._confirmAction(action_id):
-            raise "Action cannot be confirmed"
-        
-        # Execute the operation
-        operation_data = self.pending_operations[action_id]
-        # ... perform operation ...
-        
-    def cancel_operation(self, action_id):
-        # Cancel if needed
-        if self._cancelAction(action_id):
-            del self.pending_operations[action_id]
-```
+### Source-declared revert reasons
+
+These are explicit source annotations or string reasons, not an exhaustive list of typed-call failures, arithmetic panics, or inherited-module reverts.
+
+- `action confirmation overflow`
+- `action expiration overflow`
+- `already set`
+- `failed to set initial time lock`
+- `invalid expiration`
+- `invalid time lock`
+- `invalid time lock boundaries`
+- `no perms`
+
+<!-- END GENERATED API REFERENCE: TimeLock -->
